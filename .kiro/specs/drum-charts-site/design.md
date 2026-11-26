@@ -75,9 +75,12 @@ palette needs no new property.
 
 ## Order and metadata
 
-- Order: artist, then title, compared in lower case; ties by slug. It is
-  the order of the drum-charts file names (`<artist>-<title>.ly`) and of
-  the chart headers, which put the artist on top. Rejected: by title
+- Order: artist, then title, compared in lower case; ties by slug. The
+  charts are filed by artist (`<artist>-<title>.ly`), and the chart
+  header puts the artist on top. The file-name order differs in places
+  (`soad-` sorts before `sum41-`, `ratm-` files under "Rage Against The
+  Machine"), so the sort uses the artist from the header, never the
+  slug. Rejected: by title
   (the charts are filed by artist), newest first (the release carries no
   per-song date; git history would have to enter the data).
 - Shown per song: title, artist, page count. The page count tells a
@@ -94,10 +97,24 @@ Locked with this design.
 
 | Where | What |
 | --- | --- |
-| drum-charts | GitHub Actions on `ubuntu-24.04` (the existing jobs); `pdfinfo` and `pdftocairo` from the apt `poppler-utils` the workflow already installs; Python 3 standard library (the runner's `python3`) for `scripts/site-data.py`; Docker Buildx with a `docker-container` builder; cosign at the version and SHA-256 of this repository's `ci.yaml` (`COSIGN_VERSION`, `COSIGN_SHA256`), downloaded and checked in the job; `actions/attest-build-provenance` at the SHA `site-publish` uses; GHCR |
-| This repository | Go at the version of `dashboard/go.mod`, standard library only at run time (`encoding/json`, `encoding/xml`, `html/template`, `compress/gzip`, `embed`), `govulncheck` as a `tool` directive like the radar; bash for the scripts; `scripts/ci/site_markup.py` (Python); nginx of the `homelab-site` base image; the shared Gateway (Cilium), cert-manager, external-dns, Renovate (hosted app), Argo CD |
+| drum-charts | GitHub Actions on `ubuntu-24.04` (the existing jobs); `pdfinfo` and `pdftocairo` from the apt `poppler-utils` the workflow already installs; Python 3 standard library (the runner's `python3`) for `scripts/site-data.py`; Docker Buildx with a `docker-container` builder; cosign (`COSIGN_VERSION`, `COSIGN_SHA256`) and the SHAs of `docker/setup-buildx-action`, `docker/login-action` and `actions/attest-build-provenance`, copied into `build.yaml` from this repository's `ci.yaml` and `site-publish.yaml` at task 2 and updated by hand when those pins move (the signature format is fixed by the cosign flags, not the version); GHCR. drum-charts has no Renovate; adding it is a separate issue in ned-si/drum-charts, opened with task 2, not part of this spec |
+| This repository | Go at the version of `dashboard/go.mod`, `GOTOOLCHAIN=local`, standard library only at run time (`encoding/json`, `encoding/xml`, `html/template`, `compress/gzip`, `embed`), `govulncheck` as a `tool` directive run with `go tool govulncheck`, like the radar (so the module has a `go.sum`); bash for the scripts; `scripts/ci/site_markup.py` (Python); nginx of the `homelab-site` base image; the shared Gateway (Cilium), cert-manager, external-dns, Renovate (hosted app), Argo CD |
 
 ## drum-charts: the site data
+
+### One slug renamed first
+
+The slug is the public URL and the download name. Task 1, its own pull
+request in drum-charts, runs `git mv songs/bloodhound-gang-fuck.ly
+songs/bloodhound-gang-foxtrot-uniform-charlie-kilo.ly` and changes that
+row of the README's Songs table (file name, PDF and MP3 links). The
+`\header` stays (`title = "Bloodhound Gang"`, `subtitle = "Foxtrot
+Uniform Charlie Kilo"`). `archive/pdf-stems-down/bloodhound-gang-fuck.pdf`
+stays: the archive is kept as it was and never reaches the site. The
+old file name keeps working in the releases made before the rename;
+`releases/latest/download/bloodhound-gang-fuck.pdf` answers `404` from
+the next release, and the README links the new name. Done before task 2,
+so no published URL ever changes.
 
 ### Manifest
 
@@ -154,9 +171,14 @@ attribute.
 1. For each `songs/*.ly`, sorted: the slug must match
    `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 80 characters, and not be `fr`,
    `pdf`, `pages`, `legend` or `set-theme` (paths of the site).
-2. Inside its `\header { ... }`: exactly one `title = "<text>"` and one
-   `subtitle = "<text>"`; the text holds no `\` and no `"`, and is 1 to
-   100 characters after trimming.
+2. Inside its `\header { ... }` block (from `\header {` to the first line
+   that is only `}`), the lines matching
+   `^\s*(title|subtitle)\s*=\s*"([^"\\]*)"\s*$` (multiline mode) give
+   the fields: exactly one `title` and one `subtitle`, each 1 to 100
+   characters after trimming. Any other line of the block that matches
+   `\b(title|subtitle)\s*=` (a `\markup` value, an escaped quote, a
+   second assignment on one line) is an error, so `subtitle =` is never
+   counted as a `title`.
 3. `pdfinfo <build>/<slug>.pdf`: `Pages` between 1 and 3.
 4. The page images as above, and a copy of the PDF.
 5. The legend: `legend.pdf`, its pages, `legend-<n>.svg`.
@@ -179,9 +201,19 @@ Changes to `.github/workflows/build.yaml`:
   `site-data-<sha>`, kept 7 days. It runs on every branch, so a pull
   request with a bad header fails before `main`.
 - `release` job: takes the tag from `needs.charts.outputs.tag` instead of
-  recomputing it, so the release and the manifest always agree.
+  recomputing it, so the release and the manifest always agree. The PDFs
+  are not reproducible (the digest of every unchanged song's PDF differs
+  between `charts-2026-11-26-8dd16c2` and `charts-2026-11-26-5387aa2`,
+  the MP3s do not), so a rerun must not keep the first assets: when the
+  tag exists, the job runs `gh release upload "$tag" charts/*.pdf
+  charts/*.mp3 --clobber` instead of `exit 0`; otherwise `gh release
+  create` as today. The release then always holds the files of the build
+  that produced the data image. `concurrency: { group: release,
+  cancel-in-progress: false }`, so two runs never write one release at
+  once. The drum-charts README's CI text says so.
 - New `site-data` job, `main` only, `needs: [charts, release]`,
-  `timeout-minutes: 10`, permissions `contents: read`,
+  `timeout-minutes: 10`, `concurrency: { group: site-data,
+  cancel-in-progress: false }`, permissions `contents: read`,
   `packages: write`, `id-token: write`, `attestations: write`:
   1. checkout (no credentials), download `site-data-<sha>`;
   2. compare the SHA-256 of each PDF with the `digest` of the release
@@ -203,11 +235,32 @@ Changes to `.github/workflows/build.yaml`:
      `https://github.com/ned-si/drum-charts/.github/workflows/build.yaml@refs/heads/main`
      (the flags of `site-publish`, one signature format for both
      repositories);
-  6. `docker buildx imagetools create -t :main <image>@<digest>`, then log
-     out.
+  6. move `:main` only when this run is for the head of `main`, so an
+     older run that finishes last, or a rerun of an older commit, never
+     takes the site back:
 
-  A rerun of the job pushes the same `:<sha>`, signs again and retags
-  `:main`: idempotent.
+     ```bash
+     head=$(gh api repos/ned-si/drum-charts/commits/main --jq .sha)
+     if [ "$head" != "$GITHUB_SHA" ]; then
+       echo "::notice::main is at ${head::7}, not ${GITHUB_SHA::7}; :main not moved"
+       exit 0
+     fi
+     docker buildx imagetools create -t "$image:main" "$image@$digest"
+     ```
+
+     then log out. `:<sha>` is pushed and signed in every case.
+
+  A rerun of the newest `main` commit is idempotent: the release job
+  replaces the assets with that build's, step 2 compares against them,
+  `:<sha>` is pushed and signed again and `:main` moves to it. A rerun of
+  an older commit pushes its `:<sha>` and leaves `:main` alone. The
+  concurrency group runs the jobs one at a time. GitHub keeps at most one
+  pending job per group and cancels the older pending one when another
+  queues: if a rerun of an older commit cancels the newest commit's
+  pending job, `:main` stays where it was until the newest run's
+  `site-data` job is rerun by hand (`charts-check.sh` shows the lag).
+  Step 6 reads `main` with `GH_TOKEN: ${{ github.token }}`, which
+  `contents: read` covers.
 
 ### Data image
 
@@ -228,7 +281,7 @@ software.
 The package `ghcr.io/ned-si/drum-charts` must be public, so Renovate and
 the runners here pull it without credentials. GHCR creates it private on
 the first push and its REST API offers no way to change that, so the
-operator sets it once in the package settings (task 1), as for
+operator sets it once in the package settings (task 2), as for
 `homelab-dashboard`.
 
 ## This repository
@@ -243,9 +296,9 @@ operator sets it once in the package settings (task 1), as for
 | `drumcharts/internal/site/manifest.go` | Types, strict decoding, [Validation](#validation) |
 | `drumcharts/internal/site/svg.go` | The page-image allow-list |
 | `drumcharts/internal/site/render.go` | Sorting, templates, output, gzip |
-| `drumcharts/internal/site/i18n.go` | The message catalogue (`en`; `fr` from task 6) and date formatting |
+| `drumcharts/internal/site/i18n.go` | The message catalogue (`en`; `fr` from task 7) and date formatting |
 | `drumcharts/internal/site/assets/` | `home.html`, `song.html` (songs and the legend), `charts.css`, and the embedded copies `layout.css`, `theme-dark.css`, `theme-light.css` |
-| `drumcharts/internal/site/testdata/` | `data/`: a fixture of two songs (one page, two pages) and the legend, tiny PDFs and allow-listed SVGs; `golden/`: its rendered pages |
+| `drumcharts/internal/site/testdata/` | `data/`: a fixture of two songs (one page, two pages) and the legend, tiny PDFs and allow-listed SVGs; `golden/`: the complete output of `drumcharts render` over `data/` (the HTML pages, `pages/*.svg` and `.svg.gz`, `pdf/`, the four stylesheets), which the golden test compares file by file and the `site` job serves without Go ([Checks](#checks)) |
 | `scripts/ci/drumcharts-data.sh` | Verify the pinned image and extract its data |
 | `scripts/ci/drumcharts-check.sh` | The `drumcharts` CI job |
 | `scripts/charts-check.sh` | The live check of acceptance criterion 2 |
@@ -303,13 +356,18 @@ shows on its own pull request first.
 | `pages` | Required integer, 1 to 3 (the drum-charts limit) |
 | The directory | Regular files only, no subdirectory or link; exactly `charts.json`, `legend.pdf`, `legend-<1..n>.svg`, and per song `<slug>.pdf` and `<slug>-<1..pages>.svg`. Anything else (an `.mp3`, a stray file) is an error |
 | A PDF | Starts with `%PDF-`; at most 4 MiB |
-| A page image | At most 4 MiB; the [allow-list](#page-images), read with `encoding/xml` in strict mode (it expands no entity but the five predefined, so no external entity can load); root `svg` with `viewBox="0 0 <w> <h>"`, `w` and `h` positive, which give the `<img>` its `width` and `height` |
+| A page image | At most 4 MiB; the [allow-list](#page-images), read with `encoding/xml` in strict mode (it expands no entity but the five predefined, so no external entity can load); root `svg` with a `viewBox` matching `^0 0 ([0-9]+(\.[0-9]+)?) ([0-9]+(\.[0-9]+)?)$`, both values above 0 and at most 10000. `pdftocairo` writes `viewBox="0 0 595.28 841.89"` for A4; the `<img>` gets `width` and `height` as `int(math.Round(v))` (595 and 842), because HTML wants integers |
 | All files | At most 64 MiB together |
 
 Every broken rule becomes one line `<file>: <rule>`. The generator
 renders into a temporary directory next to `-out` and renames it to
 `-out` only when validation and rendering succeed; `-out` must not exist.
 On any error it removes the temporary directory and exits 1.
+
+`os.MkdirTemp` creates mode 0700, and nginx runs as uid 101 over
+root-owned files in the image. Before the rename, the generator sets the
+output root and every directory to 0755 and writes every file as 0644,
+whatever the umask; a golden test asserts the modes.
 
 ### Output
 
@@ -324,7 +382,7 @@ the image:
 | `pages/<slug>-<n>.svg`, `.svg.gz` | Page images, copied as validated, and gzipped (level 9, no name, no time), so the bytes are deterministic |
 | `pdf/<slug>.pdf`, `pdf/legend.pdf` | The PDFs, copied |
 | `charts.css`, `layout.css`, `theme-dark.css`, `theme-light.css` | Stylesheets; nginx serves one palette as `/theme.css` |
-| `fr/...` | The French pages, from task 6 |
+| `fr/...` | The French pages, from task 7 |
 
 ### The pages
 
@@ -373,8 +431,8 @@ strings and no artist):
 ```
 
 The navigation bar renders `NAV` as it is when the task merges: until
-task 5 it has no "Charts" link and marks nothing on the charts site;
-from task 5 the charts site's nav marks "Charts" (`href="/"
+task 6 it has no "Charts" link and marks nothing on the charts site;
+from task 6 the charts site's nav marks "Charts" (`href="/"
 aria-current="page"` on the home page, as the radar does; on song and
 legend pages the parent-path form `site_markup.py` allows).
 
@@ -469,10 +527,10 @@ that the files come from the image instead of a ConfigMap.
 
 | Check | Where | Cases |
 | --- | --- | --- |
-| `site-publish` image smoke | Before the push | The image holds `/usr/share/nginx/charts/index.html`; from task 4, with `Host: charts.nedsi.io`: `/` and `/legend/` `200`, `/pdf/legend.pdf` `200` with `Content-Disposition: attachment`, `/pages/legend-1.svg` with `Accept-Encoding: gzip` gives `Content-Encoding: gzip`, `POST /` `405` |
-| `scripts/ci/site-serve-check.sh` | `site` job | The fixture render mounted at `/usr/share/nginx/charts`: `/`, a song page, `/legend/`, `/charts.css` `200`; the PDF's `Content-Type` and `Content-Disposition`; the SVG's `Content-Type`, `Content-Encoding: gzip` and `Vary: Accept-Encoding`; `/does-not-exist` `404`; `POST /` `405`; port 8081 `301` to `https://charts.nedsi.io/x`; the theme cases (`theme charts.nedsi.io`) |
+| `site-publish` image smoke | Before the push | The image holds `/usr/share/nginx/charts/index.html`; from task 5, with `Host: charts.nedsi.io`: `/` and `/legend/` `200`, `/pdf/legend.pdf` `200` with `Content-Disposition: attachment`, `/pages/legend-1.svg` with `Accept-Encoding: gzip` gives `Content-Encoding: gzip`, `POST /` `405` |
+| `scripts/ci/site-serve-check.sh` | `site` job | The committed golden tree mounted with `-v "$root/drumcharts/internal/site/testdata/golden:/usr/share/nginx/charts:ro"` (no Go needed, so the step order of the `site` job stays): `/`, a song page, `/legend/`, `/charts.css` `200`; the PDF's `Content-Type` and `Content-Disposition`; the SVG's `Content-Type`, `Content-Encoding: gzip` and `Vary: Accept-Encoding`; `/does-not-exist` `404`; `POST /` `405`; port 8081 `301` to `https://charts.nedsi.io/x`; the theme cases (`theme charts.nedsi.io`) |
 | PostSync smoke (`apps/website/kustomization.yaml`) | After every sync | Wait for the certificate as for the radar; `https://charts.nedsi.io/` `200` with the headers; `/pdf/legend.pdf` `200` with `Content-Disposition: attachment`; `/pages/legend-1.svg` `200`; `404` and `405` through the Service with `Host: charts.nedsi.io`; `http://charts.nedsi.io/x` `301`; the host in the theme loop |
-| `scripts/charts-check.sh` | By hand, and in the report of tasks 4, 5 and 8 | Acceptance criterion 2 against the latest release (`gh release view --repo ned-si/drum-charts --json tagName,assets`); exits 1 on the first difference, printing it |
+| `scripts/charts-check.sh` | By hand, and in the report of tasks 5, 6 and 9 | Acceptance criterion 2 against the latest release (`gh release view --repo ned-si/drum-charts --json tagName,assets`); exits 1 on the first difference, printing it |
 | Blackbox probe | Always | `probe_success{app="charts"}`, the SLO rules |
 
 The legend is the fixed sample in the smoke tests because every release
@@ -490,13 +548,18 @@ has it; a song can be renamed or removed.
   and the rendered `apps/website/techradar/index.html`) and the charts
   generator. The blog and the dashboard change with their next image
   deploys, which follow the merge through Renovate.
-- `SITE_HOSTS` and `THEMED` gain `charts.nedsi.io` (task 2), `LINKS`
+- `SITE_HOSTS` and `THEMED` gain `charts.nedsi.io` (task 3), `LINKS`
   gains `https://github.com/ned-si/drum-charts` (the release and source
   links) and `https://creativecommons.org/licenses/by/4.0/`.
-- `site_markup.py` gains a rule on every page: no `<audio>`, `<video>`,
-  `<source>`, `<embed>` or `<object>`, and no `href` or `src` whose path
-  ends in `.mp3`, `.wav`, `.ogg`, `.oga`, `.flac`, `.m4a`, `.aac`,
-  `.opus`, `.mid` or `.midi`.
+- `site_markup.py` gains a media rule for the charts site only (when
+  `self.host == "charts.nedsi.io"`, said in its docstring): no `<audio>`,
+  `<video>`, `<source>`, `<embed>` or `<object>`, and no `href` or `src`
+  whose path ends in `.mp3`, `.wav`, `.ogg`, `.oga`, `.flac`, `.m4a`,
+  `.aac`, `.opus`, `.mid` or `.midi`. Other hosts keep their markup
+  rules as they are, so a blog article with `<picture><source>` or a
+  `<video>` still passes. `tests/test_site_markup.py`: a charts page with
+  `<audio>` fails, a charts page with a link to an `.mp3` fails, a blog
+  page with `<picture><source>` passes.
 - The landing page: in "What is here so far", after the tech radar,
   `<li><a href="https://charts.nedsi.io/">Drum charts</a>: the songs I
   play, to read in the browser or download as PDF.</li>`; the "Drum
@@ -509,16 +572,22 @@ has it; a song can be renamed or removed.
   dashboard, the tech radar and the drum charts"; the site-theme-language
   design's copy of the table follows. If `privacy.fr.md` exists by then,
   its row changes too, with the French text reviewed by the operator.
-- `scripts/ci/layout-check.sh`: the fixture's home page and two-page song
-  page join `pages` and `themed`, with `charts.css` and the fixture's
-  `pages/` in the served root.
-- `site-check.sh`: `drumcharts/internal/site/assets/layout.css` joins the
-  layout copies, `drumcharts/internal/site/assets` the palette copies,
-  `charts.css` the `--css` list; `task site:layout-sync` copies to them.
+- `scripts/ci/layout-check.sh`: copies `golden/index.html` to
+  `$work/charts.html` and the golden two-page song page to
+  `$work/charts-song.html`, and `golden/charts.css` and `golden/pages/`
+  into `$www`; `charts` and `charts-song` join `pages` and `themed`.
+  The pages' `/layout.css` and `/theme.css` are already in `$www`.
+- `site-check.sh`: its change filter gains `drumcharts/`
+  (`'^(site/|apps/website/|dashboard/internal/web/|drumcharts/|scripts/ci/(site[-_]|layout-check))'`),
+  so a change to the templates, `charts.css` or the golden tree runs the
+  serve, layout and copy checks; `drumcharts/internal/site/assets/layout.css`
+  joins the layout copies, `drumcharts/internal/site/assets` the palette
+  copies, `charts.css` the `--css` list; `task site:layout-sync` copies
+  to them.
 
 ### Language
 
-From task 6, after site-theme-language task 4 has merged (the language
+From task 7, after site-theme-language task 4 has merged (the language
 toggle markup, the per-language `NAV` and the `hreflang` checks):
 
 - The generator renders the French tree under `fr/` from the same data:
@@ -536,17 +605,22 @@ toggle markup, the per-language `NAV` and the `hreflang` checks):
 
 ### CI
 
-A `drumcharts` job in `ci.yaml`, modelled on `techradar`: `setup-go`
-with `go-version-file: drumcharts/go.mod` and
-`cache-dependency-path: drumcharts/go.mod`, golangci-lint, govulncheck
-and cosign through `install-tool.sh` with the existing pins, and
+A `drumcharts` job in `ci.yaml`, modelled on `techradar`, with
+`GOTOOLCHAIN: local` in its `env`: `setup-go` with
+`go-version-file: drumcharts/go.mod` and
+`cache-dependency-path: drumcharts/go.sum`; golangci-lint and cosign
+through `install-tool.sh` with the existing pins (govulncheck comes from
+the module's `tool` directive, not from `install-tool.sh`); then
 `scripts/ci/drumcharts-check.sh`. That script exits early unless the
 diff against `HEAD^1` matches
 `^(drumcharts/|site/assets/css/|scripts/ci/(drumcharts|site_markup)|\.github/workflows/(ci|site-publish)\.yaml$)`,
-then runs `golangci-lint run --config ../dashboard/.golangci.yaml`,
-`go vet ./...`, `govulncheck ./...`, `go mod verify`, `go test -race
+then runs, in `drumcharts/` and in the `step` form of
+`techradar-check.sh`: `go mod verify`, `go mod tidy -diff`,
+`golangci-lint run --config ../dashboard/.golangci.yaml ./...`,
+`go vet ./...`, `go tool govulncheck ./...`, `go test -race -count=1
 ./...`, `drumcharts-data.sh` into a temporary directory, `drumcharts
-render` of it, and `site_markup.py <out> charts.nedsi.io`. It also fails
+render` of it, and `site_markup.py <out> charts.nedsi.io`.
+`site-publish` sets `GOTOOLCHAIN: local` for its Go steps too. It also fails
 when the `go` line of `drumcharts/go.mod` differs from `dashboard/go.mod`.
 The job joins the `ci` job's `needs:` list and its result loop.
 
@@ -563,7 +637,7 @@ The job joins the `ci` job's `needs:` list and its result loop.
 ### Strings
 
 Every new user-visible string. English is final once the spec merges;
-each French string is drafted in task 6 (or task 5 for the landing page,
+each French string is drafted in task 7 (or task 6 for the landing page,
 the privacy row and the French nav label, if site-theme-language task 4
 merged first) and stays **awaiting the operator's review** until he has
 corrected it.
@@ -610,7 +684,8 @@ Song titles and artists come from the manifest, untranslated.
 | Operation | Failure | Recoverable | What the caller gets | Logged |
 | --- | --- | --- | --- | --- |
 | `site-data.py` (drum-charts) | A header, slug, page count or SVG rule broken | Fatal for the run; fixed by a commit | `build` fails; one `::error file=...` annotation per problem | Job log and annotations |
-| `site-data` job (drum-charts) | PDF digest differs from the release, push, attest, sign or verify fails | Recoverable: rerun the job (idempotent) | Job fails; the release exists, `:main` stays on the previous data, the site keeps it | Job log; GitHub's failed-run e-mail |
+| `site-data` job (drum-charts) | PDF digest differs from the release, push, attest, sign or verify fails | Recoverable on the newest `main` commit: "Re-run all jobs" rebuilds, replaces the release assets and moves `:main` (idempotent); a rerun of an older commit pushes its `:<sha>` and leaves `:main` | Job fails; the release exists, `:main` stays on the previous data, the site keeps it | Job log; GitHub's failed-run e-mail |
+| `site-data` job (drum-charts) | This run is not for the head of `main` | Not an error | Job succeeds without moving `:main` | `::notice::main is at <sha>, not <sha>; :main not moved` |
 | `drumcharts-data.sh` | Pin malformed | Fatal; fix the file | Exit 1, "drumcharts/source.yaml: not a pinned drum-charts image" | stderr in the job log |
 | `drumcharts-data.sh` | Pull or Sigstore lookup fails (network) | Transient: one `gh run rerun --failed` | Exit 1 with docker's or cosign's message | stderr |
 | `drumcharts-data.sh` | Signature missing or another identity | Fatal; the pin pull request stays red and unmerged | Exit 1 with cosign's message | stderr |
@@ -637,14 +712,15 @@ Song titles and artists come from the manifest, untranslated.
 | --- | --- |
 | Validation | Table tests in `manifest_test.go`, one per rule, on copies of the fixture changed by the test |
 | SVG allow-list | `svg_test.go`: each forbidden construct of acceptance criterion 5 fails; a test over the 25 real page images, read from `$DRUMCHARTS_DATA` when set (the CI job sets it), skipped otherwise |
-| Pages | Golden HTML of the fixture; order by artist then title with a tie; plural forms; every `<img>` with `width`, `height` and `alt`; two renders byte-identical |
-| Output | The exact file set; the `.svg.gz` decompress to the `.svg` |
+| Pages | The golden tree of the fixture; order by artist then title with a tie, and with an artist whose slug sorts differently (`soad-` against `sum41-`); plural forms; every `<img>` with integer `width` and `height` rounded from a decimal viewBox, and `alt`; two renders byte-identical |
+| Output | The exact file set; the `.svg.gz` decompress to the `.svg`; directories 0755 and files 0644 under a `0077` umask |
+| drum-charts header rule | `site-data.py` over a header with `subtitle` only, two `title` lines, a `title = \markup ...` line and an escaped quote: each fails; the 14 songs and `legend.ly` pass (checked while writing this revision) |
 | Signature check | `drumcharts-check.sh` runs `drumcharts-data.sh` on the pin, and once with `DRUMCHARTS_IDENTITY` set to the `site-publish` identity, which must fail |
 | Markup | `site_markup.py` over the real render in CI; `tests/test_site_markup.py` for `NAV` and the media rule |
 | Serving | `site-serve-check.sh` (fixture), the `site-publish` smoke (real data), the PostSync smoke, the probe, `dast` |
-| Layout | `layout-check.sh` with the charts pages |
+| Layout | `layout-check.sh` with the golden home and two-page song pages |
 | drum-charts | `site-data.py` runs on every push over the real songs; criterion 13 on a throwaway branch |
-| End to end | `scripts/charts-check.sh` live; criterion 12 on the merge of task 8 |
+| End to end | `scripts/charts-check.sh` live; criterion 12 on the merge of task 9 |
 
 ## Edge cases
 
@@ -661,9 +737,14 @@ Song titles and artists come from the manifest, untranslated.
   moves `:main` and Renovate updates the same pull request.
 - A pin merged while `site-publish` runs: its concurrency group runs them
   one after the other, each on its own commit.
-- A rerun of the drum-charts workflow on another day: a second release
-  for the same commit (the existing tag scheme); the manifest carries the
-  tag of the run that moved `:main` last.
+- A rerun of the drum-charts workflow on the same UTC day: the release
+  job replaces that tag's assets with the new build (`--clobber`), so
+  step 2 matches. On another day: a second release for the same commit
+  (the existing tag scheme); the manifest carries the tag of the run
+  that moved `:main` last.
+- Two merges minutes apart, or a rerun of an older commit: only the run
+  for the head of `main` moves `:main` (step 6), so Renovate never
+  proposes older data.
 - A three-page chart: the third page wraps below the first on wide
   screens; the page count on the home page says so before it is opened.
 - Titles with `&`, `<` or quotes: `html/template` escapes them; the
@@ -672,8 +753,8 @@ Song titles and artists come from the manifest, untranslated.
   prints the legend's own lead instead.
 - A phone at 390 px: an A4 page is about 350 px wide; the notation is
   small but sharp, pinch zoom works, and the PDF is one tap away.
-- The GHCR package left private: the first pull in task 2 fails with
-  `unauthorized`; the operator sets it public (task 1).
+- The GHCR package left private: the first pull in task 3 fails with
+  `unauthorized`; the operator sets it public (task 2).
 - `pdftocairo` on the runner (Ubuntu 24.04, cairo 1.18) writes
   presentation attributes, as the 26.11 build checked here does. A later
   cairo that writes `style` attributes fails the allow-list on the
@@ -700,3 +781,28 @@ Song titles and artists come from the manifest, untranslated.
   and the generator are always checked together.
 - White sheets in both themes: notation is black on paper, and the
   screen matches the PDF a reader downloads.
+- `:main` moves only for the head of `main`, and a rerun replaces the
+  release's assets: the PDFs are not reproducible between builds, so
+  without both a rerun could break the digest check for good or take
+  the site back to older data through Renovate.
+
+## Review responses
+
+Review of the first draft (14 findings), all addressed:
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | The `site` job never renders or serves the charts | `testdata/golden/` is the full render tree; `site-serve-check.sh` mounts it, `layout-check.sh` copies from it, `site-check.sh`'s filter gains `drumcharts/` ([Navigation and links](#navigation-and-links), [Checks](#checks)) |
+| 2 | Same-day rerun fails for good; `:main` can go back | `release` uploads with `--clobber` on an existing tag; `site-data` has a concurrency group and moves `:main` only for the head of `main`; error table and edge cases corrected; Requirement 1.6 and criterion 15 added |
+| 3 | Media rule on every host | Charts host only; a blog page with `<picture><source>` passes (Requirement 3.9, criterion 3) |
+| 4 | Task 9 (was 8) could drop the song list | Keeps the Songs table and Next section, adds one line, checks one row per song |
+| 5 | Non-integer viewBox | Decimal viewBox regex, bounds, `int(math.Round(v))` |
+| 6 | Go tooling details | `go tool govulncheck`, `go.sum` cache path, `go mod tidy -diff`, `GOTOOLCHAIN: local` in the job and `site-publish` |
+| 7 | Order rationale wrong | Filed by artist, header puts the artist on top; sort from the header, never the slug |
+| 8 | No header regex | Regex inside the `\header` block; other `title =`/`subtitle =` lines are errors; checked on the 14 songs and the legend |
+| 9 | File modes | 0755 directories, 0644 files, asserted by a golden test |
+| 10 | Task 7 (was 6) if site-theme-language task 4 is open | Moves to a `blocked` issue linked to #1662 and the spec closes |
+| 11 | Supersedes rows missing | Host glossary (task 3) and Requirement 4.3 (task 6 or 7) added |
+| 12 | drum-charts pins have no updater | Copied at task 2, updated by hand; Renovate for drum-charts is its own issue, opened with task 2 |
+| 13 | `bloodhound-gang-fuck` as a public URL | Decided, not asked (the brief leaves open decisions to the spec): renamed to `bloodhound-gang-foxtrot-uniform-charlie-kilo` in a new task 1 before any slug is published; later tasks renumbered |
+| 14 | Criterion 7 wording | Reworded |

@@ -40,7 +40,11 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 - **Song**: one finished song of drum-charts, `songs/<slug>.ly`, and its
   PDF `<slug>.pdf` in a release.
 - **Slug**: the song's file name without `.ly`
-  (`tool-schism`), the drum-charts naming rule.
+  (`tool-schism`), the drum-charts naming rule `<artist>-<title>`. It
+  becomes a public URL (`/<slug>/`) and the download name
+  (`<slug>.pdf`). `bloodhound-gang-fuck` is renamed
+  `bloodhound-gang-foxtrot-uniform-charlie-kilo` in task 1, before any
+  slug is published ([Decided defaults](#decided-defaults)).
 - **Legend**: `legend.ly`, built to `legend.pdf`, which explains the note
   heads.
 - **Page image**: one page of a PDF as an SVG file, `<slug>-<n>.svg`.
@@ -82,7 +86,12 @@ what a drum-charts release holds, without copying files by hand.
    keyless by its own workflow identity and with a signed SLSA
    provenance. The package SHALL be public.
 5. THE PDFs in the data image SHALL be byte-identical to the release's
-   PDFs of the same commit.
+   PDFs of the same commit, also after a rerun of the workflow (the PDFs
+   are not reproducible between builds, so a rerun replaces the
+   release's assets).
+6. `:main` SHALL move only to the data image of the current head of
+   drum-charts' `main`: a run that finishes after a newer one, or a
+   rerun of an older commit, SHALL leave it where it is.
 
 ## Requirement 2: From a release to the live site, with no manual step
 
@@ -136,12 +145,16 @@ or my screen, and download it to print or keep.
 8. THE pages SHALL read without horizontal scrolling from 320 px wide up
    to a desktop screen, and SHALL allow zooming (no `maximum-scale` or
    `user-scalable` in the viewport).
-9. NO page SHALL contain an `<audio>`, `<video>`, `<embed>` or `<object>`
-   element or a link to an audio file, and the charts site SHALL serve no
-   audio file.
+9. NO page of the charts site SHALL contain an `<audio>`, `<video>`,
+   `<source>`, `<embed>` or `<object>` element or a link to an audio
+   file, and the charts site SHALL serve no audio file. The rule covers
+   `charts.nedsi.io` only; the other hosts keep their own markup rules.
 10. EVERY user-visible string SHALL come from the generator's message
     catalogue. Song titles and artists come from the manifest and are
     never translated.
+11. THE Bloodhound Gang chart SHALL be published under the slug
+    `bloodhound-gang-foxtrot-uniform-charlie-kilo`, its title, renamed in
+    drum-charts before the first slug goes public.
 
 ## Requirement 4: Static and hardened
 
@@ -265,8 +278,10 @@ standard as the tech radar's Go code.
    SHA-256 of the release asset; the same for the legend. It prints the
    release tag. [1.5, 2.3, 3.1-3.4]
 3. `/pdf/<slug>.mp3` and `/<slug>.mp3` answer `404` for every MP3 of the
-   release; `site_markup.py` fails a page with an `<audio>` element or a
-   link to an `.mp3`, and passes the rendered site. [3.9]
+   release; `site_markup.py` fails a `charts.nedsi.io` page with an
+   `<audio>` element or a link to an `.mp3`, passes the rendered charts
+   site, and passes a `blog.nedsi.io` page with `<picture><source>`.
+   [3.9]
 4. Unit tests: each rule of [design, Validation](design.md#validation)
    has a failing case (unknown schema, unknown key, duplicate or
    reserved slug, missing file, extra file such as an `.mp3`, page count
@@ -276,13 +291,17 @@ standard as the tech radar's Go code.
    attribute, `<foreignObject>`, `<image>`, a `style` attribute, an
    `href` to `https:`, or a `<!DOCTYPE>` each fails; the 25 page images
    of `charts-2026-11-26-5387aa2` pass. [4.4]
-6. Golden pages for the fixture (home, a 1-page and a 2-page song, the
-   legend); two renders give the same bytes, the `.svg.gz` files
-   included. [3.1-3.3, 3.6]
+6. A golden tree for the fixture, the whole render (home, a 1-page and
+   a 2-page song, the legend, page images, PDFs, stylesheets): the
+   render equals it file by file, two renders give the same bytes, the
+   `.svg.gz` files included, and every directory is 0755 and every file
+   0644. The `site` job runs on a change under `drumcharts/`.
+   [3.1-3.3, 3.6]
 7. `ci` runs the checks of 8.1 on a pull request touching `drumcharts/`.
    `scripts/ci/drumcharts-data.sh` fails on the pinned image when
-   `DRUMCHARTS_IDENTITY` is set to the `site-publish` identity (a valid
-   signature by another workflow), and on a pin that is not
+   `DRUMCHARTS_IDENTITY` is set to the `site-publish` identity (the
+   expected identity of another workflow, so no signature matches), and
+   on a pin that is not
    `ghcr.io/ned-si/drum-charts:main@sha256:<64 hex>`. [2.2, 8.1]
 8. `dig +short charts.nedsi.io` returns the WAN address;
    `scripts/published-hostnames.sh` prints `charts.nedsi.io`;
@@ -296,15 +315,17 @@ standard as the tech radar's Go code.
    `https://homelab.nedsi.io/`, `https://techradar.nedsi.io/` and
    `https://charts.nedsi.io/` live. The landing page links
    `https://charts.nedsi.io/` in its overview and its card. [6.1, 6.2]
-10. `scripts/ci/layout-check.sh` passes with the charts home page and a
-    song page in its list. [3.8, 6.4]
+10. `scripts/ci/layout-check.sh` passes with the golden tree's charts
+    home page and two-page song page in its list, and
+    `scripts/ci/site-serve-check.sh` passes with the golden tree mounted
+    at `/usr/share/nginx/charts`. [3.8, 5.3, 6.4]
 11. Screenshots at 1920x1080 and 390x844, in the dark and the light
     theme (the light one set through `/set-theme/light/` in the same
     browser profile), of the charts home page, `/tool-schism/` and the
     four other hosts' home pages show "Charts" in the nav, the song list
     and the two sheets (side by side at 1920, stacked at 390) on white,
     with no horizontal scrollbar. [3.2, 3.5, 3.8, 6.1]
-12. The drum-charts merge of task 8 reaches the live site with no manual
+12. The drum-charts merge of task 9 reaches the live site with no manual
     step: Renovate's pin pull request and the `homelab-site` digest pull
     request merge by themselves, and `scripts/charts-check.sh` then
     prints the new release tag. [2.1, 2.3]
@@ -313,6 +334,14 @@ standard as the tech radar's Go code.
 14. `curl -s https://charts.nedsi.io/fr/` has `<html lang="fr-CH">`, the
     three `hreflang` links, the toggle to `/`, and only strings the
     operator corrected; `go test ./...` passes the catalogue test. [7]
+15. In drum-charts, "Re-run all jobs" of the newest `main` run passes;
+    afterwards the release's PDF digests equal the PDFs under `/charts/`
+    in `:main`. "Re-run all jobs" of an older `main` run passes with the
+    notice `:main not moved`, and the digest of `:main` is unchanged.
+    [1.5, 1.6]
+16. `https://charts.nedsi.io/bloodhound-gang-foxtrot-uniform-charlie-kilo/`
+    answers `200`; no path on the charts site and no file name in the
+    data image contains `bloodhound-gang-fuck`. [3.11]
 
 ## Out of scope
 
@@ -334,8 +363,10 @@ that task edits them to point here:
 
 | Spec and line | Becomes | Task |
 | --- | --- | --- |
-| site-theme-language design, Privacy page, the cookie table's "Sent to" row | Names the drum charts with the blog, the dashboard and the tech radar | 5 |
-| site-theme-language design, Language, Navigation table | Gains the row Charts, its French label (after the operator's review), `https://charts.nedsi.io/fr/` from task 6 of this spec, `https://charts.nedsi.io/` before | 5 |
+| site-theme-language requirements, Glossary, **Host** | Adds `charts.nedsi.io`, static files served by the `website` nginx pod like the tech radar | 3 |
+| site-theme-language requirements, Requirement 4.3, the French nav link texts | Adds the French label for Charts, after the operator's review | 6, or 7 if site-theme-language task 4 merges after task 6 |
+| site-theme-language design, Privacy page, the cookie table's "Sent to" row | Names the drum charts with the blog, the dashboard and the tech radar | 6 |
+| site-theme-language design, Language, Navigation table | Gains the row Charts, its French label (after the operator's review), `https://charts.nedsi.io/fr/` from task 7 of this spec, `https://charts.nedsi.io/` before | 6 |
 
 ## Decided defaults
 
@@ -346,7 +377,8 @@ that task edits them to point here:
 | Data flow | drum-charts publishes a signed data image; this repository pins it by digest, Renovate follows `:main`, `site-publish` renders it into `homelab-site` ([design](design.md#how-the-charts-reach-the-site)) | No cross-repository token, the exact files pinned in git, the update path Renovate already runs for the site and the dashboard |
 | Display | Each PDF page as an SVG `<img>`, rendered by `pdftocairo` in drum-charts CI ([design](design.md#how-a-chart-is-displayed)) | Works on every browser and phone with the CSP unchanged; sharp at any zoom |
 | Download | `/pdf/<slug>.pdf` with `Content-Disposition: attachment` and the `download` attribute | The file of the release, saved, not opened in a viewer |
-| Order | Artist, then title, case-insensitive | The order of the drum-charts file names and of the chart headers, which put the artist first |
+| Order | Artist, then title, case-insensitive, from the header fields (never the slug) | The charts are filed by artist, and the chart header puts the artist on top |
+| Slugs | Public as they are, except `bloodhound-gang-fuck`, renamed `bloodhound-gang-foxtrot-uniform-charlie-kilo` in drum-charts (task 1) | The slug becomes a URL and a download name on the public identity the operator plans to present; the new name is the song's title, so it follows the naming rule `<artist>-<title>` better than the old one. A rename is cheap only before the URL is published. Rejected: keeping it (a profanity in a public URL), a slug map in the manifest (a second name to keep in sync) |
 | Metadata | Title, artist, page count; the release tag and date once on the home page | What a drummer picks a chart by; the page count says whether it needs a stand for two |
 | Paper | White sheets in both themes | Notation reads as printed; an inverted chart reads as a negative |
 | Generator | Go, `drumcharts/`, standard library only | The tech radar's language and tooling; validation and the allow-list are tested code |
