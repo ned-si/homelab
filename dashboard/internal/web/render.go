@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
@@ -102,6 +103,7 @@ type figures struct {
 	Use          []useRow
 	RED          []tile
 	State        []tile
+	Databases    []tile
 	Security     block
 	Signals      []tile
 	SupplyChain  block
@@ -216,6 +218,15 @@ func durationParts(s int) []part {
 		return out
 	}
 	return []part{{strconv.Itoa(s), "s"}}
+}
+
+// durationText is durationParts as one line of text: "19 h 31 min".
+func durationText(s int) string {
+	var words []string
+	for _, p := range durationParts(s) {
+		words = append(words, p.Num, p.Unit)
+	}
+	return strings.Join(words, " ")
 }
 
 func one(num, unit string) []part {
@@ -416,6 +427,79 @@ func stateTiles(c snapshot.Cluster) []tile {
 		{Label: "Talos", Value: one(c.TalosVersion, "")},
 		{Label: "Kubernetes", Value: one(c.KubernetesVersion, "")},
 	}
+}
+
+// plural is unit with an s unless n is 1.
+func plural(n int, unit string) string {
+	if n == 1 {
+		return unit
+	}
+	return unit + "s"
+}
+
+// databaseTiles are the "Databases and backups" group (design.md,
+// "Collector and page (task 26)"); a detail whose figure is null is left
+// out, and with no database reporting every tile has no data.
+func databaseTiles(d snapshot.Databases) []tile {
+	const (
+		pgLabel       = "PostgreSQL"
+		walLabel      = "WAL archiving"
+		baseLabel     = "Base backups"
+		recoveryLabel = "Point-in-time recovery"
+		restoreLabel  = "Restore tests"
+		freshLabel    = "Backup freshness"
+	)
+	if d.Count == 0 {
+		return []tile{noDataTile(pgLabel), noDataTile(walLabel), noDataTile(baseLabel),
+			noDataTile(recoveryLabel), noDataTile(restoreLabel), noDataTile(freshLabel)}
+	}
+	of := "of " + strconv.Itoa(d.Count)
+
+	pg := tile{Label: pgLabel, Value: one(strconv.Itoa(d.Count), plural(d.Count, "database"))}
+	pg.Status, pg.Word = databasesStatus(d.Up, d.Count)
+	up := strconv.Itoa(d.Up) + " up"
+	if d.DataBytes != nil {
+		up += ", " + bytesText(*d.DataBytes) + " of data"
+	}
+	pg.Details = []string{"Seen in the rolling 24 h", up}
+
+	wal := tile{Label: walLabel, Value: one(strconv.Itoa(d.WALArchiving), of)}
+	wal.Status, wal.Word = walStatus(d.WALArchiving, d.WALBehind, d.Count)
+	if d.WALArchived24h != nil {
+		wal.Details = []string{thousands(*d.WALArchived24h) + " files archived, rolling 24 h"}
+	}
+
+	base := tile{Label: baseLabel, Value: one(strconv.Itoa(d.BaseFresh), of),
+		Details: []string{"Nightly, each in the rolling 26 h"}}
+	base.Status, base.Word = baseBackupStatus(d.BaseFresh, d.Count)
+	if d.BaseOldestSeconds != nil {
+		base.Details = append(base.Details, "Oldest "+durationText(*d.BaseOldestSeconds)+" ago")
+	}
+
+	recovery := noDataTile(recoveryLabel)
+	if d.RecoveryWindowSeconds != nil {
+		days := *d.RecoveryWindowSeconds / 86400
+		recovery = tile{Label: recoveryLabel, Value: one(strconv.Itoa(days), plural(days, "day")),
+			Details: []string{"The shortest window of all databases"}}
+	}
+
+	restore := tile{Label: restoreLabel, Value: one(strconv.Itoa(d.RestorePassed), of),
+		Details: []string{"Weekly, rolling 8 days"}}
+	restore.Status, restore.Word = restoreStatus(d.RestorePassed, d.RestoreFailed, d.Count)
+	if d.RestoreRows != nil {
+		restore.Details = append(restore.Details, thousands(*d.RestoreRows)+" rows compared")
+	}
+	if d.RestoreMedianSeconds != nil {
+		restore.Details = append(restore.Details, "Median "+durationText(*d.RestoreMedianSeconds)+" to a restored copy")
+	}
+
+	fresh := noDataTile(freshLabel)
+	if d.Freshness30d != nil {
+		fresh = tile{Label: freshLabel, Value: one(pct(*d.Freshness30d), "%"),
+			Details: []string{"Lowest database, rolling 30 days, target " + pct(freshnessTarget) + "%"}}
+		fresh.Status, fresh.Word = freshnessStatus(d.Freshness30d)
+	}
+	return []tile{pg, wal, base, recovery, restore, fresh}
 }
 
 func bandTile(t tile, b band) tile {
@@ -652,6 +736,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		Certs:     certTiles(s.Certificates.Certs),
 		RED:       redTiles(s.Cluster.Gateway),
 		State:     stateTiles(s.Cluster),
+		Databases: databaseTiles(s.Cluster.Databases),
 		Delivery:  deliveryTiles(s.Project),
 		Runs:      runs(s.Project.CIRuns),
 		Signals:   signalTiles(s.Security),

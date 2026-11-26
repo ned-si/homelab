@@ -97,6 +97,7 @@ func TestLiveBlocks(t *testing.T) {
 		Gateway:     snapshot.Gateway{RequestsPerSecond: f64(0.63), Errors5xx: f64(0.59), LatencyP95Ms: i(41)},
 		Restarts24h: 3,
 		Volumes:     snapshot.Volumes{Count: 35, UsedBytes: 410000000000, CapacityBytes: 1100000000000, Fullest: 80.825},
+		Databases:   wantDatabases(),
 	}
 	if diff := cmp.Diff(want, s.Cluster, approx); diff != "" {
 		t.Errorf("cluster mismatch (-want +got):\n%s", diff)

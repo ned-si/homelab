@@ -104,6 +104,25 @@ func alarms(t *testing.T) map[string]any {
 	img := sub(doc, "supply_chain")["images"].([]any)[1].(map[string]any)
 	img["level"], img["verified"] = nil, false
 	sub(sub(doc, "supply_chain"), "scorecard")["score"] = 3.9
+	db := sub(c, "databases")
+	db["up"], db["data_bytes"], db["wal_archiving"], db["wal_behind"], db["base_fresh"] = 7, nil, 7, 1, 7
+	db["recovery_window_seconds"], db["restore_passed"], db["freshness_30d"] = nil, 6, 98.5
+	return doc
+}
+
+// since is the fixture, whose cards are under 30 days old, with no
+// database reporting.
+func since(t *testing.T) map[string]any {
+	t.Helper()
+	doc := fixture(t)
+	db := sub(sub(doc, "cluster"), "databases")
+	for _, k := range []string{"count", "up", "wal_archiving", "base_fresh", "restore_passed"} {
+		db[k] = 0
+	}
+	for _, k := range []string{"data_bytes", "wal_archived_24h", "base_oldest_seconds", "recovery_window_seconds",
+		"restore_rows", "restore_median_seconds", "freshness_30d"} {
+		db[k] = nil
+	}
 	return doc
 }
 
@@ -125,7 +144,7 @@ func TestGoldenPages(t *testing.T) {
 		now  time.Time
 	}{
 		{"full", fullDaily, fixtureNow},
-		{"since", fixture, fixtureNow},
+		{"since", since, fixtureNow},
 		{"exhausted", exhausted, fixtureNow},
 		{"alarms", alarms, fixtureNow},
 		{"stale-live", fixture, fixtureNow.Add(2 * time.Hour)},
@@ -262,6 +281,26 @@ func TestCardsStatusWords(t *testing.T) {
 			`<li><span class="status bad">Failure</span>`,
 			`<li><span class="status none">Cancelled</span>`,
 			`<li><span class="status warn">Other</span> <code>2ec595b</code>`,
+			`<p class="tile-label">PostgreSQL</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit">databases</span> <span class="status ok">Up</span></p>
+<p class="tile-detail">Seen in the rolling 24 h</p>
+<p class="tile-detail">8 up, 1 GiB of data</p>`,
+			`<p class="tile-value ok">8<span class="unit">of 8</span> <span class="status ok">Archiving</span></p>
+<p class="tile-detail">1,517 files archived, rolling 24 h</p>`,
+			`<p class="tile-value ok">8<span class="unit">of 8</span> <span class="status ok">Fresh</span></p>
+<p class="tile-detail">Nightly, each in the rolling 26 h</p>
+<p class="tile-detail">Oldest 19 h 31 min ago</p>`,
+			`<p class="tile-label">Point-in-time recovery</p>
+<div class="tile-body">
+<p class="tile-value">30<span class="unit">days</span></p>
+<p class="tile-detail">The shortest window of all databases</p>`,
+			`<p class="tile-value ok">8<span class="unit">of 8</span> <span class="status ok">Passed</span></p>
+<p class="tile-detail">Weekly, rolling 8 days</p>
+<p class="tile-detail">1,031,332 rows compared</p>
+<p class="tile-detail">Median 6 min 54 s to a restored copy</p>`,
+			`<p class="tile-value ok">99.97<span class="unit">%</span> <span class="status ok">Met</span></p>
+<p class="tile-detail">Lowest database, rolling 30 days, target 99.00%</p>`,
 		}},
 		{alarm, []string{
 			`<p class="tile-value warn">14<span class="unit">days</span> <span class="status warn">Renewal late</span></p>`,
@@ -297,6 +336,16 @@ func TestCardsStatusWords(t *testing.T) {
 <p class="tile-label">Overall level</p>
 <div class="tile-body">
 <p class="tile-value">Low</p>`,
+			`<p class="tile-value bad">8<span class="unit">databases</span> <span class="status bad">Down</span></p>
+<p class="tile-detail">Seen in the rolling 24 h</p>
+<p class="tile-detail">7 up</p>`,
+			`<p class="tile-value warn">7<span class="unit">of 8</span> <span class="status warn">Behind</span></p>`,
+			`<p class="tile-value bad">7<span class="unit">of 8</span> <span class="status bad">Stale</span></p>`,
+			`<p class="tile-label">Point-in-time recovery</p>
+<div class="tile-body">
+<p class="tile-value none"><span class="status none">No data</span></p>`,
+			`<p class="tile-value warn">6<span class="unit">of 8</span> <span class="status warn">Overdue</span></p>`,
+			`<p class="tile-value bad">98.50<span class="unit">%</span> <span class="status bad">Missed</span></p>`,
 		}},
 	} {
 		contains(t, tc.body, tc.want...)
@@ -417,7 +466,9 @@ func TestRollingWindows(t *testing.T) {
 	contains(t, body, "rolling 30 days per app", "Project, rolling 30 days", "Gateway, rolling 5 minutes",
 		"the rolling 24 h, the rolling 7 days", "Rolling 24 h, 7.01% of 62,940 requests", "Rolling 7 days: 26,391 (6.12%)",
 		"Another 760 answered by the Gateway itself cannot be attributed.", "Of these, 12 are 403s",
-		"Includes our own weekly security scan.", "Rolling 24 h, 50.00% of 80 sign-ins")
+		"Includes our own weekly security scan.", "Rolling 24 h, 50.00% of 80 sign-ins",
+		"Seen in the rolling 24 h", "files archived, rolling 24 h", "Nightly, each in the rolling 26 h",
+		"Weekly, rolling 8 days", "Lowest database, rolling 30 days")
 	for _, bad := range []string{"observe mode", "last 30 days", "last 24 hours", "last 7 days", "in 24 h", "in 7 days", "over 30 days"} {
 		if strings.Contains(strings.ToLower(body), bad) {
 			t.Errorf("the page says %q", bad)

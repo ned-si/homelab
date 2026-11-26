@@ -340,6 +340,81 @@ func scoreStatus(score *float64) (status, string) {
 	return st, levelWord(st)
 }
 
+// The database rules (design.md, "Status colours"): each takes the
+// database count, and with none reporting nothing can be judged.
+
+// databasesStatus is "Down" when a database seen in the rolling 24 h has not
+// been up in the last 10 minutes.
+func databasesStatus(up, count int) (status, string) {
+	switch {
+	case count == 0:
+		return statusNone, noData
+	case up == count:
+		return statusOK, "Up"
+	default:
+		return statusBad, "Down"
+	}
+}
+
+// walStatus is "Behind" when the databases not archiving normally all have
+// more than 5 WAL files waiting, "Failing" when one fails or is not up.
+func walStatus(archiving, behind, count int) (status, string) {
+	switch {
+	case count == 0:
+		return statusNone, noData
+	case archiving == count:
+		return statusOK, "Archiving"
+	case archiving+behind == count:
+		return statusWarn, "Behind"
+	default:
+		return statusBad, "Failing"
+	}
+}
+
+// baseBackupStatus has no warning band, so the nightly cycle never turns
+// the tile amber.
+func baseBackupStatus(fresh, count int) (status, string) {
+	switch {
+	case count == 0:
+		return statusNone, noData
+	case fresh == count:
+		return statusOK, "Fresh"
+	default:
+		return statusBad, "Stale"
+	}
+}
+
+// restoreStatus is "Failed" when a latest restore test failed, "Overdue"
+// when some database has no pass in the rolling 8 days and none failed.
+func restoreStatus(passed, failed, count int) (status, string) {
+	switch {
+	case count == 0:
+		return statusNone, noData
+	case failed > 0:
+		return statusBad, "Failed"
+	case passed == count:
+		return statusOK, "Passed"
+	default:
+		return statusWarn, "Overdue"
+	}
+}
+
+// freshnessTarget is the objective of the backup-freshness SLO, in percent.
+const freshnessTarget = 99
+
+// freshnessStatus is the lowest database's backup freshness over the
+// rolling 30 days against its objective; nil has no series.
+func freshnessStatus(v *float64) (status, string) {
+	switch {
+	case v == nil:
+		return statusNone, noData
+	case *v >= freshnessTarget:
+		return statusOK, "Met"
+	default:
+		return statusBad, "Missed"
+	}
+}
+
 // provenanceStatus is the status and word of an image's provenance as
 // Kyverno verified it; nil is no report.
 func provenanceStatus(verified *bool) (status, string) {

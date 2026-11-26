@@ -71,6 +71,31 @@ type fake struct {
 	// result and those whose result is not pass; a missing image has no
 	// series.
 	reported, failed map[string]float64
+
+	// Version 10: the database aggregates by query; a query without a
+	// value has no series.
+	dbs map[string]float64
+}
+
+// fakeDatabases are the aggregates of 2026-11-25 at 19:30Z (design.md,
+// "Recording rules (task 25)").
+func fakeDatabases() map[string]float64 {
+	return map[string]float64{
+		"cluster:cnpg_databases:count":                         8,
+		"cluster:cnpg_databases_up:count":                      8,
+		"cluster:cnpg_data:bytes":                              1345968964,
+		"cluster:cnpg_wal_archiving:count":                     8,
+		"cluster:cnpg_wal_behind:count":                        0,
+		"cluster:cnpg_wal_archived:increase24h":                1516.5,
+		"cluster:cnpg_base_backup_fresh:count":                 8,
+		"cluster:cnpg_base_backup_age:max_seconds":             70292.4,
+		"cluster:cnpg_recovery_window:min_seconds":             2658197.8,
+		"cluster:cnpg_restore_passed:count":                    8,
+		"cluster:cnpg_restore_failed:count":                    0,
+		"cluster:cnpg_restore_rows:sum":                        1031332,
+		"cluster:cnpg_restore_duration:median_seconds":         414.5,
+		`min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})`: 0.99966,
+	}
 }
 
 // firing is a paging alert's firing in the fake ALERTS series.
@@ -122,6 +147,7 @@ func newFake() *fake {
 		secBucket: 2.4,
 		reported:  map[string]float64{"homelab-dashboard": 2, "homelab-site": 1},
 		failed:    map[string]float64{},
+		dbs:       fakeDatabases(),
 	}
 	f.budget = map[string]float64{}
 	for k, v := range f.avail {
@@ -220,6 +246,12 @@ func (f *fake) prom2(query string, at float64, apps []string) ([]sample, bool) {
 			return none, true
 		}
 		return one(*v), true
+	}
+	if _, ok := fakeDatabases()[query]; ok {
+		if v, ok := f.dbs[query]; ok {
+			return one(v), true
+		}
+		return none, true
 	}
 	if strings.Contains(query, "kyverno_policyreport_result_info") {
 		values := f.reported
@@ -687,7 +719,7 @@ func TestCyclePushesFullSnapshot(t *testing.T) {
 		t.Errorf("generated_at = %s, want %s", got, want)
 	}
 	cl := s.Cluster
-	cl.NodeUse, cl.NAS, cl.Gateway, cl.Volumes = nil, snapshot.NAS{}, snapshot.Gateway{}, snapshot.Volumes{}
+	cl.NodeUse, cl.NAS, cl.Gateway, cl.Volumes, cl.Databases = nil, snapshot.NAS{}, snapshot.Gateway{}, snapshot.Volumes{}, snapshot.Databases{}
 	if diff := cmp.Diff(snapshot.Cluster{AsOf: s.GeneratedAt, Nodes: 4, Apps: 55, TalosVersion: "v1.14.6",
 		KubernetesVersion: "v1.37.2", Synced: 54, Healthy: 55, Restarts24h: 3}, cl); diff != "" {
 		t.Errorf("cluster mismatch (-want +got):\n%s", diff)

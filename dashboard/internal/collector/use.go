@@ -82,7 +82,8 @@ func integer(v *float64) *int {
 	return &n
 }
 
-// use adds the version 2 cluster figures to c, whose Nodes and Apps are set.
+// use adds the version 2 cluster figures and the databases of version 10 to
+// c, whose Nodes and Apps are set.
 func use(ctx context.Context, q Querier, at time.Time, c *snapshot.Cluster) error {
 	var err error
 	if c.Synced, err = counted(ctx, q, "synced", `count(argocd_app_info{sync_status="Synced"})`, at); err != nil {
@@ -108,7 +109,10 @@ func use(ctx context.Context, q Querier, at time.Time, c *snapshot.Cluster) erro
 		return &figureError{"restarts_24h", errEmpty}
 	}
 	c.Restarts24h = *integer(restarts)
-	c.Volumes, err = volumes(ctx, q, at)
+	if c.Volumes, err = volumes(ctx, q, at); err != nil {
+		return err
+	}
+	c.Databases, err = databases(ctx, q, at)
 	return err
 }
 

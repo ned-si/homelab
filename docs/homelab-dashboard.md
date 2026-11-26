@@ -153,6 +153,7 @@ the days summer time starts and ends), the last one from midnight to now
 | --- | --- | --- |
 | Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes, averaged over each day for the bars; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d` ([sre.md](sre.md)) |
 | Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over a rolling 5 min (RED); Argo CD Synced and Healthy, restarts over a rolling 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
+| Cluster, Databases and backups | Over every CloudNativePG database, no name: the databases seen in the rolling 24 h, how many are up and the data they hold; WAL archiving (archiving, files archived in the rolling 24 h); base backups in the rolling 26 h and the oldest; the shortest point-in-time recovery window; the weekly restore tests passed in the rolling 8 days, the rows compared and the median time to a restored copy; the lowest backup freshness over the rolling 30 days | The label-free `cluster:cnpg_*` aggregates of PrometheusRule `homelab-databases` ([backups.md](backups.md#reading-the-results)) and `min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})` |
 | Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), the rework rate without a band, Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
 | Supply chain | Per first-party image (`homelab-dashboard`, `homelab-site`): "Build L2" when Kyverno verified its provenance on every Pod with a report, "Verified", "Not verified" or "No data", and the builder | `kyverno_policyreport_result_info{policy="verify-own-images"}` from kube-state-metrics, joined with `kube_pod_container_info` by Pod and counted per image ([SLSA level](#slsa-level)) |
 | Supply chain, Scorecard | The repository's OpenSSF Scorecard score out of 10 and the date of its run, every check in alphabetical order with its score (or "Not applicable" when Scorecard gives `-1`) and Scorecard's reason, a link to the [full report](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab) | `https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`, hourly, no token ([Scorecard](#scorecard)) |
@@ -222,6 +223,11 @@ curl -s https://homelab.nedsi.io/snapshot.json | jq -c '.supply_chain.scorecard 
 - Cluster figures are aggregated in PromQL: the collector never receives a
   namespace, pod or volume name. The incident count reads the paging
   alerts' labels to tell firings apart; none reaches the snapshot.
+- The databases are counted and summed in Prometheus, by recording rules
+  whose aggregates have no label: the collector reads no database,
+  namespace or pod name, and `cluster.databases` holds numbers only. The
+  hidden apps' databases count like the others and are never singled out,
+  so there is no per-database row.
 - The security card shows only cluster-wide counts by category: no
   address, path, route, user, rule or alert name. It shows no brute-force
   lockout count: Keycloak locks existing accounts only, so the count would
@@ -272,7 +278,15 @@ or "Seen"; the others read "Usual", or "Above usual" when the 24 h count
 is above 20 and three times the daily mean of the 6 days before. No
 security figure is red: the alerts page, the card counts. An image's
 provenance reads "Verified" in green or "Not verified" in amber. The
-Scorecard score is "OK" from 7.0, "Warning" from 4.0, "Critical" below. The DORA
+Scorecard score is "OK" from 7.0, "Warning" from 4.0, "Critical" below.
+The database tiles turn where the CNPG, backup-verify and backup-freshness
+alerts fire: "Down" when a database seen in the rolling 24 h has not been
+up for 10 minutes; WAL archiving "Behind" (amber) with more than 5 files
+waiting, "Failing" when one fails or is down; base backups "Stale" with
+none in 26 h or a failed one since the last good one; restore tests
+"Overdue" (amber) without a pass in 8 days, "Failed" when the latest
+failed; backup freshness "Missed" under 99%. The recovery window has no
+colour, and with no database reporting every tile reads "No data". The DORA
 metrics show their band: "Elite" and "High" in green,
 "Medium" in amber, "Low" in red. The full table is in the
 [design](../.kiro/specs/homelab-dashboard/design.md#status-colours).

@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 9
+const Version = 10
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -125,6 +125,28 @@ type Cluster struct {
 	Gateway           Gateway   `json:"gateway"`
 	Restarts24h       int       `json:"restarts_24h"`
 	Volumes           Volumes   `json:"volumes"`
+	Databases         Databases `json:"databases"`
+}
+
+// Databases sums every CloudNativePG database (design.md, "Version 10"):
+// numbers only, so no name can travel in it. Count is the databases seen in
+// the rolling 24 h, the <m> of every other count. A nil figure has no
+// series.
+type Databases struct {
+	Count                 int      `json:"count"`
+	Up                    int      `json:"up"`
+	DataBytes             *int64   `json:"data_bytes"`
+	WALArchiving          int      `json:"wal_archiving"`
+	WALBehind             int      `json:"wal_behind"`
+	WALArchived24h        *int     `json:"wal_archived_24h"`
+	BaseFresh             int      `json:"base_fresh"`
+	BaseOldestSeconds     *int     `json:"base_oldest_seconds"`
+	RecoveryWindowSeconds *int     `json:"recovery_window_seconds"`
+	RestorePassed         int      `json:"restore_passed"`
+	RestoreFailed         int      `json:"restore_failed"`
+	RestoreRows           *int     `json:"restore_rows"`
+	RestoreMedianSeconds  *int     `json:"restore_median_seconds"`
+	Freshness30d          *float64 `json:"freshness_30d"`
 }
 
 // NodeUse is one node's utilisation, saturation and errors, in percent
@@ -324,7 +346,7 @@ var compiled = sync.OnceValues(func() (*jsonschema.Schema, error) {
 // level only with a verified provenance, the Scorecard checks compiled and
 // their reasons plain, the days ending
 // today, no block newer than generated_at, the counts within their totals,
-// the ci runs newest first). An error about the shown names wraps
+// the database counts within their count, the ci runs newest first). An error about the shown names wraps
 // ErrNotShown.
 func Validate(body []byte) (*Snapshot, error) {
 	if len(body) > MaxSize {
@@ -503,6 +525,20 @@ func (c *Cluster) check() []error {
 		}
 		if i > 0 && n.Name <= c.NodeUse[i-1].Name {
 			errs = append(errs, fmt.Errorf("cluster.node_use[%d] %q is not after %q", i, n.Name, c.NodeUse[i-1].Name))
+		}
+	}
+	d := c.Databases
+	for _, f := range []struct {
+		name string
+		n    int
+	}{
+		{"up", d.Up},
+		{"base_fresh", d.BaseFresh},
+		{"wal_archiving + wal_behind", d.WALArchiving + d.WALBehind},
+		{"restore_passed + restore_failed", d.RestorePassed + d.RestoreFailed},
+	} {
+		if f.n > d.Count {
+			errs = append(errs, fmt.Errorf("cluster.databases: %s %d above count %d", f.name, f.n, d.Count))
 		}
 	}
 	return errs
