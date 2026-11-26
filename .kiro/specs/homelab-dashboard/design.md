@@ -760,8 +760,12 @@ to bottom:
    its date, then every check as a tile in `div.tiles.checks`, in
    alphabetical order (task 27: the check's name as the label, its score
    as the value with "/ 10" at `1.25rem`, or the word "Not applicable"
-   in `--none` for a `-1`, Scorecard's reason as the detail line; no
-   status colour on a check), and a link to the
+   in `--none` for a `-1`, Scorecard's reason as the detail line;
+   task 28: the value in the status colour of its score with the status
+   word beside it, as every other figure, and the compiled note of
+   [Scorecard](#scorecard-task-24) as a second detail line where the
+   check has one; the paragraph says how the colours read and what a
+   note is), and a link to the
    [full report](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab).
    "as of <time>" from `supply_chain.as_of`.
 6. **Security** (task 16): a panel of stat tiles, one per security
@@ -925,6 +929,7 @@ when the alert would fire:
 | DORA metrics | `elite` and `high` | `medium` | `low` | [DORA bands](#dora-bands) |
 | Security, expected zero | 0 in 24 h ("None") | Above 0 ("Seen") | — | Dashboard default: one is worth a look |
 | Scorecard score (task 24) | 7.0 or more | 4.0 to under 7.0 | Under 4.0 | Dashboard default; Scorecard's own badge turns from green under 7 |
+| Scorecard check (task 28) | 7 to 10 ("OK") | 4 to 6 ("Warning") | 0 to 3 ("Critical") | The overall score's thresholds, so a check and the total read the same way; a `-1` is `none` with "Not applicable"; a check with a note keeps its colour |
 | SLSA provenance (task 21) | Verified by Kyverno ("Verified") | Not verified, or no provenance ("Not verified") | — | `verify-own-images` runs in Audit; the page reports, the policy decides |
 | Databases (task 26) | `up` equal to `count` ("Up") | — | `up` below `count` ("Down") | A database is down after 10 minutes without a series or with `cnpg_collector_up` 0 (the shortest `for:` of the CNPG alerts), so a pod restart changes nothing; `CNPGMetricsAbsent` when none reports |
 | WAL archiving | `wal_archiving` equal to `count` ("Archiving") | Below, and `wal_archiving + wal_behind` equal to `count` ("Behind") | Otherwise: a database failing or not up ("Failing") | `CNPGWALArchivingFailing`; `CNPGWALArchiveLag` (more than 5 files waiting) is `warn`, because the page has no `for:` and a burst of writes queues files for a minute |
@@ -1747,6 +1752,36 @@ is claimed only on that evidence: `level` is `2` when `verified` is
   Maintained, Packaging, Pinned-Dependencies, SAST, SBOM,
   Security-Policy, Signed-Releases, Token-Permissions, Vulnerabilities,
   Webhooks.
+- Check colours (task 28): `checkStatus(score *int)` in
+  `internal/web/status.go` gives `none` and "Not applicable" for `nil`,
+  otherwise `scoreStatus` on the score (7 and 4, "OK", "Warning",
+  "Critical"); `checkTiles` sets the tile's status and word from it.
+- Notes (task 28): compiled in the web role, keyed by check name, shown
+  under Scorecard's reason; the collector and the snapshot are
+  unchanged (version 10 stays). A note adds context; the score, the
+  reason and "Not applicable" stay Scorecard's own. English (the French
+  is the operator's correction of the coder's proposal, in the task's
+  pull request):
+
+  | Check | Note |
+  | --- | --- |
+  | Branch-Protection | On purpose: main takes only pull requests with signed commits and a green CI, and needs no approval, so Renovate and the agents merge without waiting for a person. |
+  | Code-Review | On purpose: I run this alone and agents open the pull requests, so nobody else approves them. Green CI is the only gate. |
+  | Contributors | On purpose: one operator and a few agents, with no company or organisation behind the repository. |
+  | Signed-Releases | The images are signed with cosign and carry SLSA Build L2 provenance. No GitHub releases on purpose: these are personal apps, not meant for others to download. |
+
+  CII-Best-Practices has no note: Scorecard's reason ("badge detected:
+  InProgress") says where it stands. The Scorecard paragraph gains one
+  sentence: "A check is green from 7 out of 10, yellow from 4 and red
+  below; a note under a check says why where Scorecard's reason is not
+  enough."
+- Signed-Releases: Scorecard reads only GitHub release assets and gives
+  `-1` when there is no release. The repository publishes none: it
+  delivers from `main`, versioned by commit (Decided defaults,
+  Versioning), and its images are signed and attested on GHCR (task
+  20). GitHub releases made only so Scorecard can see the signatures
+  would duplicate them, so the check stays "Not applicable" with its
+  note.
 
 ## Databases (tasks 25 and 26)
 

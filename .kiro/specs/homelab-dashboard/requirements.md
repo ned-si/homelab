@@ -1,9 +1,8 @@
 ---
 kind: change
-status: done
+status: active
 created: 2026-11-20
-closed: 2026-11-26
-issue: 1739
+issue: 1775
 ---
 # Requirements: homelab-dashboard
 
@@ -128,6 +127,17 @@ none"; picking the worst three had no rationale). The order is
 alphabetical by check name, which stays the same from one Scorecard run
 to the next; a check Scorecard could not apply (score `-1`) shows "Not
 applicable".
+
+The operator's decision of 2026-11-26 (task 28, #1775), which reopens
+the spec: every check's score takes a status colour like the other
+figures on the page, with the overall score's thresholds (green from 7,
+yellow from 4, red below), and a short compiled note under the checks
+whose low score or "Not applicable" is on purpose: Branch-Protection
+(no required approval, so Renovate and the agents merge on green CI),
+Code-Review and Contributors (one operator, agents open the pull
+requests, CI is the only gate), Signed-Releases (the images are signed
+on GHCR, no GitHub releases on purpose). The scores and reasons stay
+Scorecard's own; a note adds context and never changes a score.
 
 The operator's decision of 2026-11-25 (tasks 25 and 26, #1739), which
 reopens the spec: a database part in the Cluster card, with the backup
@@ -630,6 +640,12 @@ evidence a machine checked.
    10, or "Not applicable" when Scorecard gives `-1`, and Scorecard's
    reason, and a link to
    `https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab`.
+   Each check's score SHALL be in the status colour of
+   [design, Status colours](design.md#status-colours) with its word,
+   and Branch-Protection, Code-Review, Contributors and Signed-Releases
+   SHALL carry a compiled note under Scorecard's reason
+   ([design, Scorecard](design.md#scorecard-task-24)). The score, the
+   reason and "Not applicable" SHALL stay Scorecard's own.
 6. THE collector SHALL fetch the Scorecard result from
    `https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`
    at most hourly, without a token; the browser SHALL fetch nothing.
@@ -812,6 +828,11 @@ without learning which databases there are.
     and the slsa.dev link (task 21), and the Scorecard tile with the
     score, its date, every check of the result in alphabetical order with
    "Not applicable" for a `-1`, and the viewer link (tasks 24 and 27),
+   each check's value in the class and with the word of its score
+   (`ok` "OK" from 7, `warn` "Warning" from 4, `bad` "Critical" below,
+   `none` "Not applicable" for a `-1`), each value equal to the API's
+   score, and the notes of task 28 under exactly the four checks of
+   13.5 in English and French,
    readable at 390 px in both themes; with the
     Scorecard API unreachable the tile keeps its last figures and says
     from when. [13.1, 13.2, 13.5, 13.6]
@@ -938,7 +959,7 @@ Each default holds until the operator says otherwise.
 | Rework rate | Rollbacks and fix forwards of 10.3, plus deploying `fix` merges during or within 24 h after an incident of 10.4, over the deploys of 10.1; no band (operator asked for the metric, 2026-11-24) | DORA's definition, "unplanned deployments made because of an incident in production", recountable from git, GitHub and the `ALERTS` series; without the incident condition every routine `fix` would count |
 | SLSA level | Build L2 for both images, after task 20 gives `homelab-site` a signed provenance; L3 later | What GitHub artifact attestations made in the build job give, per GitHub's documentation ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)) |
 | Provenance verified | Kyverno `verify-own-images`, Audit, a SLSA v1 provenance signed by the image's own workflow; the result per image through kube-state-metrics | The cluster checks what it runs; the collector keeps no Kubernetes rights |
-| Scorecard | `api.securityscorecards.dev`, hourly, no token; score `ok` from 7.0, `warn` from 4.0, `bad` below; every check with its reason, alphabetical, no status colour on a check (operator, 2026-11-26, #1756) | The public result of the repository's `scorecard` workflow; the collector already reaches `world:443`; all or none, and the name order does not move between runs as a score order would |
+| Scorecard | `api.securityscorecards.dev`, hourly, no token; score `ok` from 7.0, `warn` from 4.0, `bad` below; every check with its reason, alphabetical (operator, 2026-11-26, #1756); each check's score `ok` from 7, `warn` from 4, `bad` below, `none` for a `-1`, with its word; compiled notes under Branch-Protection, Code-Review, Contributors and Signed-Releases (operator, 2026-11-26, #1775) | The public result of the repository's `scorecard` workflow; the collector already reaches `world:443`; all or none, and the name order does not move between runs as a score order would; a check and the total read the same way, and the note says why a red or yellow check is on purpose |
 | Rounding | Percentages and the error budget at full precision in the snapshot; rounded once, to two decimals, half to even, by `strconv.FormatFloat(v, 'f', 2, 64)` in the web role (operator asked for half to even or half up, 2026-11-25) | One rounding cannot add the error of two; half to even is what `strconv` does with an exact tie, so no extra code, and it matches the `math.RoundToEven` of the other helpers |
 | Time windows | Rolling, ending now (2.8); the daily bars are Zurich calendar days (operator, 2026-11-25) | A calendar window makes a figure jump at midnight or on the 1st; a rolling one moves by the minute, like the SLO it is judged against |
 | Supply chain place | Between DORA metrics and Security (orchestrator, 2026-11-25, within the operator's order) | Delivery, then how what is delivered is built and trusted, then how the running system defends itself |
@@ -956,4 +977,4 @@ Each default holds until the operator says otherwise.
 | Theme | Dark by default, light on the reader's choice: the palette of [site-theme-language](../site-theme-language/design.md#palette), served as `/theme.css` | One palette for every public page; dark stays the default |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-23 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25). Tasks 25 and 26 in order, the same way | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-23 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25). Tasks 25 and 26 in order, the same way. Task 28 the same way, after the French dashboard (#1763) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
