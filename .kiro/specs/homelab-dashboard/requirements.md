@@ -667,7 +667,9 @@ without learning which databases there are.
    many are up, the data they hold), WAL archiving, base backups, point-in-time
    recovery, restore tests and backup freshness, with the figures of
    [design, Databases](design.md#databases-tasks-25-and-26), and one
-   short paragraph saying how the databases are protected.
+   short paragraph saying how the databases are protected. The tiles of
+   the other engines follow the six
+   ([dashboard-database-engines](../dashboard-database-engines/requirements.md)).
 2. EVERY database figure SHALL be a count, a sum, a minimum, a maximum
    or a median over all databases, computed in Prometheus (by recording
    rules, or by one aggregation of a recording rule in the collector's
