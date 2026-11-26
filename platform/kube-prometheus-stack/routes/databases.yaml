@@ -1,0 +1,158 @@
+# The databases of the public dashboard's Cluster card: per-database rules
+# keyed by namespace and cluster (the restore tests by cluster), then
+# label-free aggregates, the only series the dashboard reads, so no name
+# leaves Prometheus. No alerts: the CNPG and backup-verify alerts page.
+# .kiro/specs/homelab-dashboard/design.md, "Recording rules (task 25)".
+# Tests: tests/prometheus/databases_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-databases
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.databases
+      interval: 1m
+      rules:
+        # 1 per database seen in the rolling 24 h: the denominator of every
+        # "<n> of <m>", so a database that stops reporting still counts.
+        - record: cnpg_cluster:seen_24h
+          expr: group by (namespace, cluster) (max_over_time(cnpg_collector_up[24h]))
+        # Down after 10 minutes without a series: the shortest for: of the
+        # CNPG alerts, so a pod restart changes nothing.
+        - record: cnpg_cluster:up
+          expr: |
+            max by (namespace, cluster) (max_over_time(cnpg_collector_up[10m]))
+            or on (namespace, cluster) (cnpg_cluster:seen_24h * 0)
+        - record: cnpg_cluster:wal_failing
+          expr: |
+            max by (namespace, cluster) (label_replace(
+              cnpg_pg_stat_archiver_last_failed_time > bool cnpg_pg_stat_archiver_last_archived_time,
+              "cluster", "$1", "pod", "(.+)-[0-9]+"))
+        - record: cnpg_cluster:wal_behind
+          expr: |
+            max by (namespace, cluster) (label_replace(
+              cnpg_collector_pg_wal_archive_status{value="ready"} > bool 5,
+              "cluster", "$1", "pod", "(.+)-[0-9]+"))
+        # The Barman timestamps: the latest in the rolling 26 h, by database
+        # first, so a pod restart neither drops nor duplicates one. No age
+        # series before the first base backup (the timestamp is 0).
+        - record: cnpg_cluster:base_backup_age:seconds
+          expr: |
+            time() - (max by (namespace, cluster) (label_replace(
+              max_over_time(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp[26h]),
+              "cluster", "$1", "pod", "(.+)-[0-9]+")) > 0)
+            and on (namespace, cluster) cnpg_cluster:seen_24h
+        - record: cnpg_cluster:base_backup_failed
+          expr: |
+            max by (namespace, cluster) (label_replace(
+              max_over_time(barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp[26h]),
+              "cluster", "$1", "pod", "(.+)-[0-9]+"))
+            > bool
+            max by (namespace, cluster) (label_replace(
+              max_over_time(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp[26h]),
+              "cluster", "$1", "pod", "(.+)-[0-9]+"))
+            and on (namespace, cluster) cnpg_cluster:seen_24h
+        - record: cnpg_cluster:recovery_window:seconds
+          expr: |
+            time() - (max by (namespace, cluster) (label_replace(
+              max_over_time(barman_cloud_cloudnative_pg_io_first_recoverability_point[26h]),
+              "cluster", "$1", "pod", "(.+)-[0-9]+")) > 0)
+            and on (namespace, cluster) cnpg_cluster:seen_24h
+        - record: cluster:cnpg_databases:count
+          expr: count(cnpg_cluster:seen_24h) or vector(0)
+        - record: cluster:cnpg_databases_up:count
+          expr: sum(cnpg_cluster:up) or vector(0)
+        # The app databases, without Postgres's own postgres and template*;
+        # by database first, so a restart's new instance label counts once.
+        - record: cluster:cnpg_data:bytes
+          expr: |
+            sum(max by (namespace, cluster, datname) (label_replace(
+              max_over_time(cnpg_pg_database_size_bytes{datname!~"postgres|template[0-9]+"}[10m]),
+              "cluster", "$1", "pod", "(.+)-[0-9]+")))
+        - record: cluster:cnpg_wal_archiving:count
+          expr: |
+            count(
+              (cnpg_cluster:up == 1)
+              unless on (namespace, cluster) (cnpg_cluster:wal_failing == 1 or cnpg_cluster:wal_behind == 1)
+            ) or vector(0)
+        - record: cluster:cnpg_wal_behind:count
+          expr: |
+            count(
+              (cnpg_cluster:wal_behind == 1)
+              unless on (namespace, cluster) (cnpg_cluster:wal_failing == 1)
+            ) or vector(0)
+        - record: cluster:cnpg_wal_archived:increase24h
+          expr: sum(increase(cnpg_pg_stat_archiver_archived_count[24h]))
+        - record: cluster:cnpg_base_backup_fresh:count
+          expr: |
+            count(
+              (cnpg_cluster:base_backup_age:seconds < 26 * 3600)
+              unless on (namespace, cluster) (cnpg_cluster:base_backup_failed == 1)
+            ) or vector(0)
+        - record: cluster:cnpg_base_backup_age:max_seconds
+          expr: max(cnpg_cluster:base_backup_age:seconds)
+        - record: cluster:cnpg_recovery_window:min_seconds
+          expr: min(cnpg_cluster:recovery_window:seconds)
+
+    # Weekly results over the rolling 8 days of history (a new Pushgateway
+    # pod starts empty). Every 2 minutes: the 8-day subqueries are the
+    # heaviest rules here and the results change once a week.
+    - name: homelab.databases.restore
+      interval: 2m
+      rules:
+        - record: cnpg_cluster:restore_last_run:timestamp
+          expr: |
+            max by (cluster) (label_replace(
+              max_over_time(backup_verify_last_run_timestamp_seconds{check="postgres"}[8d]),
+              "cluster", "$1", "target", "(.+)"))
+        - record: cnpg_cluster:restore_last_success:timestamp
+          expr: |
+            max by (cluster) (label_replace(
+              max_over_time(backup_verify_last_success_timestamp_seconds{check="postgres"}[8d]),
+              "cluster", "$1", "target", "(.+)"))
+        # Rows and time of the latest passing test (verify-postgres.sh pushes
+        # them only on a pass), whichever Pushgateway pod served them.
+        - record: cnpg_cluster:restore_rows
+          expr: |
+            max by (cluster) (label_replace(
+              last_over_time((max by (target) (backup_verify_rows{check="postgres"}))[8d:5m]),
+              "cluster", "$1", "target", "(.+)"))
+        - record: cnpg_cluster:restore_duration:seconds
+          expr: |
+            max by (cluster) (label_replace(
+              last_over_time((max by (target) (backup_verify_restore_seconds{check="postgres"}))[8d:5m]),
+              "cluster", "$1", "target", "(.+)"))
+        # A pass counts while it is under 8 days old: the Pushgateway keeps
+        # serving an old one.
+        - record: cluster:cnpg_restore_passed:count
+          expr: |
+            count(
+              (cnpg_cluster:restore_last_success:timestamp >= on (cluster) cnpg_cluster:restore_last_run:timestamp)
+              and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
+              and on (cluster) cnpg_cluster:seen_24h
+            ) or vector(0)
+        # The latest run in the 8-day history failed, whatever its age.
+        - record: cluster:cnpg_restore_failed:count
+          expr: |
+            count(
+              (
+                (cnpg_cluster:restore_last_run:timestamp > on (cluster) cnpg_cluster:restore_last_success:timestamp)
+                or (cnpg_cluster:restore_last_run:timestamp unless on (cluster) cnpg_cluster:restore_last_success:timestamp)
+              )
+              and on (cluster) cnpg_cluster:seen_24h
+            ) or vector(0)
+        # Only passes inside the rolling 8 days, the window the tile names.
+        - record: cluster:cnpg_restore_rows:sum
+          expr: |
+            sum(cnpg_cluster:restore_rows
+              and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
+              and on (cluster) cnpg_cluster:seen_24h)
+        - record: cluster:cnpg_restore_duration:median_seconds
+          expr: |
+            quantile(0.5, cnpg_cluster:restore_duration:seconds
+              and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
+              and on (cluster) cnpg_cluster:seen_24h)

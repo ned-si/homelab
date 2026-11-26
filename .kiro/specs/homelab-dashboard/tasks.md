@@ -436,7 +436,7 @@ after its review round with no preview approval (operator, 2026-11-24
 and 2026-11-25) and is followed by a live check, task 26 by the image
 deploy first.
 
-- [ ] 25. Database recording rules (**not visible**), as in
+- [x] 25. Database recording rules (**not visible**), as in
       [design.md, Recording rules](design.md#recording-rules-task-25):
       PrometheusRule `homelab-databases` in
       `platform/kube-prometheus-stack/routes/databases.yaml` with the
@@ -451,6 +451,7 @@ deploy first.
       criterion 31; live, each aggregate in Grafana equal to the
       values of the design's table recomputed from the raw series at
       the same instant. [14.2, 14.3, 14.6]
+      #1764
 - [ ] 26. Databases and backups group (**visible**), as in
       [design.md, Collector and page](design.md#collector-and-page-task-26):
       snapshot version 10 (`cluster.databases`, numbers only) in

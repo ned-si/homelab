@@ -1,0 +1,1025 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/databases.yaml
+# (PrometheusRule homelab-databases), the cases of acceptance criterion 31 of
+# .kiro/specs/homelab-dashboard/requirements.md. Each case asserts the
+# label-free aggregates the public dashboard reads.
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
+rule_files:
+  - homelab-databases.yaml
+
+evaluation_interval: 1m
+
+tests:
+
+  # Every database healthy: 8 of 8 everywhere, postgres and template1 left
+  # out of the data, and every aggregate without a label (the name only).
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="immich", pod="immich-db-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="immich", pod="immich-db-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '300x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '100x30'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="keycloak", pod="keycloak-db-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="keycloak", pod="keycloak-db-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '200x30'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="mealie", pod="mealie-postgresql-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="mealie", pod="mealie-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '300x30'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="home", pod="home-assistant-postgresql-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="home", pod="home-assistant-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '400x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="theater", pod="sonarr-postgresql-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="sonarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '500x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="theater", pod="radarr-postgresql-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="radarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '600x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="theater", pod="prowlarr-postgresql-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="prowlarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '700x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_pg_stat_archiver_archived_count{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0+1x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="theater", pod="lidarr-postgresql-1", instance="a", value="ready"}'
+        values: '0x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="lidarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '600x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '60x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '120x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '800x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="immich", pod="immich-db-1", instance="a", datname="postgres"}'
+        values: '7000000x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="immich", pod="immich-db-1", instance="a", datname="template1"}'
+        values: '7000000x30'
+    promql_expr_test:
+      - expr: '{__name__=~"cluster:cnpg_.+"}'
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_age:max_seconds'
+            value: 1200
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+          - labels: 'cluster:cnpg_data:bytes'
+            value: 8000
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 8
+          - labels: 'cluster:cnpg_recovery_window:min_seconds'
+            value: 1500
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 450
+          - labels: 'cluster:cnpg_restore_failed:count'
+            value: 0
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 8
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 8000
+          - labels: 'cluster:cnpg_wal_archived:increase24h'
+            value: 240
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 8
+          - labels: 'cluster:cnpg_wal_behind:count'
+            value: 0
+
+  # immich-db's pod restarts: its series go stale at minute 11 and come back
+  # at 14 with a new instance label. Nothing changes and its data counts once.
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x10 stale'
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="b"}'
+        values: '_x14 1x16'
+      - series: 'cnpg_pg_database_size_bytes{namespace="immich", pod="immich-db-1", instance="a", datname="app"}'
+        values: '1000x10 stale'
+      - series: 'cnpg_pg_database_size_bytes{namespace="immich", pod="immich-db-1", instance="b", datname="app"}'
+        values: '_x14 1000x16'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0+60x10 stale'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1", instance="b"}'
+        values: '_x14 840+60x16'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="keycloak", pod="keycloak-db-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="mealie", pod="mealie-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="home", pod="home-assistant-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="sonarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="radarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="prowlarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_database_size_bytes{namespace="theater", pod="lidarr-postgresql-1", instance="a", datname="app"}'
+        values: '1000x30'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0+60x30'
+    promql_expr_test:
+      - expr: cluster:cnpg_databases:count
+        eval_time: 12m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 12m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 8
+      - expr: cluster:cnpg_data:bytes
+        eval_time: 12m
+        exp_samples:
+          - labels: 'cluster:cnpg_data:bytes'
+            value: 8000
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 12m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 8
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 12m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+      - expr: cluster:cnpg_databases:count
+        eval_time: 14m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 14m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 8
+      - expr: cluster:cnpg_data:bytes
+        eval_time: 14m
+        exp_samples:
+          - labels: 'cluster:cnpg_data:bytes'
+            value: 8000
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 14m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 8
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 14m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+      - expr: cluster:cnpg_databases:count
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 8
+      - expr: cluster:cnpg_data:bytes
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cluster:cnpg_data:bytes'
+            value: 8000
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 8
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+      - expr: cluster:cnpg_base_backup_age:max_seconds
+        eval_time: 12m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_age:max_seconds'
+            value: 120
+
+  # immich-db stops reporting after minute 60: up 8 for 10 minutes, then 7;
+  # still counted for the rolling 24 h, then 7 of 7, its base backup with it.
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x60'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0+60x60'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '0+60x1500'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0+60x1500'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0+60x1500'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0+60x1500'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0+60x1500'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0+60x1500'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x1500'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0+60x1500'
+    promql_expr_test:
+      - expr: cluster:cnpg_databases:count
+        eval_time: 69m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 69m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 8
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 69m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 8
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 69m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+      - expr: cluster:cnpg_databases:count
+        eval_time: 70m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 70m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 7
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 70m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 7
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 70m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+      - expr: cluster:cnpg_databases:count
+        eval_time: 1499m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 1499m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 7
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 1499m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 7
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1499m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 8
+      - expr: cluster:cnpg_databases:count
+        eval_time: 1500m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 7
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 1500m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 7
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 1500m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 7
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1500m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 7
+
+  # immich-db backs up at minute 150 and stops at 180; keycloak-db's last base
+  # backup is from minute 1. From 24 h to 25.5 h after the stop keycloak-db's
+  # is 27 h old: 6 of 7 fresh, immich-db's backup no longer counts.
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x180'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0x149 9000x30'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '60x1710'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0+60x1710'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0+60x1710'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0+60x1710'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0+60x1710'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0+60x1710'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x1710'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0+60x1710'
+    promql_expr_test:
+      - expr: cluster:cnpg_databases:count
+        eval_time: 1619m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1619m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 7
+      - expr: cluster:cnpg_databases:count
+        eval_time: 1620m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 7
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1620m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 6
+      - expr: cluster:cnpg_databases:count
+        eval_time: 1709m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 7
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1709m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 6
+      - expr: cluster:cnpg_base_backup_age:max_seconds
+        eval_time: 1620m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_age:max_seconds'
+            value: 97140
+
+  # immich-db's last archive attempt failed (failing); keycloak-db has 6 WAL
+  # files ready (behind); mealie-postgresql both (failing only);
+  # home-assistant-postgresql 5 ready and a failure as old as its last success
+  # (archiving); sonarr-postgresql's exporter reports 0 (down, not archiving).
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '1200x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '1500x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="keycloak", pod="keycloak-db-1", instance="a", value="ready"}'
+        values: '6x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '1200x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '1500x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="mealie", pod="mealie-postgresql-1", instance="a", value="ready"}'
+        values: '6x30'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="home", pod="home-assistant-postgresql-1", instance="a", value="ready"}'
+        values: '5x30'
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1500x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1500x30'
+    promql_expr_test:
+      - expr: cluster:cnpg_databases:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+      - expr: cluster:cnpg_databases_up:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases_up:count'
+            value: 7
+      - expr: cluster:cnpg_wal_archiving:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_archiving:count'
+            value: 4
+      - expr: cluster:cnpg_wal_behind:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_wal_behind:count'
+            value: 1
+
+  # immich-db's last base backup is from minute 1, 26 h old at minute 1561;
+  # keycloak-db's newest one failed after the last good one; mealie-postgresql
+  # never had one (timestamp 0: no age series, not fresh).
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '60x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="immich", pod="immich-db-1", instance="a"}'
+        values: '0x1561'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '600x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="keycloak", pod="keycloak-db-1", instance="a"}'
+        values: '900x1561'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1", instance="a"}'
+        values: '0x1561'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0+60x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="home", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '0x1561'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0+60x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="sonarr-postgresql-1", instance="a"}'
+        values: '0x1561'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0+60x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="radarr-postgresql-1", instance="a"}'
+        values: '0x1561'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0+60x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '0x1561'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0+60x1561'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="theater", pod="lidarr-postgresql-1", instance="a"}'
+        values: '0x1561'
+    promql_expr_test:
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 6
+      - expr: cluster:cnpg_base_backup_age:max_seconds
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_age:max_seconds'
+            value: 1740
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1560m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 6
+      - expr: cluster:cnpg_base_backup_fresh:count
+        eval_time: 1561m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_fresh:count'
+            value: 5
+      - expr: cluster:cnpg_base_backup_age:max_seconds
+        eval_time: 1561m
+        exp_samples:
+          - labels: 'cluster:cnpg_base_backup_age:max_seconds'
+            value: 93600
+      - expr: cluster:cnpg_databases:count
+        eval_time: 1561m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 8
+
+  # immich-db's latest restore test ran after its last pass (failed);
+  # keycloak-db has a run and no pass (failed). immich-db's rows and time
+  # come from its last pass, under 8 days old.
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="sonarr-postgresql", pod="sonarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="radarr-postgresql", pod="radarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="prowlarr-postgresql", pod="prowlarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'cnpg_collector_up{namespace="theater", cluster="lidarr-postgresql", pod="lidarr-postgresql-1", instance="a"}'
+        values: '1x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '1200x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '100x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '1200x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '200x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="home-assistant-postgresql"}'
+        values: '300x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="sonarr-postgresql"}'
+        values: '400x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="radarr-postgresql"}'
+        values: '500x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="prowlarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '600x30'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '1000x30'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="lidarr-postgresql"}'
+        values: '700x30'
+    promql_expr_test:
+      - expr: cluster:cnpg_restore_passed:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 6
+      - expr: cluster:cnpg_restore_failed:count
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_failed:count'
+            value: 2
+      - expr: cluster:cnpg_restore_rows:sum
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 7000
+      - expr: cluster:cnpg_restore_duration:median_seconds
+        eval_time: 30m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 400
+
+  # immich-db and keycloak-db pass at minute 5. immich-db's result is served
+  # to the end (Pushgateway alive); keycloak-db's series stops at minute 5
+  # (Pushgateway replaced). At minute 11526 immich-db's pass is 8 days and
+  # 1 minute old and keycloak-db's series stopped 8 days and 1 minute ago:
+  # both overdue, neither passed nor failed, their rows and time left out.
+  # home-assistant-postgresql has never been tested (overdue throughout).
+  # Scraped every 5 minutes, 4 databases: promtool's engine loads at most
+  # 10,000 samples per query and the 8-day subquery holds 2,304 per database.
+  - interval: 5m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x2306'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x2306'
+      - series: 'cnpg_collector_up{namespace="mealie", cluster="mealie-postgresql", pod="mealie-postgresql-1", instance="a"}'
+        values: '1x2306'
+      - series: 'cnpg_collector_up{namespace="home", cluster="home-assistant-postgresql", pod="home-assistant-postgresql-1", instance="a"}'
+        values: '1x2306'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '300x2306'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '300x2306'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '1000x2306'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '300x2306'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '300x1'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '300x1'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '2000x1'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '500x1'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '600000x2306'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '600000x2306'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '100x2306'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="mealie-postgresql"}'
+        values: '100x2306'
+    promql_expr_test:
+      - expr: cluster:cnpg_restore_passed:count
+        eval_time: 11524m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 3
+      - expr: cluster:cnpg_restore_rows:sum
+        eval_time: 11524m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 3100
+      - expr: cluster:cnpg_restore_duration:median_seconds
+        eval_time: 11524m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 300
+      - expr: cluster:cnpg_restore_passed:count
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 1
+      - expr: cluster:cnpg_restore_failed:count
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_failed:count'
+            value: 0
+      - expr: cluster:cnpg_restore_rows:sum
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 100
+      - expr: cluster:cnpg_restore_duration:median_seconds
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 100
+      - expr: cluster:cnpg_databases:count
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:cnpg_databases:count'
+            value: 4
+
+  # The Pushgateway pod serving the results goes away at minute 1440 and a
+  # new one serves them again from minute 2880: same counts, rows and median
+  # from the history, during the gap and with both pods in it.
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="immich", cluster="immich-db", pod="immich-db-1", instance="a"}'
+        values: '1x3000'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '600x1440'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-b", check="postgres", target="immich-db"}'
+        values: '_x2880 600x120'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '600x1440'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-b", check="postgres", target="immich-db"}'
+        values: '_x2880 600x120'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '1000x1440'
+      - series: 'backup_verify_rows{pod="pushgateway-b", check="postgres", target="immich-db"}'
+        values: '_x2880 1000x120'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="immich-db"}'
+        values: '100x1440'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-b", check="postgres", target="immich-db"}'
+        values: '_x2880 100x120'
+      - series: 'cnpg_collector_up{namespace="keycloak", cluster="keycloak-db", pod="keycloak-db-1", instance="a"}'
+        values: '1x3000'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '600x1440'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-b", check="postgres", target="keycloak-db"}'
+        values: '_x2880 600x120'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '600x1440'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-b", check="postgres", target="keycloak-db"}'
+        values: '_x2880 600x120'
+      - series: 'backup_verify_rows{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '1000x1440'
+      - series: 'backup_verify_rows{pod="pushgateway-b", check="postgres", target="keycloak-db"}'
+        values: '_x2880 1000x120'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-a", check="postgres", target="keycloak-db"}'
+        values: '200x1440'
+      - series: 'backup_verify_restore_seconds{pod="pushgateway-b", check="postgres", target="keycloak-db"}'
+        values: '_x2880 200x120'
+    promql_expr_test:
+      - expr: cluster:cnpg_restore_passed:count
+        eval_time: 2000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 2
+      - expr: cluster:cnpg_restore_failed:count
+        eval_time: 2000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_failed:count'
+            value: 0
+      - expr: cluster:cnpg_restore_rows:sum
+        eval_time: 2000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 2000
+      - expr: cluster:cnpg_restore_duration:median_seconds
+        eval_time: 2000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 150
+      - expr: cluster:cnpg_restore_passed:count
+        eval_time: 2900m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 2
+      - expr: cluster:cnpg_restore_failed:count
+        eval_time: 2900m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_failed:count'
+            value: 0
+      - expr: cluster:cnpg_restore_rows:sum
+        eval_time: 2900m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 2000
+      - expr: cluster:cnpg_restore_duration:median_seconds
+        eval_time: 2900m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 150
+      - expr: cluster:cnpg_restore_passed:count
+        eval_time: 3000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_passed:count'
+            value: 2
+      - expr: cluster:cnpg_restore_failed:count
+        eval_time: 3000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_failed:count'
+            value: 0
+      - expr: cluster:cnpg_restore_rows:sum
+        eval_time: 3000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_rows:sum'
+            value: 2000
+      - expr: cluster:cnpg_restore_duration:median_seconds
+        eval_time: 3000m
+        exp_samples:
+          - labels: 'cluster:cnpg_restore_duration:median_seconds'
+            value: 150

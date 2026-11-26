@@ -1028,6 +1028,22 @@ before pushing also fires the stock `KubeJobFailed`. Group `backup.lock`:
 `BackupLockBroken` (`critical`, pages) and `BackupLockCheckStale`
 (`warning`, `action: review`, no passing lock test in 8 days or none on record).
 
+PrometheusRule `homelab-databases`
+(`platform/kube-prometheus-stack/routes/databases.yaml`, recording rules
+only) sums the CNPG, Barman Cloud and `check="postgres"` results over every
+database into label-free aggregates: `cluster:cnpg_databases:count` (seen in
+the rolling 24 h), `_databases_up:count`, `_data:bytes`,
+`_wal_archiving:count`, `_wal_behind:count`, `_wal_archived:increase24h`,
+`_base_backup_fresh:count`, `_base_backup_age:max_seconds`,
+`_recovery_window:min_seconds`, `_restore_passed:count`,
+`_restore_failed:count`, `_restore_rows:sum` and
+`_restore_duration:median_seconds`. The restore rules read 8 days of
+history, so a new Pushgateway pod, which starts empty, changes nothing. The
+public dashboard's "Databases and backups" tiles read only these
+aggregates ([homelab-dashboard.md](homelab-dashboard.md#cards)); the
+per-database `cnpg_cluster:*` rules behind them are in Grafana for a
+lookup. They raise no alert: the alerts above already do.
+
 ```sh
 kubectl -n backup-verify get cronjobs,jobs
 kubectl -n backup-verify logs job/<job> --all-containers | grep -E 'PASS|FAIL|changed'
