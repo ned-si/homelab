@@ -643,14 +643,16 @@ app is its own origin:
 | Home | `https://nedsi.io/` |
 | Blog | `https://blog.nedsi.io/` |
 | Homelab | `/`, with `aria-current="page"` (resolves to `https://homelab.nedsi.io/`) |
+| Tech radar | `https://techradar.nedsi.io/` (tech-radar task 3) |
 | About | `https://blog.nedsi.io/about/` |
 
 `page.html` is an observability dashboard, not a page of text. From top
 to bottom:
 
 1. The title, the one-line intro "An over-engineered homelab, in
-   numbers." (no word on the apps left out: they are simply absent), the target ("Target: 99.50% availability
-   over 30 days per app") and "Updated <time> (Zurich time)" from
+   numbers." (no word on the apps left out: they are simply absent), the target ("SLA: 99.50% availability
+   over a rolling 30 days per app"; "SLA", not "Target", from #1738:
+   the readers it is for know SLA, SLO and burn rate) and "Updated <time> (Zurich time)" from
    `generated_at`, with the staleness notices below.
 2. **Availability**: a grid of cards (`div.cards`), one per shown app in
    the allow-list order. Each card (`div.card`):
@@ -812,7 +814,9 @@ Gestalt rules of common region and proximity:
   with `0.04em` letter spacing, in `--muted`; the value, `.tile-value`,
   `1.75rem`, tabular figures, in `--fg`; the unit, `.unit`, `0.6em` in
   `--muted`, beside the value; an optional status word and a detail
-  line, `.tile-detail`, `0.875rem`, muted, under the value.
+  line, `.tile-detail`, `0.875rem`, muted, under the value. The DORA
+  tiles (`div.tiles.bands`) put the band word on its own line under
+  the value, whatever the value's length (#1738).
 - **Colour on the value only**: a status class (`ok`, `warn`, `bad`,
   `none`) colours `.tile-value`; a tile whose value is a word (a
   version, "Verified") carries the status as a `3px` left border
@@ -820,7 +824,11 @@ Gestalt rules of common region and proximity:
   colour still marks only the status, next to its word.
 - **One grid**: tiles sit in `div.tiles`, `repeat(auto-fill,
   minmax(10rem, 1fr))`, gap `0.5rem`, so they wrap and a lone tile stays
-  one track wide; meters stay inside their tile, under the value.
+  one track wide; meters stay inside their tile, under the value. Each
+  tile spans two rows of that grid as a subgrid, the label and
+  `div.tile-body` (the value and what follows it), so a label that
+  wraps moves every value of its row down with it and the values stay
+  level (#1738).
 - **Node and NAS groups**: each node and the NAS stays one
   `div.tile-group` (1px `--rule` border, its name and state as the
   heading); its figures are compact tiles in an inner `div.tiles` on

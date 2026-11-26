@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
-{{- /* The same four links as apps/website/landing/index.html; scripts/ci/site_markup.py checks both. */}}
+{{- /* The same links as apps/website/landing/index.html; scripts/ci/site_markup.py checks both. */}}
 {{- $path := .RelPermalink }}
 {{- $current := "" }}
 {{- if or .IsHome (eq .Section "posts") (eq .Kind "taxonomy") (eq .Kind "term") }}{{ $current = "blog" }}
@@ -31,6 +31,7 @@
 <a href="https://nedsi.io/">Home</a>
 <a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>Blog</a>
 <a href="https://homelab.nedsi.io/">Homelab</a>
+<a href="https://techradar.nedsi.io/">Tech radar</a>
 <a href="{{ "about/" | relURL }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>About</a>
 </nav>
 {{ partial "prefs.html" (cond (eq .Kind "404") "/" $path) }}
