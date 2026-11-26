@@ -9,7 +9,7 @@ Je suis Senior Security Engineer chez Genesys, où je fais de la sécurité
 avec et autour de l'IA, dans un environnement d'entreprise très sécurisé.
 Un ingénieur sécurité qui n'a jamais vraiment cessé d'être SRE, en somme.
 Avant cela, j'ai exploité un cloud public en tant que SRE, construit des
-plateformes cloud native comme consultant et, encore avant, conçu et
+plateformes *cloud native* comme consultant et, encore avant, conçu et
 exploité des plateformes d'observabilité et de SIEM. Le fil rouge de tout
 cela : faire du chemin sûr et fiable le chemin facile, puis l'automatiser
 pour que personne n'ait à y penser.
@@ -23,8 +23,8 @@ Ce sur quoi je travaille quand je ne suis pas au travail :
   complexe peut être exploitée par très peu de monde, ici une personne et
   une poignée d'agents.
 - des [claviers ergonomiques](https://github.com/ned-si/scylla) et leurs
-  firmwares QMK et ZMK, construits et publiés par la CI.
-- des [partitions de batterie as code](https://github.com/ned-si/drum-charts),
+  *firmwares* QMK et ZMK, construits et publiés par le CI.
+- des [partitions de batterie *as code*](https://github.com/ned-si/drum-charts),
   en LilyPond, parce que loin des claviers, je joue de la batterie.
 
 Vous me trouvez sur [GitHub](https://github.com/ned-si) et
@@ -40,14 +40,14 @@ Sécurité avec et autour de l'IA, dans un environnement d'entreprise très
 sécurisé.
 
 **Site Reliability Engineer**, Exoscale, Lausanne, 2024 à 2025\
-Réponse aux incidents et postmortems sur un cloud public multirégion.
-Monitoring basé sur les SLO, error budgets et alertes sur le burn rate,
+Réponse aux incidents et *postmortems* sur un cloud public multirégion.
+Monitoring basé sur les SLO, *error budgets* et alertes sur le *burn rate*,
 liés à l'impact client, et mises à jour automatiques des dépendances avec
 Renovate.
 
 **Cloud Native Engineer, puis Senior**, Container Solutions, Amsterdam,
 2022 à 2024\
-Construction de plateformes cloud native pour des clients, direction d'un
+Construction de plateformes *cloud native* pour des clients, direction d'un
 projet client avec une équipe de trois ingénieurs et audits de
 plateformes Kubernetes. Responsable de la formation de sensibilisation à
 la sécurité pour toute l'entreprise. Promu senior en six mois.
@@ -79,7 +79,7 @@ bout en bout. Audits Kubernetes, automatisation et DevSecOps.
   Varsovie, et un
   [article](https://blog.container-solutions.com/frictionless-security-balancing-infosec-and-devex)
   (en anglais). Comment intégrer la sécurité dans la façon dont les
-  développeurs travaillent déjà, pour que le shadow IT cesse d'être le
+  développeurs travaillent déjà, pour que le *shadow IT* cesse d'être le
   chemin le plus simple.
 - **From thoughts to code, as smooth as butter**, 2023. Une
   [conférence](https://sessionize.com/juliensudan/) à WTF is SRE,

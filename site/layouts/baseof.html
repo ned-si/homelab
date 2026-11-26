@@ -17,7 +17,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {{- $title := .Title }}{{ if eq .Kind "taxonomy" }}{{ $title = T "tags" }}{{ else if eq .Kind "404" }}{{ $title = T "not_found_title" }}{{ end }}
 <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ $title }} | {{ site.Title }}{{ end }}</title>
-<meta name="description" content="{{ .Params.summary | default site.Params.description }}">
+<meta name="description" content="{{ .Params.summary | default site.Params.description | replaceRE `\*` "" }}">
 <meta name="author" content="{{ site.Params.author }}">
 <link rel="canonical" href="{{ $canonical }}">
 {{- if and $translated (not $fallback) }}

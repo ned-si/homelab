@@ -20,8 +20,8 @@ Le serveur web écrit une ligne de journal par requête, avec ces champs :
 | Statut | `200` |
 | Octets envoyés | `5120` |
 
-Il n'enregistre ni votre adresse IP, ni le user agent de votre
-navigateur, ni la page d'où vous venez, ni la query string.
+Il n'enregistre ni votre adresse IP, ni le *user agent* de votre
+navigateur, ni la page d'où vous venez, ni la *query string*.
 
 - Pourquoi : pour trouver les erreurs et les liens cassés, et pour que le
   serveur continue de tourner.
@@ -37,7 +37,7 @@ souvient avec un cookie :
 | Nom | `theme` |
 | Valeur | `light`, rien d'autre |
 | Posé | Quand vous cliquez sur le soleil, jamais autrement |
-| Envoyé à | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab et le radar techno |
+| Envoyé à | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab et le Tech radar |
 | Durée | Un an, ou jusqu'à ce que vous choisissiez le thème sombre, qui l'efface |
 | Sert à | Vous envoyer la feuille de style claire |
 

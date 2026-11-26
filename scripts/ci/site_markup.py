@@ -102,7 +102,7 @@ NAV = {
         ("Accueil", "https://nedsi.io/fr/"),
         ("Blog", "https://blog.nedsi.io/fr/"),
         ("Homelab", "https://homelab.nedsi.io/"),
-        ("Radar techno", "https://techradar.nedsi.io/"),
+        ("Tech radar", "https://techradar.nedsi.io/"),
         ("À propos", "https://blog.nedsi.io/fr/about/"),
     ],
 }

@@ -3,7 +3,7 @@
 <channel>
 <title>{{ site.Title }}</title>
 <link>{{ .Permalink }}</link>
-<description>{{ site.Params.description }}</description>
+<description>{{ site.Params.description | replaceRE `\*` "" }}</description>
 <language>{{ lower site.Language.Locale }}</language>
 {{- /* One feed per language; a fallback stub is not French text. */}}
 {{- $posts := (where (where site.RegularPages "Section" "posts") "Params.fallback" "!=" true).ByDate.Reverse }}

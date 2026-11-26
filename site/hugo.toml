@@ -21,14 +21,14 @@ label = "English"
 weight = 1
 title = "nedsi"
 [languages.en.params]
-description = "How an over-engineered homelab is built and run."
+description = "Security, reliability, platform engineering and developer experience, with an over-engineered homelab as the playground."
 [languages.fr]
 locale = "fr-CH"
 label = "Français"
 weight = 2
 title = "nedsi"
 [languages.fr.params]
-description = "Comment un homelab bien trop sophistiqué est construit et exploité."
+description = "La sécurité, la fiabilité, le *platform engineering* et l’expérience développeur, avec un homelab surconçu comme terrain de jeu."
 
 [taxonomies]
 tag = "tags"
