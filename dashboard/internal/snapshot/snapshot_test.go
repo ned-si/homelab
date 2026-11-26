@@ -380,6 +380,19 @@ func TestValidateRefuses(t *testing.T) {
 		{"extra key in a check", func(d map[string]any) {
 			scorecardCheck(d, 0)["details"] = []any{"Warn: no approvals"}
 		}, false},
+		// Version 10: the databases, numbers only.
+		{"version 9", func(d map[string]any) { d["schema_version"] = 9 }, false},
+		{"no databases", func(d map[string]any) { delete(obj(d, "cluster"), "databases") }, false},
+		{"a database name", func(d map[string]any) { obj(d, "cluster", "databases")["count"] = "immich-db" }, false},
+		{"a string figure", func(d map[string]any) { obj(d, "cluster", "databases")["data_bytes"] = "1 GiB" }, false},
+		{"extra key in databases", func(d map[string]any) { obj(d, "cluster", "databases")["names"] = []any{"keycloak-db"} }, false},
+		{"no key in databases", func(d map[string]any) { delete(obj(d, "cluster", "databases"), "restore_rows") }, false},
+		{"a fractional count", func(d map[string]any) { obj(d, "cluster", "databases")["up"] = 7.5 }, false},
+		{"freshness above 100", func(d map[string]any) { obj(d, "cluster", "databases")["freshness_30d"] = 100.5 }, false},
+		{"up above count", func(d map[string]any) { obj(d, "cluster", "databases")["up"] = 9 }, false},
+		{"base_fresh above count", func(d map[string]any) { obj(d, "cluster", "databases")["base_fresh"] = 9 }, false},
+		{"wal counts above count", func(d map[string]any) { obj(d, "cluster", "databases")["wal_behind"] = 1 }, false},
+		{"restore counts above count", func(d map[string]any) { obj(d, "cluster", "databases")["restore_failed"] = 1 }, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -415,6 +415,56 @@
 </div>
 </div>
 </div>
+<h3>Databases and backups</h3>
+<p class="meta">Each database is its own CloudNativePG cluster. Every change is archived to S3 within 5 minutes and every night adds a base backup, so a database can be restored to any moment of its recovery window. Every week each one is restored into a new cluster and its tables and rows are compared with the source.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">PostgreSQL</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit">databases</span> <span class="status ok">Up</span></p>
+<p class="tile-detail">Seen in the rolling 24 h</p>
+<p class="tile-detail">8 up, 1 GiB of data</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">WAL archiving</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit">of 8</span> <span class="status ok">Archiving</span></p>
+<p class="tile-detail">1,517 files archived, rolling 24 h</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Base backups</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit">of 8</span> <span class="status ok">Fresh</span></p>
+<p class="tile-detail">Nightly, each in the rolling 26 h</p>
+<p class="tile-detail">Oldest 19 h 31 min ago</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Point-in-time recovery</p>
+<div class="tile-body">
+<p class="tile-value">30<span class="unit">days</span></p>
+<p class="tile-detail">The shortest window of all databases</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Restore tests</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit">of 8</span> <span class="status ok">Passed</span></p>
+<p class="tile-detail">Weekly, rolling 8 days</p>
+<p class="tile-detail">1,031,332 rows compared</p>
+<p class="tile-detail">Median 6 min 54 s to a restored copy</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Backup freshness</p>
+<div class="tile-body">
+<p class="tile-value ok">99.97<span class="unit">%</span> <span class="status ok">Met</span></p>
+<p class="tile-detail">Lowest database, rolling 30 days, target 99.00%</p>
+</div>
+</div>
+</div>
 <p class="meta">As of <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time>.</p>
 </section>
 <section class="panel stats" aria-labelledby="project">
