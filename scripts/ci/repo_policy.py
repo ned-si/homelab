@@ -242,9 +242,8 @@ AWS_BACKUP_TF = "bootstrap/aws-backup/main.tf"
 CILIUM_VALUES = "infrastructure/cilium/values.yaml"
 NETPOL_KUSTOMIZATION = "infrastructure/network-policies/kustomization.yaml"
 NAS_NFS_POLICY = "deny-pod-nfs-to-nas"
-# `egress` while in audit (an allow rule, drops nothing); `egressDeny` once
-# enforced. Changed only together with infrastructure/network-policies/96-nas-nfs.yaml.
-NAS_NFS_RULE = "egress"
+# Changed only together with infrastructure/network-policies/96-nas-nfs.yaml.
+NAS_NFS_RULE = "egressDeny"
 NAS_NFS_SPEC = {
     "endpointSelector": {"matchExpressions": [{"key": "app.kubernetes.io/name", "operator": "NotIn",
                                                "values": ["prometheus-blackbox-exporter"]}]},

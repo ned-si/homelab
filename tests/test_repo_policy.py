@@ -745,9 +745,9 @@ def nas_nfs(**spec):
             "endpointSelector": {"matchExpressions": [{"key": "app.kubernetes.io/name", "operator": "NotIn",
                                                        "values": ["prometheus-blackbox-exporter"]}]},
             "enableDefaultDeny": {"ingress": False, "egress": False},
-            "egress": [{"toCIDR": ["192.168.1.228/32"],
-                        "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"},
-                                               {"port": "2049", "protocol": "UDP"}]}]}]}
+            "egressDeny": [{"toCIDR": ["192.168.1.228/32"],
+                            "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"},
+                                                   {"port": "2049", "protocol": "UDP"}]}]}]}
     base.update(spec)
     return {"apiVersion": "cilium.io/v2", "kind": "CiliumClusterwideNetworkPolicy",
             "metadata": {"name": "deny-pod-nfs-to-nas"}, "spec": {k: v for k, v in base.items() if v is not None}}
@@ -766,9 +766,9 @@ NAS_NFS_DIFFERS = ("FAIL nas-nfs-deny: network-policies: CiliumClusterwideNetwor
     ([nas_nfs(endpointSelector={"matchExpressions": [{"key": "io.kubernetes.pod.namespace", "operator": "NotIn",
                                                       "values": ["democratic-csi"]}]})], [NAS_NFS_DIFFERS]),
     ([nas_nfs(enableDefaultDeny={"ingress": False, "egress": True})], [NAS_NFS_DIFFERS]),
-    ([nas_nfs(egress=[{"toCIDR": ["192.168.1.228/32"],
-                       "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"}]}]}])], [NAS_NFS_DIFFERS]),
-    ([nas_nfs(egress=None, egressDeny=nas_nfs()["spec"]["egress"])], [NAS_NFS_DIFFERS]),
+    ([nas_nfs(egressDeny=[{"toCIDR": ["192.168.1.228/32"],
+                           "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"}]}]}])], [NAS_NFS_DIFFERS]),
+    ([nas_nfs(egressDeny=None, egress=nas_nfs()["spec"]["egressDeny"])], [NAS_NFS_DIFFERS]),
 ])
 def test_nas_nfs_deny(tmp_path, docs, want):
     r = policy(tmp_path, files=NETPOL, renders=[("network-policies", "2", "infrastructure", "argo", docs)])
