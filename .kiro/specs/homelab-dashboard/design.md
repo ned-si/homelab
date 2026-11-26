@@ -358,6 +358,19 @@ per operator item (2026-11-25), each its own version.
 `reason` has no control character and at most 160 characters. The
 rollout rule of version 3 applies to each.
 
+### Version 9 (task 27)
+
+Version 9 is version 8 with every Scorecard check (#1756):
+`supply_chain.scorecard.lowest` becomes `checks`.
+
+| Key | Value |
+| --- | --- |
+| `supply_chain.scorecard.checks[]` | Every check of the result, at most 20 (the compiled list): `name` (from the compiled check list), `score` (0 to 10, or `null` where Scorecard gives `-1`), `reason` (plain text, at most 160 characters); in name order, each name once; empty before the first fetch |
+
+`Validate` gains: the names strictly ascending (Go string order, which
+is alphabetical for the compiled names). The rollout rule of version 3
+applies.
+
 ## Collector
 
 ### Cadence
@@ -706,9 +719,11 @@ to bottom:
    level only when `level` is set; otherwise its status word alone.
    "OpenSSF
    Scorecard": the score as the value ("7.5" with the unit "/ 10") and
-   its date, then the three lowest checks as tiles (the check's name as
-   the label, its score as the value with "/ 10", Scorecard's reason as
-   the detail line), and a link to the
+   its date, then every check as a tile in `div.tiles.checks`, in
+   alphabetical order (task 27: the check's name as the label, its score
+   as the value with "/ 10" at `1.25rem`, or the word "Not applicable"
+   in `--none` for a `-1`, Scorecard's reason as the detail line; no
+   status colour on a check), and a link to the
    [full report](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab).
    "as of <time>" from `supply_chain.as_of`.
 6. **Security** (task 16): a panel of stat tiles, one per security
@@ -1667,10 +1682,11 @@ is claimed only on that evidence: `level` is `2` when `verified` is
   Scorecard hosts. The collector's egress to `world:443` already allows
   it; no policy change.
 - The answer's `score`, `date` and `checks[]` (`name`, `score`,
-  `reason`) are read; checks with `score: -1` are left out; the three
-  lowest by score, then name, are kept. Unknown check names, reasons
-  over 160 characters or with control characters are dropped and counted
-  in `collector_errors_total{source="scorecard"}`. A failed fetch keeps
+  `reason`) are read; every check is kept, sorted by name, a
+  `score: -1` as `null` (task 27). Unknown check names, a name seen
+  twice, scores outside -1 to 10, reasons over 160 characters or with
+  control characters are dropped and counted in
+  `collector_errors_total{source="scorecard"}`. A failed fetch keeps
   the last result; the block's staleness rule is the project block's
   (60 min), read from `scorecard.as_of`. One attempt an hour, a failed
   one included, so an unreachable API is never asked more often.

@@ -108,6 +108,7 @@ type figures struct {
 	Images       []tile
 	Scorecard    *block
 	Score        []tile
+	Checks       []tile
 	Project      block
 	DORA         []tile
 	DORALevel    tile
@@ -583,8 +584,7 @@ func imageTiles(sc snapshot.SupplyChain) []tile {
 	return out
 }
 
-// scorecardTiles are the Scorecard score with its status and date, then the
-// lowest checks, each with its score and Scorecard's reason.
+// scorecardTiles are the Scorecard score with its status and date.
 func scorecardTiles(sc snapshot.Scorecard) []tile {
 	const label = "Score"
 	if sc.Score == nil {
@@ -597,9 +597,25 @@ func scorecardTiles(sc snapshot.Scorecard) []tile {
 			t.Details = []string{"Scorecard run of " + timeText(d)}
 		}
 	}
-	out := []tile{t}
-	for _, c := range sc.Lowest {
-		out = append(out, tile{Label: c.Name, Value: one(strconv.Itoa(c.Score), "/ 10"), Details: []string{c.Reason}})
+	return []tile{t}
+}
+
+// notApplicable is the word of a check Scorecard could not apply (-1).
+const notApplicable = "Not applicable"
+
+// checkTiles are every Scorecard check in the snapshot's name order, each
+// with its score and Scorecard's reason; no status colour, the overall
+// score carries it.
+func checkTiles(sc snapshot.Scorecard) []tile {
+	out := make([]tile, 0, len(sc.Checks))
+	for _, c := range sc.Checks {
+		t := tile{Label: c.Name, Details: []string{c.Reason}}
+		if c.Score == nil {
+			t.Status, t.Word = statusNone, notApplicable
+		} else {
+			t.Value = one(strconv.Itoa(*c.Score), "/ 10")
+		}
+		out = append(out, t)
 	}
 	return out
 }
@@ -641,6 +657,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		Signals:   signalTiles(s.Security),
 		Images:    imageTiles(s.SupplyChain),
 		Score:     scorecardTiles(s.SupplyChain.Scorecard),
+		Checks:    checkTiles(s.SupplyChain.Scorecard),
 	}
 	var bands []band
 	f.DORA, bands = doraTiles(s.Project)

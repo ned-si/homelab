@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "generated_at", "availability", "certificates", "cluster", "project", "security", "supply_chain"],
   "properties": {
-    "schema_version": {"const": 8},
+    "schema_version": {"const": 9},
     "generated_at": {"$ref": "#/$defs/time"},
     "availability": {
       "type": "object",
@@ -220,21 +220,21 @@
         "scorecard": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["as_of", "score", "date", "lowest"],
+          "required": ["as_of", "score", "date", "checks"],
           "properties": {
             "as_of": {"anyOf": [{"$ref": "#/$defs/time"}, {"type": "null"}]},
             "score": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
             "date": {"anyOf": [{"$ref": "#/$defs/time"}, {"type": "null"}]},
-            "lowest": {
+            "checks": {
               "type": "array",
-              "maxItems": 3,
+              "maxItems": 20,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": ["name", "score", "reason"],
                 "properties": {
                   "name": {"type": "string", "pattern": "^[A-Za-z-]{1,40}$"},
-                  "score": {"type": "integer", "minimum": 0, "maximum": 10},
+                  "score": {"type": ["integer", "null"], "minimum": 0, "maximum": 10},
                   "reason": {"type": "string", "maxLength": 160}
                 }
               }

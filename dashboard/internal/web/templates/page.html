@@ -123,10 +123,15 @@
 </div>
 {{- template "asof" .SupplyChain}}
 <h3>OpenSSF Scorecard</h3>
-<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and the three lowest checks, with Scorecard's own reason. Every check is in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and every check in alphabetical order, with Scorecard's own reason; a check that does not apply to the repository says so. The details are in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
 <div class="tiles">
 {{- range .Score}}{{template "tile" .}}{{end}}
 </div>
+{{- with .Checks}}
+<div class="tiles checks">
+{{- range .}}{{template "tile" .}}{{end}}
+</div>
+{{- end}}
 {{- with .Scorecard}}{{template "asof" .}}{{end}}
 </section>
 <section class="panel stats" aria-labelledby="security">

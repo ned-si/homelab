@@ -92,7 +92,8 @@ reopen the spec:
    first-party images, `homelab-dashboard` and `homelab-site`
    (provenance present and verified by Kyverno, the builder identity, a
    link to slsa.dev), and the repository's OpenSSF Scorecard score with
-   its three lowest checks, fetched by the collector. The README gets a
+   its checks, fetched by the collector (every check since task 27,
+   #1756; the three lowest before). The README gets a
    SLSA badge next to the Scorecard one.
 4. **Order**: the operator's order stays; Supply chain goes between DORA
    metrics and Security.
@@ -120,6 +121,13 @@ reopen the spec:
    the daily bars are calendar days, in Zurich time. The audit of
    2026-11-25 and the fixes are in
    [design, Time windows](design.md#time-windows-2026-11-25).
+
+The operator's decision of 2026-11-26 (task 27, #1756): the Scorecard
+panel shows every check, not the three lowest ("either all checks or
+none"; picking the worst three had no rationale). The order is
+alphabetical by check name, which stays the same from one Scorecard run
+to the next; a check Scorecard could not apply (score `-1`) shows "Not
+applicable".
 
 Non-goals are listed under [Out of scope](#out-of-scope).
 
@@ -602,9 +610,10 @@ evidence a machine checked.
    signature check it already makes; the result SHALL reach Prometheus
    per image without naming a pod on the page.
 5. THE Supply chain section SHALL show the repository's OpenSSF
-   Scorecard score out of 10 with its date, and the three checks with
-   the lowest score (inconclusive checks, score `-1`, left out; ties by
-   name), each with its score and Scorecard's reason, and a link to
+   Scorecard score out of 10 with its date, and every check of the
+   result in alphabetical order of its name, each with its score out of
+   10, or "Not applicable" when Scorecard gives `-1`, and Scorecard's
+   reason, and a link to
    `https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab`.
 6. THE collector SHALL fetch the Scorecard result from
    `https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`
@@ -737,7 +746,9 @@ evidence a machine checked.
 25. The Supply chain section of the golden pages and of the live page
     shows both images with "Build L2", "Verified", the builder identity
     and the slsa.dev link (task 21), and the Scorecard tile with the
-    score, its date, three checks and the viewer link (task 24); with the
+    score, its date, every check of the result in alphabetical order with
+   "Not applicable" for a `-1`, and the viewer link (tasks 24 and 27),
+   readable at 390 px in both themes; with the
     Scorecard API unreachable the tile keeps its last figures and says
     from when. [13.1, 13.2, 13.5, 13.6]
 26. `README.md` shows the SLSA badge next to the Scorecard badge, with
@@ -827,7 +838,7 @@ Each default holds until the operator says otherwise.
 | Rework rate | Rollbacks and fix forwards of 10.3, plus deploying `fix` merges during or within 24 h after an incident of 10.4, over the deploys of 10.1; no band (operator asked for the metric, 2026-11-24) | DORA's definition, "unplanned deployments made because of an incident in production", recountable from git, GitHub and the `ALERTS` series; without the incident condition every routine `fix` would count |
 | SLSA level | Build L2 for both images, after task 20 gives `homelab-site` a signed provenance; L3 later | What GitHub artifact attestations made in the build job give, per GitHub's documentation ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)) |
 | Provenance verified | Kyverno `verify-own-images`, Audit, a SLSA v1 provenance signed by the image's own workflow; the result per image through kube-state-metrics | The cluster checks what it runs; the collector keeps no Kubernetes rights |
-| Scorecard | `api.securityscorecards.dev`, hourly, no token; score `ok` from 7.0, `warn` from 4.0, `bad` below; the three lowest checks with their reasons | The public result of the repository's `scorecard` workflow; the collector already reaches `world:443` |
+| Scorecard | `api.securityscorecards.dev`, hourly, no token; score `ok` from 7.0, `warn` from 4.0, `bad` below; every check with its reason, alphabetical, no status colour on a check (operator, 2026-11-26, #1756) | The public result of the repository's `scorecard` workflow; the collector already reaches `world:443`; all or none, and the name order does not move between runs as a score order would |
 | Rounding | Percentages and the error budget at full precision in the snapshot; rounded once, to two decimals, half to even, by `strconv.FormatFloat(v, 'f', 2, 64)` in the web role (operator asked for half to even or half up, 2026-11-25) | One rounding cannot add the error of two; half to even is what `strconv` does with an exact tie, so no extra code, and it matches the `math.RoundToEven` of the other helpers |
 | Time windows | Rolling, ending now (2.8); the daily bars are Zurich calendar days (operator, 2026-11-25) | A calendar window makes a figure jump at midnight or on the 1st; a rolling one moves by the minute, like the SLO it is judged against |
 | Supply chain place | Between DORA metrics and Security (orchestrator, 2026-11-25, within the operator's order) | Delivery, then how what is delivered is built and trusted, then how the running system defends itself |

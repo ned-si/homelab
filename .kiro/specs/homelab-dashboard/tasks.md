@@ -414,3 +414,17 @@ live check.
       score equal to the API's. [13.5, 13.6]
       #1737
 The last task ticked sets `status: done`, `closed:`, and closes #1670.
+
+Task 27 is the operator's Scorecard decision of 2026-11-26 (#1756, a
+`type/task` issue), numbered after tasks 25 and 26 of the Databases and
+backups amendment (#1739).
+
+- [x] 27. Every Scorecard check (**visible**), as in
+      [design.md, Version 9](design.md#version-9-task-27): snapshot
+      version 9 (`checks` for `lowest`), every check in name order in
+      the collector, a `-1` as `null` and "Not applicable" on the page,
+      `div.tiles.checks`, golden pages, the section in
+      `docs/homelab-dashboard.md`. Check: acceptance criterion 25;
+      live, the panel lists the API's checks with their scores.
+      [13.5, 13.6]
+      #1757

@@ -78,23 +78,39 @@ func lastPush(t *testing.T, e *env) *snapshot.Snapshot {
 
 func str(s string) *string { return &s }
 
-// Requirement 13.5: the score to one decimal, its date, the three lowest
-// conclusive checks, ties by name.
+// Requirement 13.5: the score to one decimal, its date and every check in
+// name order, the inconclusive one without a score.
 func TestScorecardResult(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	api := e.withScorecard(t)
 	if !e.c.Cycle(t.Context()) {
 		t.Fatal("Cycle() = false")
 	}
+	n := func(i int) *int { return &i }
 	score := 7.5
 	want := snapshot.Scorecard{
 		AsOf:  str("2026-11-20T17:00:00+01:00"),
 		Score: &score,
 		Date:  str("2026-11-20T15:06:49+01:00"),
-		Lowest: []snapshot.ScorecardCheck{
-			{Name: "Code-Review", Score: 0, Reason: "Found 0/28 approved changesets -- score normalized to 0"},
-			{Name: "Contributors", Score: 0, Reason: "project has 0 contributing companies or organizations -- score normalized to 0"},
-			{Name: "Vulnerabilities", Score: 0, Reason: "29 existing vulnerabilities detected"},
+		Checks: []snapshot.ScorecardCheck{
+			{Name: "Binary-Artifacts", Score: n(10), Reason: "no binaries found in the repo"},
+			{Name: "Branch-Protection", Score: n(4), Reason: "branch protection is not maximal on development and all release branches"},
+			{Name: "CI-Tests", Score: n(10), Reason: "30 out of 30 merged PRs checked by a CI test -- score normalized to 10"},
+			{Name: "CII-Best-Practices", Score: n(2), Reason: "badge detected: InProgress"},
+			{Name: "Code-Review", Score: n(0), Reason: "Found 0/28 approved changesets -- score normalized to 0"},
+			{Name: "Contributors", Score: n(0), Reason: "project has 0 contributing companies or organizations -- score normalized to 0"},
+			{Name: "Dangerous-Workflow", Score: n(10), Reason: "no dangerous workflow patterns detected"},
+			{Name: "Dependency-Update-Tool", Score: n(10), Reason: "update tool detected"},
+			{Name: "Fuzzing", Score: n(10), Reason: "project is fuzzed"},
+			{Name: "License", Score: n(10), Reason: "license file detected"},
+			{Name: "Maintained", Score: n(10), Reason: "30 commit(s) and 29 issue activity found in the last 90 days -- score normalized to 10"},
+			{Name: "Packaging", Score: n(10), Reason: "packaging workflow detected"},
+			{Name: "Pinned-Dependencies", Score: n(10), Reason: "all dependencies are pinned"},
+			{Name: "SAST", Score: n(9), Reason: "SAST tool detected but not run on all commits"},
+			{Name: "Security-Policy", Score: n(10), Reason: "security policy file detected"},
+			{Name: "Signed-Releases", Reason: "no releases found"},
+			{Name: "Token-Permissions", Score: n(10), Reason: "GitHub workflow tokens follow principle of least privilege"},
+			{Name: "Vulnerabilities", Score: n(0), Reason: "29 existing vulnerabilities detected"},
 		},
 	}
 	if diff := cmp.Diff(want, lastPush(t, e).SupplyChain.Scorecard); diff != "" {
@@ -113,13 +129,13 @@ func TestScorecardNone(t *testing.T) {
 		t.Fatal("Cycle() = false")
 	}
 	sc := lastPush(t, e).SupplyChain.Scorecard
-	if sc.AsOf != nil || sc.Score != nil || sc.Date != nil || len(sc.Lowest) != 0 {
+	if sc.AsOf != nil || sc.Score != nil || sc.Date != nil || len(sc.Checks) != 0 {
 		t.Errorf("scorecard = %+v, want empty", sc)
 	}
 }
 
-// Requirement 13.6: unknown names and reasons that are not plain text are
-// dropped and counted; inconclusive checks are left out without an error.
+// Requirement 13.6: unknown names, a name twice, scores outside -1 to 10
+// and reasons that are not plain text are dropped and counted.
 func TestScorecardDropsChecks(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	api := e.withScorecard(t)
@@ -136,20 +152,25 @@ func TestScorecardDropsChecks(t *testing.T) {
 		check("Code-Review")["name"] = "Made-Up"
 		check("Contributors")["reason"] = strings.Repeat("x", 161)
 		check("Vulnerabilities")["reason"] = "29 existing\nvulnerabilities"
-		check("CII-Best-Practices")["score"] = -1
+		check("CII-Best-Practices")["score"] = 11
+		check("Fuzzing")["score"] = -2
+		d["checks"] = append(d["checks"].([]any), map[string]any{"name": "SAST", "score": 0, "reason": "again"})
 	}
 	if !e.c.Cycle(t.Context()) {
 		t.Fatal("Cycle() = false")
 	}
 	var names []string
-	for _, c := range lastPush(t, e).SupplyChain.Scorecard.Lowest {
+	for _, c := range lastPush(t, e).SupplyChain.Scorecard.Checks {
 		names = append(names, c.Name)
 	}
-	if diff := cmp.Diff([]string{"Branch-Protection", "SAST", "Binary-Artifacts"}, names); diff != "" {
-		t.Errorf("lowest (-want +got):\n%s", diff)
+	want := []string{"Binary-Artifacts", "Branch-Protection", "CI-Tests", "Dangerous-Workflow", "Dependency-Update-Tool",
+		"License", "Maintained", "Packaging", "Pinned-Dependencies", "SAST", "Security-Policy", "Signed-Releases",
+		"Token-Permissions"}
+	if diff := cmp.Diff(want, names); diff != "" {
+		t.Errorf("checks (-want +got):\n%s", diff)
 	}
-	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("scorecard")); got != 3 {
-		t.Errorf("collect_errors_total{scorecard} = %v, want 3", got)
+	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("scorecard")); got != 6 {
+		t.Errorf("collect_errors_total{scorecard} = %v, want 6", got)
 	}
 }
 
