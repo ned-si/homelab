@@ -135,7 +135,7 @@ def file_docs(path: Path) -> list[dict]:
 
 
 def is_application(doc: dict) -> bool:
-    return doc.get("kind") == "Application" and str(doc.get("apiVersion", "")).startswith("argoproj.io/")
+    return doc.get("kind") == "Application" and str(doc.get("apiVersion", "")).partition("/")[0] == "argoproj.io"
 
 
 def sources_of(app: dict) -> list[dict]:
