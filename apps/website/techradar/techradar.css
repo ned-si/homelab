@@ -21,8 +21,27 @@ h3 { margin: 1.25rem 0 0.25rem; font-size: 1rem; letter-spacing: 0.05em; text-tr
 .ring-assess { color: var(--ring-assess); }
 .ring-hold { color: var(--ring-hold); }
 
-figure.chart { margin: 2rem auto; max-width: 64rem; }
-figure.chart svg { display: block; width: 100%; height: auto; }
+/* The quadrant names above and below the chart, at its corners; from 48rem
+   they fit inside the square's corners, outside the outer ring. */
+figure.chart {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 1rem;
+  margin: 2rem auto;
+  max-width: 64rem;
+}
+figure.chart svg { display: block; grid-column: 1 / -1; width: 100%; height: auto; }
+.quadrant { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.3; }
+.quadrant-tools, .quadrant-infrastructure { text-align: right; }
+@media (min-width: 48rem) {
+  figure.chart { grid-template-rows: auto 1fr auto; }
+  figure.chart svg { grid-row: 1 / -1; }
+  .quadrant { font-size: 1.25rem; }
+  .quadrant-techniques { grid-area: 1 / 1; }
+  .quadrant-tools { grid-area: 1 / 2; }
+  .quadrant-platform { grid-area: 3 / 1; align-self: end; }
+  .quadrant-infrastructure { grid-area: 3 / 2; align-self: end; }
+}
 
 .ring-line { fill: none; stroke: var(--radar-line); stroke-width: 1.5; }
 .axis { stroke: var(--radar-line); stroke-width: 1.5; }

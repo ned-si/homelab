@@ -49,4 +49,11 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       criterion 9, the rendered page. Check: criterion 9 and criterion
       1 live, the probe up. [2.4, 2.8]
       #1705.
+- [x] 6. Quadrant names around the chart (**live**, amendment
+      2026-11-26, #1753): the names in the chart's figure, the grid in
+      `techradar.css`, the golden and rendered page. Check: criterion
+      10 at 1920x1080 and 390x844 in both palettes, criterion 1 live.
+      [2.1]
+      #1755.
+
 The last task ticked sets `status: done`, `closed:`, and closes #1671.

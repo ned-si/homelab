@@ -38,7 +38,13 @@
 <p class="updated">{{.Count}} entries, updated on <time datetime="{{.UpdatedISO}}">{{.Updated}}</time>. The numbers on the chart match the legend below it; point at one for its name and ring, or follow it to its reason.</p>
 </div>
 <figure class="chart">
+{{- range slice .Quadrants 0 2}}
+<p class="quadrant quadrant-{{.ID}}">{{.Name}}</p>
+{{- end}}
 {{.Chart}}
+{{- range slice .Quadrants 2}}
+<p class="quadrant quadrant-{{.ID}}">{{.Name}}</p>
+{{- end}}
 </figure>
 <div class="legend">
 {{- range .Quadrants}}
