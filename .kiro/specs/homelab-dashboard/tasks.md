@@ -471,3 +471,28 @@ deploy first.
       #1766
 
 The last task ticked sets `status: done`, `closed:`, and closes #1739.
+
+#1739 closed with task 26. The operator's Scorecard decision of
+2026-11-26 (#1775, a `type/task` issue) reopens the spec with task 28.
+It is **visible**, merges after its review round with no preview
+approval and after the French dashboard (site-theme-language task 5,
+#1763), which changes the same lines, and is followed by the image
+deploy and a live check.
+
+- [ ] 28. Scorecard check colours and notes (**visible**), as in
+      [design.md, Scorecard](design.md#scorecard-task-24):
+      `checkStatus` in `internal/web/status.go` with a table test on
+      10, 7, 6, 4, 3, 0 and `nil`; in `checkTiles` the status and word
+      from it and the compiled note by check name; the paragraph's
+      sentence in `page.html`; the notes and the sentence as catalogue
+      keys in English and French, the French as the operator corrected
+      it; `TestScorecardTiles` with the coloured values, the four notes
+      and no note elsewhere; golden pages; the screenshots at the five
+      widths in the PR; the Scorecard row and Status colours in
+      `docs/homelab-dashboard.md`. Snapshot keys read: unchanged
+      (version 10). The PR body says `Closes #1775`. Check: acceptance
+      criterion 25; live, after the digest bump, every check's value and
+      class match the API's score, and the notes show on `/` and `/fr/`.
+      [13.5]
+
+The last task ticked sets `status: done`, `closed:`, and closes #1775.
