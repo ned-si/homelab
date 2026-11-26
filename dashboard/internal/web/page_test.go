@@ -479,13 +479,13 @@ func TestScorecardTiles(t *testing.T) {
 	body := page(t, doc)
 	contains(t, body,
 		`<a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>`,
-		`<p class="tile-label">Score</p>`+"\n"+`<p class="tile-value ok">7.5<span class="unit">/ 10</span> <span class="status ok">OK</span></p>`+"\n"+
+		`<p class="tile-label">Score</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value ok">7.5<span class="unit">/ 10</span> <span class="status ok">OK</span></p>`+"\n"+
 			`<p class="tile-detail">Scorecard run of 20 November 2026, 15:06</p>`,
 		`<div class="tiles checks">`,
-		`<p class="tile-label">Code-Review</p>`+"\n"+`<p class="tile-value">0<span class="unit">/ 10</span></p>`+"\n"+
+		`<p class="tile-label">Code-Review</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value">0<span class="unit">/ 10</span></p>`+"\n"+
 			`<p class="tile-detail">Found 0/28 approved changesets -- score normalized to 0</p>`,
-		`<p class="tile-label">SAST</p>`+"\n"+`<p class="tile-value">9<span class="unit">/ 10</span></p>`,
-		`<p class="tile-label">Signed-Releases</p>`+"\n"+`<p class="tile-value none"><span class="status none">Not applicable</span></p>`+"\n"+
+		`<p class="tile-label">SAST</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value">9<span class="unit">/ 10</span></p>`,
+		`<p class="tile-label">Signed-Releases</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value none"><span class="status none">Not applicable</span></p>`+"\n"+
 			`<p class="tile-detail">no releases found</p>`)
 	checks := sub(sub(doc, "supply_chain"), "scorecard")["checks"].([]any)
 	at := -1
