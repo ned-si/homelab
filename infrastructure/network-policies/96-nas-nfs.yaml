@@ -6,10 +6,9 @@
 # whose NFS probe feeds HomelabNASDown. The kubelet's NFS mounts run in the
 # host network namespace and are never selected.
 #
-# AUDIT: an allow rule with default-deny off, so it drops nothing. Hubble
-# names it in `egress_allowed_by` on every flow it would drop. Enforcing is
-# one word, `egress` to `egressDeny`, here and in repo-policy rule
-# `nas-nfs-deny` (scripts/ci/repo_policy.py, NAS_NFS_RULE).
+# A deny with default-deny off: it blocks NAS 2049 and changes nothing else.
+# Changed only together with repo-policy rule `nas-nfs-deny`
+# (scripts/ci/repo_policy.py, NAS_NFS_SPEC).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
@@ -17,8 +16,7 @@ metadata:
   name: deny-pod-nfs-to-nas
 spec:
   description: >-
-    No pod but blackbox-exporter reaches NFS (2049) on the NAS. Audit: an
-    allow rule, drops nothing until it becomes egressDeny.
+    No pod but blackbox-exporter reaches NFS (2049) on the NAS.
   endpointSelector:
     matchExpressions:
       - key: app.kubernetes.io/name
@@ -27,7 +25,7 @@ spec:
   enableDefaultDeny:
     ingress: false
     egress: false
-  egress:
+  egressDeny:
     - toCIDR:
         - 192.168.1.228/32
       toPorts:
