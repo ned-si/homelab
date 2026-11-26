@@ -723,16 +723,24 @@ func scorecardTiles(sc snapshot.Scorecard) []tile {
 // notApplicable is the word of a check Scorecard could not apply (-1).
 const notApplicable = "Not applicable"
 
+// checkNotes say why a check's score is on purpose where Scorecard's
+// reason does not (design.md, "Scorecard"). The score and reason stay
+// Scorecard's own.
+var checkNotes = map[string]string{
+	"Branch-Protection": "On purpose: main takes only pull requests with signed commits and a green CI, and needs no approval, so Renovate and the agents merge without waiting for a person.",
+	"Code-Review":       "On purpose: I run this alone and agents open the pull requests, so nobody else approves them. Green CI is the only gate.",
+	"Contributors":      "On purpose: one operator and a few agents, with no company or organisation behind the repository.",
+	"Signed-Releases":   "The images are signed with cosign and carry SLSA Build L2 provenance. No GitHub releases on purpose: these are personal apps, not meant for others to download.",
+}
+
 // checkTiles are every Scorecard check in the snapshot's name order, each
-// with its score and Scorecard's reason; no status colour, the overall
-// score carries it.
+// with its score in its status colour, Scorecard's reason and its note.
 func checkTiles(sc snapshot.Scorecard) []tile {
 	out := make([]tile, 0, len(sc.Checks))
 	for _, c := range sc.Checks {
-		t := tile{Label: c.Name, Details: []string{c.Reason}}
-		if c.Score == nil {
-			t.Status, t.Word = statusNone, notApplicable
-		} else {
+		t := tile{Label: c.Name, Details: []string{c.Reason}, Note: checkNotes[c.Name]}
+		t.Status, t.Word = checkStatus(c.Score)
+		if c.Score != nil {
 			t.Value = one(strconv.Itoa(*c.Score), "/ 10")
 		}
 		out = append(out, t)

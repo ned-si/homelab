@@ -340,6 +340,16 @@ func scoreStatus(score *float64) (status, string) {
 	return st, levelWord(st)
 }
 
+// checkStatus is the status of one Scorecard check, out of 10 with the
+// overall score's thresholds; nil is a check Scorecard could not apply.
+func checkStatus(score *int) (status, string) {
+	if score == nil {
+		return statusNone, notApplicable
+	}
+	f := float64(*score)
+	return scoreStatus(&f)
+}
+
 // The database rules (design.md, "Status colours"): each takes the
 // database count, and with none reporting nothing can be judged.
 

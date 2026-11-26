@@ -608,7 +608,7 @@
 </div>
 <p class="meta">As of <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time>.</p>
 <h3>OpenSSF Scorecard</h3>
-<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and every check in alphabetical order, with Scorecard's own reason; a check that does not apply to the repository says so. The details are in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and every check in alphabetical order, with Scorecard's own reason; a check that does not apply to the repository says so. A check is green from 7 out of 10, yellow from 4 and red below; a note under a check says why where Scorecard's reason is not enough. The details are in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">Score</p>
@@ -622,105 +622,108 @@
 <div class="tile">
 <p class="tile-label">Binary-Artifacts</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">no binaries found in the repo</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Branch-Protection</p>
 <div class="tile-body">
-<p class="tile-value">4<span class="unit">/ 10</span></p>
+<p class="tile-value warn">4<span class="unit">/ 10</span> <span class="status warn">Warning</span></p>
 <p class="tile-detail">branch protection is not maximal on development and all release branches</p>
+<p class="tile-detail">On purpose: main takes only pull requests with signed commits and a green CI, and needs no approval, so Renovate and the agents merge without waiting for a person.</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">CI-Tests</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">30 out of 30 merged PRs checked by a CI test -- score normalized to 10</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">CII-Best-Practices</p>
 <div class="tile-body">
-<p class="tile-value">2<span class="unit">/ 10</span></p>
+<p class="tile-value bad">2<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>
 <p class="tile-detail">badge detected: InProgress</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Code-Review</p>
 <div class="tile-body">
-<p class="tile-value">0<span class="unit">/ 10</span></p>
+<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>
 <p class="tile-detail">Found 0/28 approved changesets -- score normalized to 0</p>
+<p class="tile-detail">On purpose: I run this alone and agents open the pull requests, so nobody else approves them. Green CI is the only gate.</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Contributors</p>
 <div class="tile-body">
-<p class="tile-value">0<span class="unit">/ 10</span></p>
+<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>
 <p class="tile-detail">project has 0 contributing companies or organizations -- score normalized to 0</p>
+<p class="tile-detail">On purpose: one operator and a few agents, with no company or organisation behind the repository.</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Dangerous-Workflow</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">no dangerous workflow patterns detected</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Dependency-Update-Tool</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">update tool detected</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Fuzzing</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">project is fuzzed</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">License</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">license file detected</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Maintained</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">30 commit(s) and 29 issue activity found in the last 90 days -- score normalized to 10</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Packaging</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">packaging workflow detected</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Pinned-Dependencies</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">all dependencies are pinned</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">SAST</p>
 <div class="tile-body">
-<p class="tile-value">9<span class="unit">/ 10</span></p>
+<p class="tile-value ok">9<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">SAST tool detected but not run on all commits</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Security-Policy</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">security policy file detected</p>
 </div>
 </div>
@@ -729,19 +732,20 @@
 <div class="tile-body">
 <p class="tile-value none"><span class="status none">Not applicable</span></p>
 <p class="tile-detail">no releases found</p>
+<p class="tile-detail">The images are signed with cosign and carry SLSA Build L2 provenance. No GitHub releases on purpose: these are personal apps, not meant for others to download.</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Token-Permissions</p>
 <div class="tile-body">
-<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-value ok">10<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">GitHub workflow tokens follow principle of least privilege</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">Vulnerabilities</p>
 <div class="tile-body">
-<p class="tile-value">0<span class="unit">/ 10</span></p>
+<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>
 <p class="tile-detail">29 existing vulnerabilities detected</p>
 </div>
 </div>
