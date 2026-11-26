@@ -104,6 +104,7 @@ type figures struct {
 	RED          []tile
 	State        []tile
 	Databases    []tile
+	Engines      []tile
 	Security     block
 	Signals      []tile
 	SupplyChain  block
@@ -502,6 +503,41 @@ func databaseTiles(d snapshot.Databases) []tile {
 	return []tile{pg, wal, base, recovery, restore, fresh}
 }
 
+// engineTiles are the other database engines next to PostgreSQL
+// (dashboard-database-engines design, "The tiles"); an engine with no
+// count has no data.
+func engineTiles(d snapshot.Databases) []tile {
+	const (
+		sqliteLabel = "SQLite"
+		backupLabel = "SQLite backups"
+		valkeyLabel = "Valkey and Redis"
+		chLabel     = "ClickHouse"
+		seen        = "Seen in the rolling 24 h"
+	)
+	server := func(label string, count, up int, note string) tile {
+		if count == 0 {
+			return noDataTile(label)
+		}
+		t := tile{Label: label, Value: one(strconv.Itoa(count), plural(count, "instance")),
+			Details: []string{seen, strconv.Itoa(up) + " up", note}}
+		t.Status, t.Word = databasesStatus(up, count)
+		return t
+	}
+	sqlite, backups := noDataTile(sqliteLabel), noDataTile(backupLabel)
+	if d.SQLiteCount > 0 {
+		sqlite = tile{Label: sqliteLabel, Value: one(strconv.Itoa(d.SQLiteCount), plural(d.SQLiteCount, "app")),
+			Details: []string{seen, strconv.Itoa(d.SQLiteUp) + " up"}}
+		sqlite.Status, sqlite.Word = databasesStatus(d.SQLiteUp, d.SQLiteCount)
+		backups = tile{Label: backupLabel, Value: one(strconv.Itoa(d.SQLiteBackupFresh), "of "+strconv.Itoa(d.SQLiteCount)),
+			Details: []string{"Nightly to S3, each in the rolling 26 h",
+				strconv.Itoa(d.SQLiteRestorePassed) + " passed the weekly restore test, rolling 8 days"}}
+		backups.Status, backups.Word = sqliteBackupStatus(d.SQLiteBackupFresh, d.SQLiteRestoreFailed, d.SQLiteCount)
+	}
+	return []tile{sqlite, backups,
+		server(valkeyLabel, d.ValkeyRedisCount, d.ValkeyRedisUp, "In memory, not backed up"),
+		server(chLabel, d.ClickHouseCount, d.ClickHouseUp, "Logs and traces expire, not backed up")}
+}
+
 func bandTile(t tile, b band) tile {
 	t.Status, t.Word = bandStatus(b), string(b)
 	return t
@@ -737,6 +773,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		RED:       redTiles(s.Cluster.Gateway),
 		State:     stateTiles(s.Cluster),
 		Databases: databaseTiles(s.Cluster.Databases),
+		Engines:   engineTiles(s.Cluster.Databases),
 		Delivery:  deliveryTiles(s.Project),
 		Runs:      runs(s.Project.CIRuns),
 		Signals:   signalTiles(s.Security),

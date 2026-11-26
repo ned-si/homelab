@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 10
+const Version = 11
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -147,6 +147,17 @@ type Databases struct {
 	RestoreRows           *int     `json:"restore_rows"`
 	RestoreMedianSeconds  *int     `json:"restore_median_seconds"`
 	Freshness30d          *float64 `json:"freshness_30d"`
+	// The other engines (dashboard-database-engines): SQLite apps from a
+	// reviewed inventory, Valkey/Redis and ClickHouse instances by image.
+	SQLiteCount         int `json:"sqlite_count"`
+	SQLiteUp            int `json:"sqlite_up"`
+	SQLiteBackupFresh   int `json:"sqlite_backup_fresh"`
+	SQLiteRestorePassed int `json:"sqlite_restore_passed"`
+	SQLiteRestoreFailed int `json:"sqlite_restore_failed"`
+	ValkeyRedisCount    int `json:"valkey_redis_count"`
+	ValkeyRedisUp       int `json:"valkey_redis_up"`
+	ClickHouseCount     int `json:"clickhouse_count"`
+	ClickHouseUp        int `json:"clickhouse_up"`
 }
 
 // NodeUse is one node's utilisation, saturation and errors, in percent
@@ -539,6 +550,20 @@ func (c *Cluster) check() []error {
 	} {
 		if f.n > d.Count {
 			errs = append(errs, fmt.Errorf("cluster.databases: %s %d above count %d", f.name, f.n, d.Count))
+		}
+	}
+	for _, f := range []struct {
+		name, of string
+		n, count int
+	}{
+		{"sqlite_up", "sqlite_count", d.SQLiteUp, d.SQLiteCount},
+		{"sqlite_backup_fresh", "sqlite_count", d.SQLiteBackupFresh, d.SQLiteCount},
+		{"sqlite_restore_passed + sqlite_restore_failed", "sqlite_count", d.SQLiteRestorePassed + d.SQLiteRestoreFailed, d.SQLiteCount},
+		{"valkey_redis_up", "valkey_redis_count", d.ValkeyRedisUp, d.ValkeyRedisCount},
+		{"clickhouse_up", "clickhouse_count", d.ClickHouseUp, d.ClickHouseCount},
+	} {
+		if f.n > f.count {
+			errs = append(errs, fmt.Errorf("cluster.databases: %s %d above %s %d", f.name, f.n, f.of, f.count))
 		}
 	}
 	return errs

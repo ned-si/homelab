@@ -89,9 +89,13 @@
 {{- range .State}}{{template "tile" .}}{{end}}
 </div>
 <h3>Databases and backups</h3>
-<p class="meta">Each database is its own CloudNativePG cluster. Every change is archived to S3 within 5 minutes and every night adds a base backup, so a database can be restored to any moment of its recovery window. Every week each one is restored into a new cluster and its tables and rows are compared with the source.</p>
+<p class="meta">Each PostgreSQL database is its own CloudNativePG cluster. Every change is archived to S3 within 5 minutes and every night adds a base backup, so a database can be restored to any moment of its recovery window. Every week each one is restored into a new cluster and its tables and rows are compared with the source.</p>
 <div class="tiles">
 {{- range .Databases}}{{template "tile" .}}{{end}}
+</div>
+<p class="meta">The apps that keep their database in SQLite, a file in the app's volume, are copied to S3 every night with restic. Most copies are taken while the app runs, and the weekly restore test checks the database files it covers. Valkey, Redis and ClickHouse hold queues, caches and telemetry that are rebuilt or expire, so they are not backed up.</p>
+<div class="tiles">
+{{- range .Engines}}{{template "tile" .}}{{end}}
 </div>
 {{- template "asof" .Cluster}}
 </section>

@@ -14,7 +14,7 @@ change the same template lines and the catalogue.
       (Reading the results, What is not backed up). Branch
       `feat/database-engine-rules`. Check: acceptance criteria 1 and 2.
       [1.1-1.5] (#1773)
-- [ ] 2. Snapshot, collector and tiles (visible after task 3): snapshot
+- [x] 2. Snapshot, collector and tiles (visible after task 3): snapshot
       version plus one with the nine keys of
       [design, The snapshot](design.md#the-snapshot-task-2), schema,
       `Validate` and fixtures; the collector queries and clamps;
@@ -23,7 +23,7 @@ change the same template lines and the catalogue.
       catalogues with the operator's French; goldens;
       `docs/homelab-dashboard.md` (Cards, Privacy rules, Status
       colours). Branch `feat/dashboard-database-engines`. Check:
-      acceptance criteria 3-5. [2, 3, 4, 5]
+      acceptance criteria 3-5. [2, 3, 4, 5] (#1792; French with #1763)
 - [ ] 3. Deploy (**live** and visible): the digest of the image built
       from task 2's merge in both Deployments of
       `apps/homelab-dashboard/`, `task render`. Branch

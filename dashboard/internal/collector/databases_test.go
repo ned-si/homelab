@@ -20,6 +20,8 @@ func wantDatabases() snapshot.Databases {
 		BaseFresh: 8, BaseOldestSeconds: i(70292), RecoveryWindowSeconds: i(2658197),
 		RestorePassed: 8, RestoreFailed: 0, RestoreRows: i(1031332), RestoreMedianSeconds: i(414),
 		Freshness30d: f64(99.966),
+		SQLiteCount:  9, SQLiteUp: 9, SQLiteBackupFresh: 9, SQLiteRestorePassed: 4, SQLiteRestoreFailed: 0,
+		ValkeyRedisCount: 3, ValkeyRedisUp: 3, ClickHouseCount: 1, ClickHouseUp: 1,
 	}
 }
 
@@ -46,6 +48,15 @@ func TestDatabaseQueries(t *testing.T) {
 		`cluster:cnpg_restore_duration:median_seconds`,
 		`cluster:cnpg_wal_archived:increase24h`,
 		`min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})`,
+		`cluster:sqlite_databases:count`,
+		`cluster:sqlite_databases_up:count`,
+		`cluster:sqlite_backup_fresh:count`,
+		`cluster:sqlite_restore_passed:count`,
+		`cluster:sqlite_restore_failed:count`,
+		`cluster:valkey_redis_instances:count`,
+		`cluster:valkey_redis_instances_up:count`,
+		`cluster:clickhouse_instances:count`,
+		`cluster:clickhouse_instances_up:count`,
 	}
 	e.fake.mu.Lock()
 	defer e.fake.mu.Unlock()
@@ -69,12 +80,18 @@ func unix(ts []time.Time) []int64 {
 func TestDatabaseClamp(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 25, 20, 30), http.StatusNoContent)
 	for q, v := range map[string]float64{
-		"cluster:cnpg_databases_up:count":      9,
-		"cluster:cnpg_base_backup_fresh:count": 9,
-		"cluster:cnpg_wal_archiving:count":     7,
-		"cluster:cnpg_wal_behind:count":        3,
-		"cluster:cnpg_restore_passed:count":    9,
-		"cluster:cnpg_restore_failed:count":    1,
+		"cluster:cnpg_databases_up:count":         9,
+		"cluster:cnpg_base_backup_fresh:count":    9,
+		"cluster:cnpg_wal_archiving:count":        7,
+		"cluster:cnpg_wal_behind:count":           3,
+		"cluster:cnpg_restore_passed:count":       9,
+		"cluster:cnpg_restore_failed:count":       1,
+		"cluster:sqlite_databases_up:count":       10,
+		"cluster:sqlite_backup_fresh:count":       10,
+		"cluster:sqlite_restore_passed:count":     8,
+		"cluster:sqlite_restore_failed:count":     2,
+		"cluster:valkey_redis_instances_up:count": 4,
+		"cluster:clickhouse_instances_up:count":   2,
 	} {
 		e.fake.dbs[q] = v
 	}
@@ -82,6 +99,10 @@ func TestDatabaseClamp(t *testing.T) {
 	got := [6]int{d.Up, d.BaseFresh, d.WALArchiving, d.WALBehind, d.RestorePassed, d.RestoreFailed}
 	if want := [6]int{8, 8, 7, 1, 8, 0}; got != want {
 		t.Errorf("up, base_fresh, wal_archiving, wal_behind, restore_passed, restore_failed = %v, want %v", got, want)
+	}
+	engines := [6]int{d.SQLiteUp, d.SQLiteBackupFresh, d.SQLiteRestorePassed, d.SQLiteRestoreFailed, d.ValkeyRedisUp, d.ClickHouseUp}
+	if want := [6]int{9, 9, 8, 1, 3, 1}; engines != want {
+		t.Errorf("sqlite_up, sqlite_backup_fresh, sqlite_restore_passed, sqlite_restore_failed, valkey_redis_up, clickhouse_up = %v, want %v", engines, want)
 	}
 }
 
@@ -115,8 +136,8 @@ func TestDatabasesNumbersOnly(t *testing.T) {
 	if err := json.Unmarshal(dry, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Cluster.Databases) != 14 {
-		t.Errorf("databases has %d keys, want 14", len(doc.Cluster.Databases))
+	if len(doc.Cluster.Databases) != 23 {
+		t.Errorf("databases has %d keys, want 23", len(doc.Cluster.Databases))
 	}
 	for k, v := range doc.Cluster.Databases {
 		if _, ok := v.(float64); !ok {

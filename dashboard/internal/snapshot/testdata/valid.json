@@ -1,5 +1,5 @@
 {
-  "schema_version": 10,
+  "schema_version": 11,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "availability": {
     "as_of": "2026-11-20T17:00:00+01:00",
@@ -43,7 +43,7 @@
     "gateway": {"requests_per_second": 0.63, "errors_5xx": 0.59, "latency_p95_ms": 41},
     "restarts_24h": 3,
     "volumes": {"count": 35, "used_bytes": 412316860416, "capacity_bytes": 1099511627776, "fullest": 80.8},
-    "databases": {"count": 8, "up": 8, "data_bytes": 1345968964, "wal_archiving": 8, "wal_behind": 0, "wal_archived_24h": 1517, "base_fresh": 8, "base_oldest_seconds": 70292, "recovery_window_seconds": 2658197, "restore_passed": 8, "restore_failed": 0, "restore_rows": 1031332, "restore_median_seconds": 414, "freshness_30d": 99.966}
+    "databases": {"count": 8, "up": 8, "data_bytes": 1345968964, "wal_archiving": 8, "wal_behind": 0, "wal_archived_24h": 1517, "base_fresh": 8, "base_oldest_seconds": 70292, "recovery_window_seconds": 2658197, "restore_passed": 8, "restore_failed": 0, "restore_rows": 1031332, "restore_median_seconds": 414, "freshness_30d": 99.966, "sqlite_count": 9, "sqlite_up": 9, "sqlite_backup_fresh": 9, "sqlite_restore_passed": 4, "sqlite_restore_failed": 0, "valkey_redis_count": 3, "valkey_redis_up": 3, "clickhouse_count": 1, "clickhouse_up": 1}
   },
   "project": {
     "as_of": "2026-11-20T16:52:00+01:00",

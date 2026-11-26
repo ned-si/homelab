@@ -95,6 +95,15 @@ func fakeDatabases() map[string]float64 {
 		"cluster:cnpg_restore_rows:sum":                        1031332,
 		"cluster:cnpg_restore_duration:median_seconds":         414.5,
 		`min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})`: 0.99966,
+		"cluster:sqlite_databases:count":                       9,
+		"cluster:sqlite_databases_up:count":                    9,
+		"cluster:sqlite_backup_fresh:count":                    9,
+		"cluster:sqlite_restore_passed:count":                  4,
+		"cluster:sqlite_restore_failed:count":                  0,
+		"cluster:valkey_redis_instances:count":                 3,
+		"cluster:valkey_redis_instances_up:count":              3,
+		"cluster:clickhouse_instances:count":                   1,
+		"cluster:clickhouse_instances_up:count":                1,
 	}
 }
 

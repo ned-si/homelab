@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "generated_at", "availability", "certificates", "cluster", "project", "security", "supply_chain"],
   "properties": {
-    "schema_version": {"const": 10},
+    "schema_version": {"const": 11},
     "generated_at": {"$ref": "#/$defs/time"},
     "availability": {
       "type": "object",
@@ -135,7 +135,9 @@
           "additionalProperties": false,
           "required": ["count", "up", "data_bytes", "wal_archiving", "wal_behind", "wal_archived_24h", "base_fresh",
             "base_oldest_seconds", "recovery_window_seconds", "restore_passed", "restore_failed", "restore_rows",
-            "restore_median_seconds", "freshness_30d"],
+            "restore_median_seconds", "freshness_30d", "sqlite_count", "sqlite_up", "sqlite_backup_fresh",
+            "sqlite_restore_passed", "sqlite_restore_failed", "valkey_redis_count", "valkey_redis_up",
+            "clickhouse_count", "clickhouse_up"],
           "properties": {
             "count": {"$ref": "#/$defs/databases"},
             "up": {"$ref": "#/$defs/databases"},
@@ -150,7 +152,16 @@
             "restore_failed": {"$ref": "#/$defs/databases"},
             "restore_rows": {"$ref": "#/$defs/count"},
             "restore_median_seconds": {"$ref": "#/$defs/count"},
-            "freshness_30d": {"$ref": "#/$defs/share"}
+            "freshness_30d": {"$ref": "#/$defs/share"},
+            "sqlite_count": {"$ref": "#/$defs/databases"},
+            "sqlite_up": {"$ref": "#/$defs/databases"},
+            "sqlite_backup_fresh": {"$ref": "#/$defs/databases"},
+            "sqlite_restore_passed": {"$ref": "#/$defs/databases"},
+            "sqlite_restore_failed": {"$ref": "#/$defs/databases"},
+            "valkey_redis_count": {"$ref": "#/$defs/databases"},
+            "valkey_redis_up": {"$ref": "#/$defs/databases"},
+            "clickhouse_count": {"$ref": "#/$defs/databases"},
+            "clickhouse_up": {"$ref": "#/$defs/databases"}
           }
         }
       }
