@@ -80,7 +80,7 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       7.3 and 7.4). Then the
       `homelab-site` digest bump. Check: acceptance criteria 5, 6 and 8
       live. [4.1-4.8, 4.10, 5.1, 5.3, 5.4]
-- [x] 5. French on `homelab.nedsi.io` (**live**): `i18n.go` with the
+- [ ] 5. French on `homelab.nedsi.io` (**live**): `i18n.go` with the
       catalogue, `formatPercent` and dates; the `/fr/` route; the
       language toggle and `hreflang` in `layout.html`; `TestCatalogue`;
       golden pages and screenshots for `/fr/`; the French `NAV` target
