@@ -151,7 +151,7 @@ for size in 1920x1080 390x844; do
   done
 done
 
-THEMED=$themed GROUPS=$groups python3 - "$work" "${pages[@]}" <<'EOF'
+THEMED=$themed LAYOUT_GROUPS=$groups python3 - "$work" "${pages[@]}" <<'EOF'
 import html
 import json
 import os
@@ -160,7 +160,7 @@ import sys
 
 work, pages = sys.argv[1], sys.argv[2:]
 themed = set(os.environ["THEMED"].split())
-groups = [g.split() for g in os.environ["GROUPS"].split(";")]
+groups = [g.split() for g in os.environ["LAYOUT_GROUPS"].split(";")]
 failed = False
 for size in ("1920x1080", "390x844"):
     got = {}
