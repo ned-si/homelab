@@ -46,7 +46,7 @@ its task 6.
       `charts.json`, and no `.mp3`; acceptance criteria 13 (on a
       throwaway branch, deleted after) and 15. [1]
       ned-si/drum-charts#10.
-- [ ] 3. Generator and CI (**ned-si/homelab**, not live): the
+- [x] 3. Generator and CI (**ned-si/homelab**, not live): the
       `drumcharts/` module (validation, allow-list, templates, the
       English catalogue, fixture, the golden tree), `drumcharts/source.yaml`
       with the digest of task 2, `scripts/ci/drumcharts-data.sh`,
@@ -58,6 +58,7 @@ its task 6.
       rule; the site-theme-language Host glossary line. Check:
       acceptance criteria 4-7; the real render read at 390 and 1920 px
       in both themes, locally. [2.1, 2.2, 2.4, 3, 4.1, 4.4, 4.5, 8]
+      #1791.
 - [ ] 4. The site image carries the charts (**ned-si/homelab**, not
       served): `site-publish.yaml` (paths, Go with `GOTOOLCHAIN: local`,
       cosign, verify, render), `site/Dockerfile`, `.gitignore`, the
