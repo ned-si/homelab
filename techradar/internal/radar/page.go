@@ -3,14 +3,31 @@ package radar
 import (
 	"bytes"
 	"embed"
+	"html"
 	"html/template"
 	"io/fs"
+	"regexp"
+	"strings"
 )
 
 //go:embed assets
 var assets embed.FS
 
-var page = template.Must(template.ParseFS(assets, "assets/page.html"))
+var page = template.Must(template.New("page.html").Funcs(template.FuncMap{"em": em}).ParseFS(assets, "assets/page.html"))
+
+// emphasis is *text*: an English expression in the French text, set in
+// italics (the operator's rule, 2026-11-26).
+var emphasis = regexp.MustCompile(`\*([^*]+)\*`)
+
+// em escapes s, then sets each *text* in <em>.
+func em(s string) template.HTML {
+	return template.HTML(emphasis.ReplaceAllString(html.EscapeString(s), "<em>$1</em>")) //nolint:gosec // G203: escaped first, only <em> is added.
+}
+
+// plain is s without the emphasis marks, for a tooltip.
+func plain(s string) string {
+	return strings.ReplaceAll(s, "*", "")
+}
 
 // Files are the rendered page's files by name, as served from the root of
 // techradar.nedsi.io.

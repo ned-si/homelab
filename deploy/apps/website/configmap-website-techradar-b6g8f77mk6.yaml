@@ -16,7 +16,7 @@ data:
     <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Radar techno · nedsi</title>
+    <title>Tech radar · nedsi</title>
     <meta name="description" content="Ce que le homelab nedsi utilise, essaie, évalue et met de côté, et pourquoi.">
     <meta name="author" content="nedsi">
     <link rel="canonical" href="https://techradar.nedsi.io/fr/">
@@ -34,7 +34,7 @@ data:
     <a href="https://nedsi.io/fr/">Accueil</a>
     <a href="https://blog.nedsi.io/fr/">Blog</a>
     <a href="https://homelab.nedsi.io/">Homelab</a>
-    <a href="/fr/" aria-current="page">Radar techno</a>
+    <a href="/fr/" aria-current="page">Tech radar</a>
     <a href="https://blog.nedsi.io/fr/about/">À propos</a>
     </nav>
     <p class="prefs">
@@ -44,10 +44,10 @@ data:
     </p>
     </header>
     <main>
-    <h1>Radar techno</h1>
+    <h1>Tech radar</h1>
     <p class="lead">Avec quoi le homelab est construit, et pourquoi.</p>
     <div class="intro">
-    <p>Chaque technologie et chaque technique que le homelab utilise, essaie, surveille ou a écartée, chacune avec une raison en une ligne et un lien vers l&#39;endroit où la décision est écrite. Ces raisons étaient éparpillées entre docs, specs et issues. Maintenant elles sont sur une seule page, dans l&#39;esprit du <a href="https://github.com/zalando/tech-radar">tech radar de Zalando</a> (sans le JavaScript).</p>
+    <p>Chaque technologie et chaque technique que le homelab utilise, essaie, surveille ou a écartée, chacune avec une raison en une ligne et un lien vers l&#39;endroit où la décision est écrite. Ces raisons étaient éparpillées entre docs, <em>specs</em> et <em>issues</em>. Maintenant elles sont sur une seule page, dans l&#39;esprit du <a href="https://github.com/zalando/tech-radar">tech radar de Zalando</a> (sans le JavaScript).</p>
     <ul class="rings">
     <li><strong class="ring-adopt">Adopter</strong> : utilisé, et je le choisirais à nouveau.</li>
     <li><strong class="ring-trial">Essayer</strong> : utilisé à l&#39;essai, ou avec une limite connue sur laquelle je travaille.</li>
@@ -59,7 +59,7 @@ data:
     <figure class="chart">
     <p class="quadrant quadrant-techniques">Techniques</p>
     <p class="quadrant quadrant-tools">Outils et langages</p>
-    <svg viewBox="0 0 800 800" role="group" focusable="false" aria-label="Radar techno : 112 entrées dans quatre quadrants et quatre anneaux, listées dans la légende en dessous.">
+    <svg viewBox="0 0 800 800" role="group" focusable="false" aria-label="Tech radar : 112 entrées dans quatre quadrants et quatre anneaux, listées dans la légende en dessous.">
     <circle class="ring-line" cx="400" cy="400" r="170"/>
     <circle class="ring-line" cx="400" cy="400" r="255"/>
     <circle class="ring-line" cx="400" cy="400" r="330"/>
@@ -74,9 +74,9 @@ data:
     <text class="ring-name" x="692.5" y="406">Évaluer</text>
     <text class="ring-name" x="35" y="406">Suspendre</text>
     <text class="ring-name" x="765" y="406">Suspendre</text>
-    <a class="blip ring-adopt" href="#entry-agent-written-pull-requests"><title>1. Agent-written pull requests (Techniques, Adopter) : Des agents implémentent par PR ; la CI et les specs les gardent honnêtes.</title><circle cx="360.3" cy="356.6" r="8"/><text class="blip-number" x="360.3" y="359.6" aria-hidden="true">1</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="374.3" y="361.6">Agent-written pull requests · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-agent-written-pull-requests"><title>1. Agent-written pull requests (Techniques, Adopter) : Des agents implémentent par PR ; le CI et les specs les gardent honnêtes.</title><circle cx="360.3" cy="356.6" r="8"/><text class="blip-number" x="360.3" y="359.6" aria-hidden="true">1</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="374.3" y="361.6">Agent-written pull requests · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-automatic-rollback"><title>2. Automatic rollback (Techniques, Adopter) : Un merge qui dégrade une app est reverté, avec un garde-fou en cas de panne.</title><circle cx="290" cy="339.3" r="8"/><text class="blip-number" x="290" y="342.3" aria-hidden="true">2</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="304" y="344.3">Automatic rollback · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-ci-as-the-only-gate"><title>3. CI as the only gate (Techniques, Adopter) : Aucune approbation humaine : la CI verte merge, une app dégradée est revertée.</title><circle cx="353.6" cy="383" r="8"/><text class="blip-number" x="353.6" y="386" aria-hidden="true">3</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="367.6" y="388">CI as the only gate · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-ci-as-the-only-gate"><title>3. CI as the only gate (Techniques, Adopter) : Aucune approbation humaine : le CI vert merge, une app dégradée est revertée.</title><circle cx="353.6" cy="383" r="8"/><text class="blip-number" x="353.6" y="386" aria-hidden="true">3</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="367.6" y="388">CI as the only gate · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-database-majors-fix-forward"><title>4. Database majors fix forward (Techniques, Adopter) : Une version majeure de Postgres est sans retour : sauvegarde fraîche, puis en avant.</title><circle cx="280.4" cy="368.9" r="8"/><text class="blip-number" x="280.4" y="371.9" aria-hidden="true">4</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="294.4" y="373.9">Database majors fix forward · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-deterministic-first"><title>5. Deterministic first (Techniques, Adopter) : Scripts, contrôles et seuils décident ; l&#39;IA rédige et résume.</title><circle cx="354" cy="314.4" r="8"/><text class="blip-number" x="354" y="317.4" aria-hidden="true">5</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="368" y="319.4">Deterministic first · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-dora-metrics"><title>6. DORA metrics (Techniques, Adopter) : La livraison mesurée depuis git, GitHub et les alertes, en direct sur le dashboard.</title><circle cx="296.3" cy="312.2" r="8"/><text class="blip-number" x="296.3" y="315.2" aria-hidden="true">6</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="310.3" y="317.2">DORA metrics · Adopter</text></g></a>
@@ -102,12 +102,12 @@ data:
     <a class="blip ring-hold" href="#entry-adr-directory"><title>26. ADR directory (Techniques, Suspendre) : Les ADR pourrissent dans un dépôt à une personne ; les décisions vivent dans la doc.</title><circle cx="66.7" cy="266.7" r="8"/><text class="blip-number" x="66.7" y="269.7" aria-hidden="true">26</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="80.7" y="271.7">ADR directory · Suspendre</text></g></a>
     <a class="blip ring-adopt" href="#entry-chrome-headless-shell"><title>27. chrome-headless-shell (Outils et langages, Adopter) : Contrôles de captures d&#39;écran et de mise en page sans diff de pixels.</title><circle cx="415.6" cy="357.1" r="8"/><text class="blip-number" x="415.6" y="360.1" aria-hidden="true">27</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="401.6" y="362.1">chrome-headless-shell · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-cosign"><title>28. cosign (Outils et langages, Adopter) : Des signatures keyless avec l&#39;identité du workflow.</title><circle cx="473.8" cy="310.8" r="8"/><text class="blip-number" x="473.8" y="313.8" aria-hidden="true">28</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="459.8" y="315.8">cosign · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-github-actions"><title>29. GitHub Actions (Outils et langages, Adopter) : La CI et la publication, chaque action épinglée à un SHA.</title><circle cx="469.3" cy="337.5" r="8"/><text class="blip-number" x="469.3" y="340.5" aria-hidden="true">29</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="455.3" y="342.5">GitHub Actions · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-github-actions"><title>29. GitHub Actions (Outils et langages, Adopter) : Le CI et la publication, chaque action épinglée à un SHA.</title><circle cx="469.3" cy="337.5" r="8"/><text class="blip-number" x="469.3" y="340.5" aria-hidden="true">29</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="455.3" y="342.5">GitHub Actions · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-github-artifact-attestations"><title>30. GitHub artifact attestations (Outils et langages, Adopter) : Provenance SLSA v1 pour nos images, SLSA Build L2.</title><circle cx="517.2" cy="342" r="8"/><text class="blip-number" x="517.2" y="345" aria-hidden="true">30</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="503.2" y="347">GitHub artifact attestations · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-gitleaks"><title>31. gitleaks (Outils et langages, Adopter) : Aucun secret n&#39;atteint un commit, dépôt public ou non.</title><circle cx="435" cy="355.2" r="8"/><text class="blip-number" x="435" y="358.2" aria-hidden="true">31</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="421" y="360.2">gitleaks · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-go"><title>32. Go (Outils et langages, Adopter) : Le dashboard et ce radar : un binaire statique, typé, testé.</title><circle cx="423.3" cy="307.5" r="8"/><text class="blip-number" x="423.3" y="310.5" aria-hidden="true">32</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="409.3" y="312.5">Go · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-hugo"><title>33. Hugo (Outils et langages, Adopter) : Un binaire épinglé, pas de thème, pas d&#39;arbre npm, CSP stricte possible.</title><circle cx="494.9" cy="371" r="8"/><text class="blip-number" x="494.9" y="374" aria-hidden="true">33</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="480.9" y="376">Hugo · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-kind"><title>34. kind (Outils et langages, Adopter) : Un cluster jetable dans la CI pour un dry run côté serveur et un vrai démarrage.</title><circle cx="456.8" cy="355.1" r="8"/><text class="blip-number" x="456.8" y="358.1" aria-hidden="true">34</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="442.8" y="360.1">kind · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-kind"><title>34. kind (Outils et langages, Adopter) : Un cluster jetable dans le CI pour un dry run côté serveur et un vrai démarrage.</title><circle cx="456.8" cy="355.1" r="8"/><text class="blip-number" x="456.8" y="358.1" aria-hidden="true">34</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="442.8" y="360.1">kind · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-kiro"><title>35. Kiro (Outils et langages, Adopter) : Les agents qui écrivent la plupart des pull requests, tenus par les specs.</title><circle cx="528.4" cy="358.8" r="8"/><text class="blip-number" x="528.4" y="361.8" aria-hidden="true">35</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="514.4" y="363.8">Kiro · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-kubeconform-and-kube-linter"><title>36. kubeconform and kube-linter (Outils et langages, Adopter) : Contrôles de schéma et de bonnes pratiques sur chaque manifeste rendu.</title><circle cx="517" cy="374.4" r="8"/><text class="blip-number" x="517" y="377.4" aria-hidden="true">36</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="503" y="379.4">kubeconform and kube-linter · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-kustomize-and-helm"><title>37. Kustomize and Helm (Outils et langages, Adopter) : Les charts Helm rendus via Kustomize dans deploy/.</title><circle cx="455.9" cy="256.7" r="8"/><text class="blip-number" x="455.9" y="259.7" aria-hidden="true">37</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="441.9" y="261.7">Kustomize and Helm · Adopter</text></g></a>
@@ -115,12 +115,12 @@ data:
     <a class="blip ring-adopt" href="#entry-opentofu"><title>39. OpenTofu (Outils et langages, Adopter) : Les ressources cloud, appliquées par un workflow via GitHub OIDC.</title><circle cx="492" cy="345.1" r="8"/><text class="blip-number" x="492" y="348.1" aria-hidden="true">39</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="478" y="350.1">OpenTofu · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-owasp-zap"><title>40. OWASP ZAP (Outils et langages, Adopter) : Le scan DAST des noms publics.</title><circle cx="428.4" cy="275" r="8"/><text class="blip-number" x="428.4" y="278" aria-hidden="true">40</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="414.4" y="280">OWASP ZAP · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-pre-commit"><title>41. pre-commit (Outils et langages, Adopter) : Les mêmes contrôles en local au commit et au push.</title><circle cx="520.3" cy="308" r="8"/><text class="blip-number" x="520.3" y="311" aria-hidden="true">41</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="506.3" y="313">pre-commit · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-python"><title>42. Python (Outils et langages, Adopter) : Les scripts et contrôles de la CI, avec pytest.</title><circle cx="455.8" cy="297" r="8"/><text class="blip-number" x="455.8" y="300" aria-hidden="true">42</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="441.8" y="302">Python · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-renovate"><title>43. Renovate (Outils et langages, Adopter) : Chaque dépendance épinglée et mise à jour, automergée sur CI verte.</title><circle cx="440.5" cy="323.9" r="8"/><text class="blip-number" x="440.5" y="326.9" aria-hidden="true">43</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="426.5" y="328.9">Renovate · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-python"><title>42. Python (Outils et langages, Adopter) : Les scripts et contrôles du CI, avec pytest.</title><circle cx="455.8" cy="297" r="8"/><text class="blip-number" x="455.8" y="300" aria-hidden="true">42</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="441.8" y="302">Python · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-renovate"><title>43. Renovate (Outils et langages, Adopter) : Chaque dépendance épinglée et mise à jour, automergée sur CI vert.</title><circle cx="440.5" cy="323.9" r="8"/><text class="blip-number" x="440.5" y="326.9" aria-hidden="true">43</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="426.5" y="328.9">Renovate · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-sops-with-age"><title>44. SOPS with age (Outils et langages, Adopter) : Les secrets chiffrés dans git, déchiffrés par KSOPS dans Argo CD.</title><circle cx="436.1" cy="380.8" r="8"/><text class="blip-number" x="436.1" y="383.8" aria-hidden="true">44</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="422.1" y="385.8">SOPS with age · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-talhelper"><title>45. talhelper (Outils et langages, Adopter) : Les configs machine Talos générées depuis un seul fichier.</title><circle cx="550.2" cy="378.5" r="8"/><text class="blip-number" x="550.2" y="381.5" aria-hidden="true">45</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="536.2" y="383.5">talhelper · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-task"><title>46. Task (Outils et langages, Adopter) : Un seul Taskfile pour le rendu, les contrôles et les opérations Talos.</title><circle cx="540.3" cy="324.7" r="8"/><text class="blip-number" x="540.3" y="327.7" aria-hidden="true">46</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="526.3" y="329.7">Task · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-trivy"><title>47. Trivy (Outils et langages, Adopter) : Le contrôle des images et de la config dans la CI.</title><circle cx="420.4" cy="332.6" r="8"/><text class="blip-number" x="420.4" y="335.6" aria-hidden="true">47</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="406.4" y="337.6">Trivy · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-trivy"><title>47. Trivy (Outils et langages, Adopter) : Le contrôle des images et de la config dans le CI.</title><circle cx="420.4" cy="332.6" r="8"/><text class="blip-number" x="420.4" y="335.6" aria-hidden="true">47</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="406.4" y="337.6">Trivy · Adopter</text></g></a>
     <a class="blip ring-assess" href="#entry-lore"><title>48. Lore (Outils et langages, Évaluer) : Une mémoire pour agents de code ; pas encore évalué, d&#39;abord le projet exact.</title><circle cx="654.9" cy="216" r="8"/><text class="blip-number" x="654.9" y="219" aria-hidden="true">48</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="640.9" y="221">Lore · Évaluer</text></g></a>
     <a class="blip ring-hold" href="#entry-ansible"><title>49. Ansible (Outils et langages, Suspendre) : Les playbooks des nodes remplacés par les configs machine Talos.</title><circle cx="548" cy="65.2" r="8"/><text class="blip-number" x="548" y="68.2" aria-hidden="true">49</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="534" y="70.2">Ansible · Suspendre</text></g></a>
     <a class="blip ring-hold" href="#entry-astro-and-eleventy"><title>50. Astro and Eleventy (Outils et langages, Suspendre) : Un arbre de dépendances npm à maintenir pour un blog statique.</title><circle cx="747.1" cy="374.7" r="8"/><text class="blip-number" x="747.1" y="377.7" aria-hidden="true">50</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="733.1" y="379.7">Astro and Eleventy · Suspendre</text></g></a>
@@ -140,7 +140,7 @@ data:
     <a class="blip ring-adopt" href="#entry-immich"><title>64. Immich (Plateforme, Adopter) : La photothèque, connexion via Keycloak.</title><circle cx="359.8" cy="480.6" r="8"/><text class="blip-number" x="359.8" y="483.6" aria-hidden="true">64</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="373.8" y="485.6">Immich · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-jellyfin"><title>65. Jellyfin (Plateforme, Adopter) : Le serveur média open source à côté de Plex, sans SSO.</title><circle cx="337.8" cy="421" r="8"/><text class="blip-number" x="337.8" y="424" aria-hidden="true">65</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="351.8" y="426">Jellyfin · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-keycloak"><title>66. Keycloak (Plateforme, Adopter) : Une seule connexion pour toutes les apps, accès par groupe, TOTP pour les admins.</title><circle cx="325.9" cy="454.9" r="8"/><text class="blip-number" x="325.9" y="457.9" aria-hidden="true">66</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="339.9" y="459.9">Keycloak · Adopter</text></g></a>
-    <a class="blip ring-adopt" href="#entry-kyverno"><title>67. Kyverno (Plateforme, Adopter) : Les policies de base en Deny, dans la CI et dans le cluster.</title><circle cx="301.5" cy="446" r="8"/><text class="blip-number" x="301.5" y="449" aria-hidden="true">67</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="315.5" y="451">Kyverno · Adopter</text></g></a>
+    <a class="blip ring-adopt" href="#entry-kyverno"><title>67. Kyverno (Plateforme, Adopter) : Les policies de base en Deny, dans le CI et dans le cluster.</title><circle cx="301.5" cy="446" r="8"/><text class="blip-number" x="301.5" y="449" aria-hidden="true">67</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="315.5" y="451">Kyverno · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-mealie"><title>68. Mealie (Plateforme, Adopter) : Les recettes du ménage.</title><circle cx="388.4" cy="419.1" r="8"/><text class="blip-number" x="388.4" y="422.1" aria-hidden="true">68</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="402.4" y="424.1">Mealie · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-mosquitto"><title>69. Mosquitto (Plateforme, Adopter) : Le broker MQTT pour les appareils de la maison.</title><circle cx="278.2" cy="487.8" r="8"/><text class="blip-number" x="278.2" y="490.8" aria-hidden="true">69</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="292.2" y="492.8">Mosquitto · Adopter</text></g></a>
     <a class="blip ring-adopt" href="#entry-ntfy"><title>70. ntfy (Plateforme, Adopter) : Les notifications push pour les alertes.</title><circle cx="308.2" cy="513.8" r="8"/><text class="blip-number" x="308.2" y="516.8" aria-hidden="true">70</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="322.2" y="518.8">ntfy · Adopter</text></g></a>
@@ -195,36 +195,36 @@ data:
     <h2 id="q-techniques">Techniques</h2>
     <h3 class="ring-adopt">Adopter</h3>
     <ol>
-    <li value="1" id="entry-agent-written-pull-requests"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Agent-written pull requests</a>&nbsp;: Des agents implémentent par PR ; la CI et les specs les gardent honnêtes.</li>
-    <li value="2" id="entry-automatic-rollback"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#automatic-rollback">Automatic rollback</a>&nbsp;: Un merge qui dégrade une app est reverté, avec un garde-fou en cas de panne.</li>
-    <li value="3" id="entry-ci-as-the-only-gate"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-human-gates">CI as the only gate</a>&nbsp;: Aucune approbation humaine : la CI verte merge, une app dégradée est revertée.</li>
+    <li value="1" id="entry-agent-written-pull-requests"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Agent-written pull requests</a>&nbsp;: Des agents implémentent par PR ; le CI et les <em>specs</em> les gardent honnêtes.</li>
+    <li value="2" id="entry-automatic-rollback"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#automatic-rollback">Automatic rollback</a>&nbsp;: Un <em>merge</em> qui dégrade une app est reverté, avec un garde-fou en cas de panne.</li>
+    <li value="3" id="entry-ci-as-the-only-gate"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-human-gates">CI as the only gate</a>&nbsp;: Aucune approbation humaine : le CI vert merge, une app dégradée est revertée.</li>
     <li value="4" id="entry-database-majors-fix-forward"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#database-majors-fix-forward">Database majors fix forward</a>&nbsp;: Une version majeure de Postgres est sans retour : sauvegarde fraîche, puis en avant.</li>
     <li value="5" id="entry-deterministic-first"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#deterministic-first">Deterministic first</a>&nbsp;: Scripts, contrôles et seuils décident ; l&#39;IA rédige et résume.</li>
-    <li value="6" id="entry-dora-metrics"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/homelab-dashboard">DORA metrics</a>&nbsp;: La livraison mesurée depuis git, GitHub et les alertes, en direct sur le dashboard.</li>
-    <li value="7" id="entry-gitops-main-is-production"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#main-is-production">GitOps, main is production</a>&nbsp;: Merger déploie et un revert fait le rollback ; Argo CD suit main.</li>
-    <li value="8" id="entry-images-pinned-by-digest"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Images pinned by digest</a>&nbsp;: Un tag peut bouger ; un digest, non.</li>
-    <li value="9" id="entry-keyless-signing-and-slsa-provenance"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/image-provenance">Keyless signing and SLSA provenance</a>&nbsp;: Nos images signées par leur workflow et vérifiées par Kyverno.</li>
-    <li value="10" id="entry-page-only-when-urgent-and-actionable"><a href="https://github.com/ned-si/homelab/blob/main/docs/sre.md">Page only when urgent and actionable</a>&nbsp;: Tout le reste est sur un dashboard, jamais sur le téléphone.</li>
-    <li value="11" id="entry-rendered-manifests-in-git"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Rendered manifests in git</a>&nbsp;: Chaque objet appliqué par Argo CD est relu comme fichier dans la pull request.</li>
+    <li value="6" id="entry-dora-metrics"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/homelab-dashboard">DORA metrics</a>&nbsp;: La livraison mesurée depuis git, GitHub et les alertes, en direct sur le <em>dashboard</em>.</li>
+    <li value="7" id="entry-gitops-main-is-production"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#main-is-production">GitOps, main is production</a>&nbsp;: Merger déploie et un <em>revert</em> fait le <em>rollback</em> ; Argo CD suit main.</li>
+    <li value="8" id="entry-images-pinned-by-digest"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Images pinned by digest</a>&nbsp;: Un tag peut bouger ; un <em>digest</em>, non.</li>
+    <li value="9" id="entry-keyless-signing-and-slsa-provenance"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/image-provenance">Keyless signing and SLSA provenance</a>&nbsp;: Nos images signées par leur <em>workflow</em> et vérifiées par Kyverno.</li>
+    <li value="10" id="entry-page-only-when-urgent-and-actionable"><a href="https://github.com/ned-si/homelab/blob/main/docs/sre.md">Page only when urgent and actionable</a>&nbsp;: Tout le reste est sur un <em>dashboard</em>, jamais sur le téléphone.</li>
+    <li value="11" id="entry-rendered-manifests-in-git"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Rendered manifests in git</a>&nbsp;: Chaque objet appliqué par Argo CD est relu comme fichier dans la <em>pull request</em>.</li>
     <li value="12" id="entry-restore-tested-backups"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">Restore-tested backups</a>&nbsp;: Une sauvegarde compte une fois qu&#39;une restauration planifiée a réussi.</li>
-    <li value="13" id="entry-scheduled-pentests"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">Scheduled pentests</a>&nbsp;: Un test cadré contre nos propres noms et adresses, les résultats en issues.</li>
+    <li value="13" id="entry-scheduled-pentests"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">Scheduled pentests</a>&nbsp;: Un test cadré contre nos propres noms et adresses, les résultats en <em>issues</em>.</li>
     <li value="14" id="entry-slos-and-error-budgets"><a href="https://github.com/ned-si/homelab/blob/main/docs/sre.md">SLOs and error budgets</a>&nbsp;: Un chiffre par app, 99,5 % sur 30 jours, mesuré par des sondes publiques.</li>
     <li value="15" id="entry-spec-driven-development"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Spec-driven development</a>&nbsp;: Exigences, design et tâches mergés avant le code.</li>
-    <li value="16" id="entry-trunk-based-with-squash-merges"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#squash-merge">Trunk-based with squash merges</a>&nbsp;: Un commit par pull request sur un main linéaire.</li>
+    <li value="16" id="entry-trunk-based-with-squash-merges"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#squash-merge">Trunk-based with squash merges</a>&nbsp;: Un <em>commit</em> par <em>pull request</em> sur un main linéaire.</li>
     </ol>
     <h3 class="ring-trial">Essayer</h3>
     <ol>
-    <li value="17" id="entry-default-deny-network-policies"><a href="https://github.com/ned-si/homelab/issues/709">Default-deny network policies</a>&nbsp;: Appliquées dans quelques namespaces ; les allow-lists des apps encore en audit.</li>
-    <li value="18" id="entry-github-app-instead-of-pats"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">GitHub App instead of PATs</a>&nbsp;: Des tokens de courte durée pour les workflows de pentest ; les PAT restent ailleurs.</li>
-    <li value="19" id="entry-pod-security-restricted"><a href="https://github.com/ned-si/homelab/issues/1021">Pod Security restricted</a>&nbsp;: Les policies Kyverno restricted en Audit jusqu&#39;à des rapports propres.</li>
+    <li value="17" id="entry-default-deny-network-policies"><a href="https://github.com/ned-si/homelab/issues/709">Default-deny network policies</a>&nbsp;: Appliquées dans quelques namespaces ; les <em>allow-lists</em> des apps encore en audit.</li>
+    <li value="18" id="entry-github-app-instead-of-pats"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">GitHub App instead of PATs</a>&nbsp;: Des <em>tokens</em> de courte durée pour les <em>workflows</em> de <em>pentest</em> ; les PAT restent ailleurs.</li>
+    <li value="19" id="entry-pod-security-restricted"><a href="https://github.com/ned-si/homelab/issues/1021">Pod Security restricted</a>&nbsp;: Les <em>policies</em> Kyverno restricted en Audit jusqu&#39;à des rapports propres.</li>
     </ol>
     <h3 class="ring-assess">Évaluer</h3>
     <ol>
     <li value="20" id="entry-canary-tokens"><a href="https://github.com/ned-si/homelab/issues/1618">Canary tokens</a>&nbsp;: De faux identifiants qui déclenchent une alerte quand on y touche.</li>
-    <li value="21" id="entry-chaos-experiments-tied-to-slos"><a href="https://github.com/ned-si/homelab/issues/733">Chaos experiments tied to SLOs</a>&nbsp;: Casser des choses exprès, dans les limites de l&#39;error budget.</li>
+    <li value="21" id="entry-chaos-experiments-tied-to-slos"><a href="https://github.com/ned-si/homelab/issues/733">Chaos experiments tied to SLOs</a>&nbsp;: Casser des choses exprès, dans les limites de l&#39;<em>error budget</em>.</li>
     <li value="22" id="entry-disaster-recovery-site"><a href="https://github.com/ned-si/homelab/issues/918">Disaster recovery site</a>&nbsp;: Où tout reconstruire si la maison n&#39;est plus là, et en combien de temps.</li>
     <li value="23" id="entry-kubernetes-oidc-through-keycloak"><a href="https://github.com/ned-si/homelab/issues/711">Kubernetes OIDC through Keycloak</a>&nbsp;: Des accès API personnels au lieu d&#39;un kubeconfig partagé.</li>
-    <li value="24" id="entry-weekly-sbom-and-cve-scan"><a href="https://github.com/ned-si/homelab/issues/1507">Weekly SBOM and CVE scan</a>&nbsp;: Ce qui tourne, scanné chaque semaine, pas seulement au build.</li>
+    <li value="24" id="entry-weekly-sbom-and-cve-scan"><a href="https://github.com/ned-si/homelab/issues/1507">Weekly SBOM and CVE scan</a>&nbsp;: Ce qui tourne, scanné chaque semaine, pas seulement au <em>build</em>.</li>
     <li value="25" id="entry-wide-events"><a href="https://github.com/ned-si/homelab/issues/734">Wide events</a>&nbsp;: Un événement riche par requête au lieu de trois signaux.</li>
     </ol>
     <h3 class="ring-hold">Suspendre</h3>
@@ -236,27 +236,27 @@ data:
     <h2 id="q-tools">Outils et langages</h2>
     <h3 class="ring-adopt">Adopter</h3>
     <ol>
-    <li value="27" id="entry-chrome-headless-shell"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/homelab-dashboard/design.md">chrome-headless-shell</a>&nbsp;: Contrôles de captures d&#39;écran et de mise en page sans diff de pixels.</li>
-    <li value="28" id="entry-cosign"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/image-provenance">cosign</a>&nbsp;: Des signatures keyless avec l&#39;identité du workflow.</li>
-    <li value="29" id="entry-github-actions"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">GitHub Actions</a>&nbsp;: La CI et la publication, chaque action épinglée à un SHA.</li>
+    <li value="27" id="entry-chrome-headless-shell"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/homelab-dashboard/design.md">chrome-headless-shell</a>&nbsp;: Contrôles de captures d&#39;écran et de mise en page sans <em>diff</em> de pixels.</li>
+    <li value="28" id="entry-cosign"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/image-provenance">cosign</a>&nbsp;: Des signatures <em>keyless</em> avec l&#39;identité du <em>workflow</em>.</li>
+    <li value="29" id="entry-github-actions"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">GitHub Actions</a>&nbsp;: Le CI et la publication, chaque action épinglée à un SHA.</li>
     <li value="30" id="entry-github-artifact-attestations"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/homelab-dashboard/design.md">GitHub artifact attestations</a>&nbsp;: Provenance SLSA v1 pour nos images, SLSA Build L2.</li>
-    <li value="31" id="entry-gitleaks"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">gitleaks</a>&nbsp;: Aucun secret n&#39;atteint un commit, dépôt public ou non.</li>
-    <li value="32" id="entry-go"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#the-public-dashboard-is-a-first-party-go-app">Go</a>&nbsp;: Le dashboard et ce radar : un binaire statique, typé, testé.</li>
+    <li value="31" id="entry-gitleaks"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">gitleaks</a>&nbsp;: Aucun secret n&#39;atteint un <em>commit</em>, dépôt public ou non.</li>
+    <li value="32" id="entry-go"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#the-public-dashboard-is-a-first-party-go-app">Go</a>&nbsp;: Le <em>dashboard</em> et ce radar : un binaire statique, typé, testé.</li>
     <li value="33" id="entry-hugo"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Hugo</a>&nbsp;: Un binaire épinglé, pas de thème, pas d&#39;arbre npm, CSP stricte possible.</li>
-    <li value="34" id="entry-kind"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">kind</a>&nbsp;: Un cluster jetable dans la CI pour un dry run côté serveur et un vrai démarrage.</li>
-    <li value="35" id="entry-kiro"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Kiro</a>&nbsp;: Les agents qui écrivent la plupart des pull requests, tenus par les specs.</li>
+    <li value="34" id="entry-kind"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">kind</a>&nbsp;: Un cluster jetable dans le CI pour un <em>dry run</em> côté serveur et un vrai démarrage.</li>
+    <li value="35" id="entry-kiro"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Kiro</a>&nbsp;: Les agents qui écrivent la plupart des <em>pull requests</em>, tenus par les <em>specs</em>.</li>
     <li value="36" id="entry-kubeconform-and-kube-linter"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">kubeconform and kube-linter</a>&nbsp;: Contrôles de schéma et de bonnes pratiques sur chaque manifeste rendu.</li>
-    <li value="37" id="entry-kustomize-and-helm"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Kustomize and Helm</a>&nbsp;: Les charts Helm rendus via Kustomize dans deploy/.</li>
-    <li value="38" id="entry-openssf-scorecard"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/scorecard-hardening">OpenSSF Scorecard</a>&nbsp;: Une note hebdomadaire des pratiques supply chain du dépôt.</li>
-    <li value="39" id="entry-opentofu"><a href="https://github.com/ned-si/homelab/blob/main/docs/bootstrap.md">OpenTofu</a>&nbsp;: Les ressources cloud, appliquées par un workflow via GitHub OIDC.</li>
-    <li value="40" id="entry-owasp-zap"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">OWASP ZAP</a>&nbsp;: Le scan DAST des noms publics.</li>
-    <li value="41" id="entry-pre-commit"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">pre-commit</a>&nbsp;: Les mêmes contrôles en local au commit et au push.</li>
-    <li value="42" id="entry-python"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Python</a>&nbsp;: Les scripts et contrôles de la CI, avec pytest.</li>
-    <li value="43" id="entry-renovate"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Renovate</a>&nbsp;: Chaque dépendance épinglée et mise à jour, automergée sur CI verte.</li>
+    <li value="37" id="entry-kustomize-and-helm"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Kustomize and Helm</a>&nbsp;: Les <em>charts</em> Helm rendus via Kustomize dans deploy/.</li>
+    <li value="38" id="entry-openssf-scorecard"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/scorecard-hardening">OpenSSF Scorecard</a>&nbsp;: Une note hebdomadaire des pratiques <em>supply chain</em> du dépôt.</li>
+    <li value="39" id="entry-opentofu"><a href="https://github.com/ned-si/homelab/blob/main/docs/bootstrap.md">OpenTofu</a>&nbsp;: Les ressources cloud, appliquées par un <em>workflow</em> via GitHub OIDC.</li>
+    <li value="40" id="entry-owasp-zap"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">OWASP ZAP</a>&nbsp;: Le <em>scan</em> DAST des noms publics.</li>
+    <li value="41" id="entry-pre-commit"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">pre-commit</a>&nbsp;: Les mêmes contrôles en local au <em>commit</em> et au <em>push</em>.</li>
+    <li value="42" id="entry-python"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Python</a>&nbsp;: Les scripts et contrôles du CI, avec pytest.</li>
+    <li value="43" id="entry-renovate"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Renovate</a>&nbsp;: Chaque dépendance épinglée et mise à jour, automergée sur CI vert.</li>
     <li value="44" id="entry-sops-with-age"><a href="https://github.com/ned-si/homelab/blob/main/docs/secrets.md">SOPS with age</a>&nbsp;: Les secrets chiffrés dans git, déchiffrés par KSOPS dans Argo CD.</li>
     <li value="45" id="entry-talhelper"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">talhelper</a>&nbsp;: Les configs machine Talos générées depuis un seul fichier.</li>
     <li value="46" id="entry-task"><a href="https://github.com/ned-si/homelab/blob/main/Taskfile.yml">Task</a>&nbsp;: Un seul Taskfile pour le rendu, les contrôles et les opérations Talos.</li>
-    <li value="47" id="entry-trivy"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Trivy</a>&nbsp;: Le contrôle des images et de la config dans la CI.</li>
+    <li value="47" id="entry-trivy"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Trivy</a>&nbsp;: Le contrôle des images et de la config dans le CI.</li>
     </ol>
     <h3 class="ring-trial">Essayer</h3>
     <p class="none">Rien ici pour l&#39;instant.</p>
@@ -266,7 +266,7 @@ data:
     </ol>
     <h3 class="ring-hold">Suspendre</h3>
     <ol>
-    <li value="49" id="entry-ansible"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#talos-built-as-a-new-cluster">Ansible</a>&nbsp;: Les playbooks des nodes remplacés par les configs machine Talos.</li>
+    <li value="49" id="entry-ansible"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#talos-built-as-a-new-cluster">Ansible</a>&nbsp;: Les <em>playbooks</em> des <em>nodes</em> remplacés par les configs machine Talos.</li>
     <li value="50" id="entry-astro-and-eleventy"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Astro and Eleventy</a>&nbsp;: Un arbre de dépendances npm à maintenir pour un blog statique.</li>
     <li value="51" id="entry-zola"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Zola</a>&nbsp;: Bien, mais un écosystème plus petit et rien de gagné par rapport à Hugo.</li>
     </ol>
@@ -278,36 +278,36 @@ data:
     <li value="52" id="entry-alertmanager"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#notifications">Alertmanager</a>&nbsp;: Les alertes via ntfy, heures calmes, seulement l&#39;urgent.</li>
     <li value="53" id="entry-argo-cd"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Argo CD</a>&nbsp;: Une racine, trois couches, une Application par app, qui suit main.</li>
     <li value="54" id="entry-audiobookshelf"><a href="https://github.com/ned-si/homelab/blob/main/apps/books/audiobookshelf.yaml">Audiobookshelf</a>&nbsp;: Livres audio et podcasts.</li>
-    <li value="55" id="entry-calibre-web"><a href="https://github.com/ned-si/homelab/blob/main/apps/books/calibre-web.yaml">Calibre-Web</a>&nbsp;: La bibliothèque d&#39;e-books.</li>
+    <li value="55" id="entry-calibre-web"><a href="https://github.com/ned-si/homelab/blob/main/apps/books/calibre-web.yaml">Calibre-Web</a>&nbsp;: La bibliothèque d&#39;<em>e-books</em>.</li>
     <li value="56" id="entry-cert-manager"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#certificates">cert-manager</a>&nbsp;: Let&#39;s Encrypt via DNS-01, renouvelé sans que personne ne le remarque.</li>
     <li value="57" id="entry-cloudnativepg"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">CloudNativePG</a>&nbsp;: Postgres avec WAL et sauvegardes de base vers S3 via Barman Cloud.</li>
-    <li value="58" id="entry-external-dns"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#dns">external-dns</a>&nbsp;: Les enregistrements DNS tirés des routes, en upsert seulement.</li>
-    <li value="59" id="entry-grafana"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#dashboards">Grafana</a>&nbsp;: Les dashboards, derrière Keycloak.</li>
+    <li value="58" id="entry-external-dns"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#dns">external-dns</a>&nbsp;: Les enregistrements DNS tirés des routes, en <em>upsert</em> seulement.</li>
+    <li value="59" id="entry-grafana"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#dashboards">Grafana</a>&nbsp;: Les <em>dashboards</em>, derrière Keycloak.</li>
     <li value="60" id="entry-headlamp"><a href="https://github.com/ned-si/homelab/blob/main/docs/remote-access.md">Headlamp</a>&nbsp;: Une interface pour le cluster, derrière Keycloak.</li>
-    <li value="61" id="entry-healthchecks-io"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md">healthchecks.io</a>&nbsp;: Le dead man&#39;s switch : une alerte quand le cluster se tait.</li>
+    <li value="61" id="entry-healthchecks-io"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md">healthchecks.io</a>&nbsp;: Le <em>dead man&#39;s switch</em> : une alerte quand le cluster se tait.</li>
     <li value="62" id="entry-home-assistant"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/home-assistant.yaml">Home Assistant</a>&nbsp;: La domotique, en local d&#39;abord.</li>
     <li value="63" id="entry-hubble"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md">Hubble</a>&nbsp;: Les flux réseau de Cilium, derrière Keycloak.</li>
     <li value="64" id="entry-immich"><a href="https://github.com/ned-si/homelab/tree/main/apps/immich">Immich</a>&nbsp;: La photothèque, connexion via Keycloak.</li>
     <li value="65" id="entry-jellyfin"><a href="https://github.com/ned-si/homelab/blob/main/apps/theater/jellyfin.yaml">Jellyfin</a>&nbsp;: Le serveur média open source à côté de Plex, sans SSO.</li>
     <li value="66" id="entry-keycloak"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Keycloak</a>&nbsp;: Une seule connexion pour toutes les apps, accès par groupe, TOTP pour les admins.</li>
-    <li value="67" id="entry-kyverno"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Kyverno</a>&nbsp;: Les policies de base en Deny, dans la CI et dans le cluster.</li>
+    <li value="67" id="entry-kyverno"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Kyverno</a>&nbsp;: Les <em>policies</em> de base en Deny, dans le CI et dans le cluster.</li>
     <li value="68" id="entry-mealie"><a href="https://github.com/ned-si/homelab/tree/main/apps/mealie">Mealie</a>&nbsp;: Les recettes du ménage.</li>
-    <li value="69" id="entry-mosquitto"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/mosquitto.yaml">Mosquitto</a>&nbsp;: Le broker MQTT pour les appareils de la maison.</li>
-    <li value="70" id="entry-ntfy"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#notifications">ntfy</a>&nbsp;: Les notifications push pour les alertes.</li>
+    <li value="69" id="entry-mosquitto"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/mosquitto.yaml">Mosquitto</a>&nbsp;: Le <em>broker</em> MQTT pour les appareils de la maison.</li>
+    <li value="70" id="entry-ntfy"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#notifications">ntfy</a>&nbsp;: Les notifications <em>push</em> pour les alertes.</li>
     <li value="71" id="entry-paperless-ngx"><a href="https://github.com/ned-si/homelab/tree/main/apps/paperless">Paperless-ngx</a>&nbsp;: Les documents scannés, avec recherche.</li>
     <li value="72" id="entry-plex"><a href="https://github.com/ned-si/homelab/blob/main/apps/theater/plex.yaml">Plex</a>&nbsp;: Films et séries sur les TV, sans SSO pour que les apps TV se connectent.</li>
     <li value="73" id="entry-postgresql"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">PostgreSQL</a>&nbsp;: Le seul moteur de base de données, exploité par CloudNativePG.</li>
-    <li value="74" id="entry-prometheus"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md">Prometheus</a>&nbsp;: Les métriques sur 30 jours, les SLO en recording rules.</li>
+    <li value="74" id="entry-prometheus"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md">Prometheus</a>&nbsp;: Les métriques sur 30 jours, les SLO en <em>recording rules</em>.</li>
     <li value="75" id="entry-restic"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">restic</a>&nbsp;: Sauvegardes de fichiers vers S3 et le NAS, restauration testée chaque semaine.</li>
     <li value="76" id="entry-syncthing"><a href="https://github.com/ned-si/homelab/tree/main/apps/syncthing">Syncthing</a>&nbsp;: Synchronisation des appareils sans cloud au milieu.</li>
-    <li value="77" id="entry-tuppr"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md#upgrades">tuppr</a>&nbsp;: Les mises à jour de Talos et Kubernetes déployées node par node.</li>
-    <li value="78" id="entry-vector"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#logs">Vector</a>&nbsp;: Les logs des pods et de Talos envoyés comme événements structurés.</li>
+    <li value="77" id="entry-tuppr"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md#upgrades">tuppr</a>&nbsp;: Les mises à jour de Talos et Kubernetes déployées <em>node</em> par <em>node</em>.</li>
+    <li value="78" id="entry-vector"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#logs">Vector</a>&nbsp;: Les <em>logs</em> des pods et de Talos envoyés comme événements structurés.</li>
     <li value="79" id="entry-zigbee2mqtt"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/zigbee2mqtt.yaml">Zigbee2MQTT</a>&nbsp;: Les appareils Zigbee sur MQTT, sans hub de fabricant.</li>
     </ol>
     <h3 class="ring-trial">Essayer</h3>
     <ol>
     <li value="80" id="entry-jamulus"><a href="https://github.com/ned-si/homelab/blob/main/docs/jamulus.md">Jamulus</a> <span class="moved">(nouveau)</span>&nbsp;: Répéter ensemble depuis des lieux différents, non répertorié, sur la connexion de la maison.</li>
-    <li value="81" id="entry-signoz"><a href="https://github.com/ned-si/homelab/issues/801">SigNoz</a>&nbsp;: Les logs sur ClickHouse, à l&#39;essai comme endroit unique pour les signaux.</li>
+    <li value="81" id="entry-signoz"><a href="https://github.com/ned-si/homelab/issues/801">SigNoz</a>&nbsp;: Les <em>logs</em> sur ClickHouse, à l&#39;essai comme endroit unique pour les signaux.</li>
     <li value="82" id="entry-tetragon"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#runtime-tetragon">Tetragon</a>&nbsp;: Détection à l&#39;exécution qui alerte sur les événements critiques ; rien n&#39;est encore bloqué.</li>
     </ol>
     <h3 class="ring-assess">Évaluer</h3>
@@ -323,9 +323,9 @@ data:
     <ol>
     <li value="89" id="entry-dex-in-argo-cd"><a href="https://github.com/ned-si/homelab/issues/969">Dex in Argo CD</a>&nbsp;: Inutile : Argo CD se connecte directement à Keycloak.</li>
     <li value="90" id="entry-loki"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#why-it-is-like-this">Loki</a>&nbsp;: N&#39;indexe que les labels ; la solution de repli si l&#39;essai SigNoz échoue.</li>
-    <li value="91" id="entry-policy-reporter-ui"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/wave3-runtime-security">Policy Reporter UI</a>&nbsp;: Grafana est la seule vue pour les rapports de policies.</li>
+    <li value="91" id="entry-policy-reporter-ui"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/wave3-runtime-security">Policy Reporter UI</a>&nbsp;: Grafana est la seule vue pour les rapports de <em>policies</em>.</li>
     <li value="92" id="entry-seafile"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#seafile-removed">Seafile</a>&nbsp;: Retiré : Syncthing et Paperless-ngx couvrent ses usages.</li>
-    <li value="93" id="entry-service-mesh"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-service-mesh">Service mesh</a>&nbsp;: Cilium fournit déjà les policies et les flux, sans sidecars.</li>
+    <li value="93" id="entry-service-mesh"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-service-mesh">Service mesh</a>&nbsp;: Cilium fournit déjà les <em>policies</em> et les flux, sans <em>sidecars</em>.</li>
     <li value="94" id="entry-sonobus"><a href="https://github.com/ned-si/homelab/issues/1702">SonoBus</a> <span class="moved">(nouveau)</span>&nbsp;: Pair à pair : chaque musicien envoie à tous les autres ; un serveur central convient mieux au cluster.</li>
     </ol>
     </section>
@@ -338,14 +338,14 @@ data:
     <li value="97" id="entry-cloudflare-dns"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#dns">Cloudflare DNS</a>&nbsp;: Zones gratuites, DNS-01 pour les certificats, DNS seulement.</li>
     <li value="98" id="entry-democratic-csi"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">democratic-csi</a>&nbsp;: Des volumes iSCSI du NAS à la demande, Retain pour les données.</li>
     <li value="99" id="entry-gateway-api"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#gateway">Gateway API</a>&nbsp;: Un seul Gateway partagé pour tous les noms publics.</li>
-    <li value="100" id="entry-kubernetes"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md#cluster">Kubernetes</a>&nbsp;: Une API pour chaque workload, sur Talos.</li>
+    <li value="100" id="entry-kubernetes"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md#cluster">Kubernetes</a>&nbsp;: Une API pour chaque <em>workload</em>, sur Talos.</li>
     <li value="101" id="entry-tailscale"><a href="https://github.com/ned-si/homelab/blob/main/docs/remote-access.md">Tailscale</a>&nbsp;: kubectl et talosctl uniquement via le tailnet.</li>
-    <li value="102" id="entry-talos-linux"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">Talos Linux</a>&nbsp;: Des nodes immuables, pilotés par API, avec la config machine dans git.</li>
+    <li value="102" id="entry-talos-linux"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">Talos Linux</a>&nbsp;: Des <em>nodes</em> immuables, pilotés par API, avec la config machine dans git.</li>
     <li value="103" id="entry-truenas-scale"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/nas-on-truenas-scale">TrueNAS SCALE</a>&nbsp;: Le NAS : ZFS, iSCSI et NFS, piloté par son API.</li>
     </ol>
     <h3 class="ring-trial">Essayer</h3>
     <ol>
-    <li value="104" id="entry-turing-pi-2-with-rk1"><a href="https://github.com/ned-si/homelab/issues/985">Turing Pi 2 with RK1</a>&nbsp;: Quatre nodes arm64 silencieux sur une carte, qui est un point de défaillance unique.</li>
+    <li value="104" id="entry-turing-pi-2-with-rk1"><a href="https://github.com/ned-si/homelab/issues/985">Turing Pi 2 with RK1</a>&nbsp;: Quatre <em>nodes</em> arm64 silencieux sur une carte, qui est un point de défaillance unique.</li>
     </ol>
     <h3 class="ring-assess">Évaluer</h3>
     <ol>
@@ -354,7 +354,7 @@ data:
     </ol>
     <h3 class="ring-hold">Suspendre</h3>
     <ol>
-    <li value="107" id="entry-cloudflare-proxy-and-pages"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Cloudflare proxy and Pages</a>&nbsp;: Un token avec droits d&#39;écriture sur le compte et des données qui sortent de la maison.</li>
+    <li value="107" id="entry-cloudflare-proxy-and-pages"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Cloudflare proxy and Pages</a>&nbsp;: Un <em>token</em> avec droits d&#39;écriture sur le compte et des données qui sortent de la maison.</li>
     <li value="108" id="entry-github-pages"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">GitHub Pages</a>&nbsp;: Impossible d&#39;y définir un en-tête CSP pour le site public.</li>
     <li value="109" id="entry-ingress-nginx"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#why-it-is-like-this">ingress-nginx</a>&nbsp;: Abandonné en amont ; le Gateway Cilium l&#39;a remplacé.</li>
     <li value="110" id="entry-kube-vip"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#why-it-is-like-this">kube-vip</a>&nbsp;: Talos tient lui-même la VIP de l&#39;API.</li>
@@ -983,5 +983,5 @@ data:
     .prefs .to-light { display: none; }
 kind: ConfigMap
 metadata:
-  name: website-techradar-25fgbt4gh8
+  name: website-techradar-b6g8f77mk6
   namespace: website

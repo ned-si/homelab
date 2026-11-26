@@ -331,7 +331,7 @@ func TestFrenchPage(t *testing.T) {
 	}
 	fr := string(files["index-fr.html"])
 	for _, e := range r.Entries {
-		if !strings.Contains(fr, htmlText(e.ReasonFR)) {
+		if !strings.Contains(fr, string(em(e.ReasonFR))) {
 			t.Errorf("index-fr.html has no reason_fr of %s", e.Name)
 		}
 	}

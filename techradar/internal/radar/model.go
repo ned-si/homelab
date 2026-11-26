@@ -256,7 +256,7 @@ func label(n int, e Entry, l Lang) string {
 	if l.Code == "fr" {
 		colon = "\u00a0: "
 	}
-	return strconv.Itoa(n) + ". " + e.Name + " (" + l.T("quadrant."+e.Quadrant) + ", " + l.T("ring."+e.Ring) + ")" + colon + e.reason(l)
+	return strconv.Itoa(n) + ". " + e.Name + " (" + l.T("quadrant."+e.Quadrant) + ", " + l.T("ring."+e.Ring) + ")" + colon + plain(e.reason(l))
 }
 
 // reason is the entry's reason in l's language.

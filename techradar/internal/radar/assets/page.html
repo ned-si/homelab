@@ -38,7 +38,7 @@
 <h1>{{index .T "heading"}}</h1>
 <p class="lead">{{index .T "lead"}}</p>
 <div class="intro">
-<p>{{index .T "intro.before"}}<a href="https://github.com/zalando/tech-radar">{{index .T "intro.link"}}</a>{{index .T "intro.after"}}</p>
+<p>{{em (index .T "intro.before")}}<a href="https://github.com/zalando/tech-radar">{{index .T "intro.link"}}</a>{{index .T "intro.after"}}</p>
 <ul class="rings">
 <li><strong class="ring-adopt">{{index .T "ring.adopt"}}</strong>{{index .T "ring.adopt.desc"}}</li>
 <li><strong class="ring-trial">{{index .T "ring.trial"}}</strong>{{index .T "ring.trial.desc"}}</li>
@@ -65,7 +65,7 @@
 {{- if .Entries}}
 <ol>
 {{- range .Entries}}
-<li value="{{.Number}}" id="entry-{{.Slug}}">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{if .Moved}} <span class="moved">({{.Moved}})</span>{{end}}{{if eq $.Lang.Code "fr"}}&nbsp;:{{else}}:{{end}} {{.Reason}}</li>
+<li value="{{.Number}}" id="entry-{{.Slug}}">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{if .Moved}} <span class="moved">({{.Moved}})</span>{{end}}{{if eq $.Lang.Code "fr"}}&nbsp;:{{else}}:{{end}} {{em .Reason}}</li>
 {{- end}}
 </ol>
 {{- else}}
