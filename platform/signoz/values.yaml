@@ -125,7 +125,7 @@ otelCollector:
     registry: docker.io
     repository: signoz/signoz-otel-collector
     # renovate: datasource=docker depName=docker.io/signoz/signoz-otel-collector
-    tag: v0.144.18@sha256:9f414a1217a832410928853e538929ee33dfd28b39bd5603a015f15fa843b39e
+    tag: v0.144.19@sha256:0d1fbafa9ee8aecc9fead3d577362d04a771158f3622d0e3fcde792017f5faae
   resources:
     requests:
       cpu: 50m
