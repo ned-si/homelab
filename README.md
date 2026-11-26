@@ -76,6 +76,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 - The public pages: [docs/homelab-dashboard.md](docs/homelab-dashboard.md),
   [docs/techradar.md](docs/techradar.md).
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
+- Contributing, issues and pull requests: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Operating Talos nodes: [docs/talos-cheatsheet.md](docs/talos-cheatsheet.md).
 - App runbooks: [docs/runbooks/](docs/runbooks).
 - How this repo is built, with specs and AI agents:
