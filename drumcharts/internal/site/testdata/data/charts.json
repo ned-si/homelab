@@ -1,0 +1,28 @@
+{
+  "commit": "4215d23b81a9940fa028c388d1e622ad087af83d",
+  "legend": {
+    "pages": 1
+  },
+  "release": "charts-2026-11-26-4215d23",
+  "schema": 1,
+  "songs": [
+    {
+      "artist": "System Of A Down",
+      "pages": 1,
+      "slug": "soad-toxicity",
+      "title": "Toxicity"
+    },
+    {
+      "artist": "Sum 41",
+      "pages": 2,
+      "slug": "sum41-fat-lip",
+      "title": "Fat Lip"
+    },
+    {
+      "artist": "Underschool Element",
+      "pages": 1,
+      "slug": "underschool-element-petit-tom",
+      "title": "Petit Tom"
+    }
+  ]
+}

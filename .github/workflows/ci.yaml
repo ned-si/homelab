@@ -1034,6 +1034,56 @@ jobs:
           GOTOOLCHAIN: local
         run: scripts/ci/techradar-check.sh
 
+  # The drum charts' generator under drumcharts/ and the pinned site data
+  # (scripts/ci/drumcharts-check.sh): the go line, the signature of the data
+  # image (and its refusal of another signer), mod verify and tidy,
+  # golangci-lint, vet, govulncheck, tests with the race detector, a render
+  # of the data, the markup check. Exits early when the change does not touch
+  # what the charts site reads.
+  # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
+  drumcharts:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-drumcharts-${{ env.GOLANGCI_LINT_VERSION }}-${{ env.COSIGN_VERSION }}
+          restore-keys: tools-drumcharts-
+
+      - name: Install pinned tools
+        id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
+        run: scripts/ci/install-tool.sh golangci-lint cosign
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
+
+      # The Go version of go.mod; the module cache is keyed on go.sum.
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: drumcharts/go.mod
+          cache-dependency-path: drumcharts/go.sum
+
+      - name: Drum charts checks
+        env:
+          GOTOOLCHAIN: local
+        run: scripts/ci/drumcharts-check.sh
+
   # The Jamulus image (scripts/ci/jamulus-check.sh): the linux/amd64 build,
   # run read-only and non-root, must answer jamulus-ping. Exits early when
   # the change does not touch it.
@@ -1056,7 +1106,7 @@ jobs:
   # when `talos` did not plan a rehearsal.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site, dashboard, techradar, jamulus]
+    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site, dashboard, techradar, jamulus, drumcharts]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -1069,7 +1119,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site dashboard techradar jamulus; do
+          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site dashboard techradar jamulus drumcharts; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"

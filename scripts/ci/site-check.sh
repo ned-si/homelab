@@ -22,8 +22,8 @@ cd "$root"
 
 if [ "${1:-}" != "--all" ]; then
   changed=$(git diff --name-only "${SITE_BASE:-HEAD^1}" HEAD)
-  if ! grep -qE '^(site/|apps/website/|dashboard/internal/web/|scripts/ci/(site[-_]|layout-check))' <<<"$changed"; then
-    echo "site: nothing under site/, apps/website/ or dashboard/internal/web/ changed; skipped"
+  if ! grep -qE '^(site/|apps/website/|dashboard/internal/web/|drumcharts/|scripts/ci/(site[-_]|layout-check))' <<<"$changed"; then
+    echo "site: nothing under site/, apps/website/, dashboard/internal/web/ or drumcharts/ changed; skipped"
     exit 0
   fi
 fi
@@ -65,12 +65,14 @@ fi
 
 echo "== shared layout copies"
 for copy in apps/website/landing/layout.css dashboard/internal/web/assets/layout.css \
-  techradar/internal/radar/assets/layout.css apps/website/techradar/layout.css; do
+  techradar/internal/radar/assets/layout.css apps/website/techradar/layout.css \
+  drumcharts/internal/site/assets/layout.css; do
   cmp -s site/assets/css/layout.css "$copy" || fail "$copy differs from site/assets/css/layout.css; run \`task site:layout-sync\`"
 done
 
 echo "== palette copies, contrast and colour literals"
-palette_copies=(apps/website/landing dashboard/internal/web/assets techradar/internal/radar/assets apps/website/techradar)
+palette_copies=(apps/website/landing dashboard/internal/web/assets techradar/internal/radar/assets apps/website/techradar
+  drumcharts/internal/site/assets)
 for theme in dark light; do
   for copy in "${palette_copies[@]}"; do
     cmp -s "site/assets/css/theme-$theme.css" "$copy/theme-$theme.css" \
@@ -81,6 +83,7 @@ python3 scripts/ci/site_contrast.py site/assets/css || fail "contrast: see the l
 python3 scripts/ci/site_markup.py --css site/assets/css/layout.css site/assets/css/main.css \
   site/assets/css/syntax.css apps/website/landing/landing.css \
   dashboard/internal/web/assets/dashboard.css techradar/internal/radar/assets/techradar.css \
+  drumcharts/internal/site/assets/charts.css \
   || fail "colour literals: see the lines above"
 
 echo "== drafts and future-dated pages"

@@ -18,7 +18,7 @@ linked to #1662), its line here moves under a "Deferred" heading with
 that issue's number, and the spec closes, as pentest-programme did with
 its task 6.
 
-- [ ] 1. Rename one slug (**ned-si/drum-charts**): `git mv
+- [x] 1. Rename one slug (**ned-si/drum-charts**): `git mv
       songs/bloodhound-gang-fuck.ly
       songs/bloodhound-gang-foxtrot-uniform-charlie-kilo.ly` and its
       README row ([design, One slug renamed first](design.md#one-slug-renamed-first)).
@@ -26,7 +26,8 @@ its task 6.
       `bloodhound-gang-foxtrot-uniform-charlie-kilo.pdf` and no
       `bloodhound-gang-fuck.pdf`; the README's Songs table still has one
       row per file in `songs/`. [3.11]
-- [ ] 2. Site data and its image (**ned-si/drum-charts**):
+      ned-si/drum-charts#9.
+- [x] 2. Site data and its image (**ned-si/drum-charts**):
       `scripts/site-data.py`, `site-data.Dockerfile`, `make site-data`;
       in `build.yaml` the tag output of `charts`, the site-data step and
       its artifact, the release job on that tag with `--clobber` on an
@@ -44,7 +45,8 @@ its task 6.
       pull` of it; its `/charts/` holds 15 PDFs, 25 page images and
       `charts.json`, and no `.mp3`; acceptance criteria 13 (on a
       throwaway branch, deleted after) and 15. [1]
-- [ ] 3. Generator and CI (**ned-si/homelab**, not live): the
+      ned-si/drum-charts#10.
+- [x] 3. Generator and CI (**ned-si/homelab**, not live): the
       `drumcharts/` module (validation, allow-list, templates, the
       English catalogue, fixture, the golden tree), `drumcharts/source.yaml`
       with the digest of task 2, `scripts/ci/drumcharts-data.sh`,
@@ -56,6 +58,7 @@ its task 6.
       rule; the site-theme-language Host glossary line. Check:
       acceptance criteria 4-7; the real render read at 390 and 1920 px
       in both themes, locally. [2.1, 2.2, 2.4, 3, 4.1, 4.4, 4.5, 8]
+      #1791.
 - [ ] 4. The site image carries the charts (**ned-si/homelab**, not
       served): `site-publish.yaml` (paths, Go with `GOTOOLCHAIN: local`,
       cosign, verify, render), `site/Dockerfile`, `.gitignore`, the

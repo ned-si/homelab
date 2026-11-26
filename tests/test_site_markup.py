@@ -384,3 +384,61 @@ def test_content(tmp_path, files, msg):
 def test_site_content_translated():
     res = subprocess.run([sys.executable, CHECK, "--content", str(REPO / "site/content")], capture_output=True, text=True)
     assert res.returncode == 0, res.stdout
+
+
+CHARTS_NAV = [
+    ("Home", "https://nedsi.io/"),
+    ("Blog", "https://blog.nedsi.io/"),
+    ("Homelab", "https://homelab.nedsi.io/"),
+    ("Tech radar", "https://techradar.nedsi.io/"),
+    ("About", "https://blog.nedsi.io/about/"),
+]
+CHARTS_HOME = (
+    '<main><h1>Drum charts</h1><table class="songs"><tbody><tr><td><a href="/tool-schism/">Schism</a></td>'
+    '<td><a href="/pdf/tool-schism.pdf" download aria-label="Download the PDF of Schism">PDF</a></td></tr></tbody></table>'
+    '<p class="updated"><a href="https://github.com/ned-si/drum-charts/releases/tag/charts-2026-11-26-4215d23">charts-2026-11-26-4215d23</a></p>'
+    '<p class="credits"><a href="https://github.com/ned-si/drum-charts">GitHub</a></p></main>'
+)
+CHARTS_SONG = (
+    '<main><h1>Schism</h1><p class="links"><a class="button" href="/pdf/tool-schism.pdf" download>Download the PDF</a></p>'
+    '<div class="sheets"><img src="/pages/tool-schism-1.svg" width="595" height="842" alt="Schism by Tool, page 1 of 2">'
+    '<img src="/pages/tool-schism-2.svg" width="595" height="842" alt="Schism by Tool, page 2 of 2" loading="lazy"></div></main>'
+)
+
+
+def charts_run(tmp_path, pages):
+    """site_markup over English-only charts.nedsi.io pages (no French yet)."""
+    for rel, body in pages.items():
+        path = page_path(rel)
+        start = f'<html lang="en-GB"><head><link rel="canonical" href="https://charts.nedsi.io{path}"><link rel="stylesheet" href="/theme.css"></head>'
+        body = body.replace("</nav></header>", "</nav>" + prefs(path) + "</header>")
+        write(tmp_path / rel, f"<!doctype html>{start}<body>{body}</body></html>")
+    return subprocess.run([sys.executable, CHECK, str(tmp_path), "charts.nedsi.io"], capture_output=True, text=True)
+
+
+def test_charts_pages_pass(tmp_path):
+    pages = {"index.html": nav(links=CHARTS_NAV) + CHARTS_HOME, "tool-schism/index.html": nav(links=CHARTS_NAV) + CHARTS_SONG}
+    res = charts_run(tmp_path, pages)
+    assert res.returncode == 0, res.stdout
+
+
+@pytest.mark.parametrize(
+    "body, msg",
+    [
+        ('<audio controls src="/x.ogg"></audio>', "<audio> on charts.nedsi.io"),
+        ('<a href="/pdf/tool-schism.mp3">MP3</a>', "audio on charts.nedsi.io"),
+        ('<a href="https://github.com/ned-si/drum-charts/releases/download/x/tool-schism.MP3">MP3</a>', "audio on charts.nedsi.io"),
+        ('<video><source src="/x.webm"></video>', "<source> on charts.nedsi.io"),
+        ('<object data="/pdf/tool-schism.pdf"></object>', "<object> on charts.nedsi.io"),
+    ],
+)
+def test_charts_media_fails(tmp_path, body, msg):
+    res = charts_run(tmp_path, {"index.html": nav(links=CHARTS_NAV) + body})
+    assert res.returncode == 1
+    assert msg in res.stdout
+
+
+def test_blog_picture_source_passes(tmp_path):
+    body = nav("Blog") + '<article><picture><source srcset="/a.webp" type="image/webp"><img src="/a.jpg" alt="a"></picture></article>'
+    res = run(tmp_path, {"index.html": body})
+    assert res.returncode == 0, res.stdout

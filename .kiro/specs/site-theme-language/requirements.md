@@ -32,9 +32,9 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 - **Public pages**, **shared layout**, **navigation bar**: as defined in
   the [public-website spec](../public-website/requirements.md#glossary).
 - **Host**: one of `nedsi.io`, `blog.nedsi.io`, `homelab.nedsi.io`,
-  `techradar.nedsi.io`. The first two and the tech radar are static
-  files served by the `website` nginx pod; the dashboard is the Go web
-  role of `homelab-dashboard`.
+  `techradar.nedsi.io`, `charts.nedsi.io`. The first two, the tech radar
+  and the drum charts are static files served by the `website` nginx
+  pod; the dashboard is the Go web role of `homelab-dashboard`.
 - **Theme**: `dark` (the default) or `light`.
 - **Palette**: the two stylesheets `theme-dark.css` and
   `theme-light.css`, which hold every colour of every public page as

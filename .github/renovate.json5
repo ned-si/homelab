@@ -423,6 +423,17 @@
       minimumReleaseAge: '0 days',
     },
     {
+      // The site data of charts.nedsi.io: ned-si/drum-charts pushes a signed
+      // :main, pinned in drumcharts/source.yaml (spec drum-charts-site,
+      // design "Renovate"). Its merge rebuilds homelab-site.
+      description: 'Deploy each new drum-charts data image at once',
+      matchPackageNames: ['ghcr.io/ned-si/drum-charts'],
+      matchUpdateTypes: ['digest'],
+      groupName: 'drum-charts',
+      automerge: true,
+      minimumReleaseAge: '0 days',
+    },
+    {
       // The same for the dashboard: dashboard-publish.yaml pushes :main
       // (spec homelab-dashboard, design "Renovate").
       description: 'Deploy each new dashboard image at once',
@@ -443,10 +454,10 @@
       minimumReleaseAge: '0 days',
     },
     {
-      // dashboard/ and techradar/: minor and patch updates of the Go modules
-      // in one pull request, tidied, automerged on green CI (specs
-      // homelab-dashboard and tech-radar).
-      description: 'Group the Go modules of dashboard/ and techradar/',
+      // dashboard/, techradar/ and drumcharts/: minor and patch updates of
+      // the Go modules in one pull request, tidied, automerged on green CI
+      // (specs homelab-dashboard, tech-radar and drum-charts-site).
+      description: 'Group the Go modules of dashboard/, techradar/ and drumcharts/',
       matchManagers: ['gomod'],
       matchDatasources: ['go'],
       matchUpdateTypes: ['minor', 'patch', 'digest'],
@@ -457,7 +468,7 @@
       // scripts/ci/dashboard-check.sh fails when the builder image and
       // go.mod disagree, so the Go toolchain and the golang image move in
       // one pull request (this rule and the next share the group).
-      description: 'Go toolchain of dashboard/ and techradar/ and the builder image move together',
+      description: 'Go toolchain of dashboard/, techradar/ and drumcharts/ and the builder image move together',
       matchManagers: ['gomod'],
       matchDatasources: ['golang-version'],
       groupName: 'dashboard Go toolchain',

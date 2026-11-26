@@ -40,6 +40,11 @@ never mention watches or photography, the landing page has no "Start
 here" and no "no cookies", and the About page's certification years are
 newest first.
 
+Media, on charts.nedsi.io only (drum-charts-site design, Navigation and
+links): no <audio>, <video>, <source>, <embed> or <object>, and no href= or
+src= to an audio or MIDI file (MEDIA). The other hosts keep their rules, so
+a blog article may hold <picture><source> or a <video>.
+
 --css: the palette files (theme-*.css) are the only place a colour is
 written; the other stylesheets hold no #hex, rgb(), hsl() or named colour.
 
@@ -55,11 +60,15 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
 STATS_SCRIPT = "/stats/s.js"
+# The charts site serves no audio (drum-charts-site Requirement 3.9).
+CHARTS = "charts.nedsi.io"
+MEDIA_TAGS = ("audio", "video", "source", "embed", "object")
+MEDIA = (".mp3", ".wav", ".ogg", ".oga", ".flac", ".m4a", ".aac", ".opus", ".mid", ".midi")
 REPO = "https://github.com/ned-si/homelab/"
 # The <a> targets allowed outside <article>: the ci runs' pull requests, the
-# source of the dashboard's DORA bands, the SLSA levels, the Scorecard report
-# and the tech radar's model.
-LINKS = (REPO, "https://dora.dev/", "https://slsa.dev/", "https://scorecard.dev/", "https://github.com/zalando/tech-radar")
+# source of the dashboard's DORA bands, the SLSA levels, the Scorecard report,
+# the tech radar's model and the drum charts' source and releases.
+LINKS = (REPO, "https://dora.dev/", "https://slsa.dev/", "https://scorecard.dev/", "https://github.com/zalando/tech-radar", "https://github.com/ned-si/drum-charts")
 # The operator's GitHub account, the landing page's overview link. Exact,
 # so links to other repositories stay inside <article>.
 ACCOUNT = "https://github.com/ned-si/"
@@ -73,9 +82,9 @@ BANNED = {
     ABOUT[0]: EVERYWHERE + ("watch", "photograph"),
     ABOUT[1]: EVERYWHERE + ("montre", "photo"),
 }
-SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
+SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io", "charts.nedsi.io")
 # The hosts whose pages carry the theme toggle (site-theme-language tasks 1-3).
-THEMED = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
+THEMED = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io", "charts.nedsi.io")
 # The hosts that serve French (site-theme-language tasks 4-6).
 LANGUAGES = ("nedsi.io", "blog.nedsi.io")
 LOCALE = {"en": "en-GB", "fr": "fr-CH"}
@@ -215,6 +224,12 @@ class Checker(HTMLParser):
             self.item = ""
         if tag in ("form", "iframe", "style"):
             self.bad(f"<{tag}>")
+        if self.host == CHARTS:
+            if tag in MEDIA_TAGS:
+                self.bad(f"<{tag}> on {CHARTS}")
+            for name in ("href", "src"):
+                if urlsplit(a.get(name) or "").path.lower().endswith(MEDIA):
+                    self.bad(f"{name}={a[name]}: audio on {CHARTS}")
         for name in a:
             if name == "style" or name.startswith("on"):
                 self.bad(f"{name}= on <{tag}>")
