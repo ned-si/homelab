@@ -308,6 +308,13 @@ node's address, so the export allow-list alone cannot tell a pod from the
 kubelet (pentest 2026-11-10, P1). It is a deny with default-deny off and does
 not depend on the switches above.
 
+`96-nas-nfs.yaml` (`deny-pod-nfs-to-nas`) closes NFS on `192.168.1.228:2049`,
+TCP and UDP, to every pod but the blackbox exporter, `democratic-csi`
+included (NFS2ROOT, #1774). It is in audit for now: an allow rule with
+default-deny off, which drops nothing and shows up in Hubble's
+`egress_allowed_by` on each flow it would drop. Repo-policy rule
+`nas-nfs-deny` fails CI if the rendered policy is removed or changed.
+
 ## Metrics
 
 The Cilium agents export datapath metrics (`cilium_*`, port 9962) and Hubble

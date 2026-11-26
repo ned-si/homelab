@@ -4,8 +4,8 @@
 #
 # CiliumNetworkPolicy, not NetworkPolicy: it expresses `reserved:ingress`,
 # `toEntities: [kube-apiserver]` and `enableDefaultDeny` (a NetworkPolicy
-# denies as soon as it selects a pod). Namespaced allow-lists; the one
-# cluster-wide policy is the NAS deny (95-nas-egress.yaml).
+# denies as soon as it selects a pod). Namespaced allow-lists; the
+# cluster-wide policies are the NAS rules (95-nas-egress.yaml, 96-nas-nfs.yaml).
 #
 # `theater` is policed per workload; other namespaces as a whole, since their
 # chart labels change on upgrades. NFS and iSCSI mounts happen in the host
@@ -36,5 +36,7 @@ resources:
   - 88-monitoring.yaml
   # Every pod: no NAS. A deny, independent of the switch below.
   - 95-nas-egress.yaml
+  # Every pod but blackbox-exporter: no NFS on the NAS (NFS2ROOT).
+  - 96-nas-nfs.yaml
   # The switch. Last on purpose: it is the file you edit.
   - 90-enforcement.yaml
