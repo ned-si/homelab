@@ -67,7 +67,7 @@ Change specs, active:
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 5: the cluster objects and the route |
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
-| [drum-charts-site](drum-charts-site/) | 2026-11-26 | #1761 | task 1: the site data and its image in ned-si/drum-charts |
+| [drum-charts-site](drum-charts-site/) | 2026-11-26 | #1761 | task 3: the generator and CI |
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
 | [homelab-dashboard](homelab-dashboard/) | 2026-11-20 | #1775 | task 28: the Scorecard check colours and notes |
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 4: the app accounts and deleting `family` and `media` (operator) |

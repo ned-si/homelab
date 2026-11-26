@@ -18,7 +18,7 @@ linked to #1662), its line here moves under a "Deferred" heading with
 that issue's number, and the spec closes, as pentest-programme did with
 its task 6.
 
-- [ ] 1. Rename one slug (**ned-si/drum-charts**): `git mv
+- [x] 1. Rename one slug (**ned-si/drum-charts**): `git mv
       songs/bloodhound-gang-fuck.ly
       songs/bloodhound-gang-foxtrot-uniform-charlie-kilo.ly` and its
       README row ([design, One slug renamed first](design.md#one-slug-renamed-first)).
@@ -26,7 +26,8 @@ its task 6.
       `bloodhound-gang-foxtrot-uniform-charlie-kilo.pdf` and no
       `bloodhound-gang-fuck.pdf`; the README's Songs table still has one
       row per file in `songs/`. [3.11]
-- [ ] 2. Site data and its image (**ned-si/drum-charts**):
+      ned-si/drum-charts#9.
+- [x] 2. Site data and its image (**ned-si/drum-charts**):
       `scripts/site-data.py`, `site-data.Dockerfile`, `make site-data`;
       in `build.yaml` the tag output of `charts`, the site-data step and
       its artifact, the release job on that tag with `--clobber` on an
@@ -44,6 +45,7 @@ its task 6.
       pull` of it; its `/charts/` holds 15 PDFs, 25 page images and
       `charts.json`, and no `.mp3`; acceptance criteria 13 (on a
       throwaway branch, deleted after) and 15. [1]
+      ned-si/drum-charts#10.
 - [ ] 3. Generator and CI (**ned-si/homelab**, not live): the
       `drumcharts/` module (validation, allow-list, templates, the
       English catalogue, fixture, the golden tree), `drumcharts/source.yaml`
