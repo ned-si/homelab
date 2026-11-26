@@ -1056,7 +1056,8 @@ target, it also counts `cluster:sqlite_backup_fresh:count` (from
 `slo:backup_fresh`), `cluster:sqlite_restore_passed:count` and
 `_failed:count` (from `check="restic"`, only the apps whose database file
 is a required file in `restic-targets.txt`). A new app that keeps its
-state in SQLite needs a line in that list.
+state in SQLite needs a line in `db_sqlite:app:info` in
+`platform/kube-prometheus-stack/routes/databases.yaml`.
 
 ```sh
 kubectl -n backup-verify get cronjobs,jobs
