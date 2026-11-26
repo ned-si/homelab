@@ -406,9 +406,19 @@ CHARTS_SONG = (
 )
 
 
+def charts_run(tmp_path, pages):
+    """site_markup over English-only charts.nedsi.io pages (no French yet)."""
+    for rel, body in pages.items():
+        path = page_path(rel)
+        start = f'<html lang="en-GB"><head><link rel="canonical" href="https://charts.nedsi.io{path}"><link rel="stylesheet" href="/theme.css"></head>'
+        body = body.replace("</nav></header>", "</nav>" + prefs(path) + "</header>")
+        write(tmp_path / rel, f"<!doctype html>{start}<body>{body}</body></html>")
+    return subprocess.run([sys.executable, CHECK, str(tmp_path), "charts.nedsi.io"], capture_output=True, text=True)
+
+
 def test_charts_pages_pass(tmp_path):
     pages = {"index.html": nav(links=CHARTS_NAV) + CHARTS_HOME, "tool-schism/index.html": nav(links=CHARTS_NAV) + CHARTS_SONG}
-    res = run(tmp_path, pages, "charts.nedsi.io")
+    res = charts_run(tmp_path, pages)
     assert res.returncode == 0, res.stdout
 
 
@@ -423,7 +433,7 @@ def test_charts_pages_pass(tmp_path):
     ],
 )
 def test_charts_media_fails(tmp_path, body, msg):
-    res = run(tmp_path, {"index.html": nav(links=CHARTS_NAV) + body}, "charts.nedsi.io")
+    res = charts_run(tmp_path, {"index.html": nav(links=CHARTS_NAV) + body})
     assert res.returncode == 1
     assert msg in res.stdout
 
