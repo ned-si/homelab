@@ -298,7 +298,7 @@ operator sets it once in the package settings (task 2), as for
 | `drumcharts/internal/site/render.go` | Sorting, templates, output, gzip |
 | `drumcharts/internal/site/i18n.go` | The message catalogue (`en`; `fr` from task 7) and date formatting |
 | `drumcharts/internal/site/assets/` | `home.html`, `song.html` (songs and the legend), `charts.css`, and the embedded copies `layout.css`, `theme-dark.css`, `theme-light.css` |
-| `drumcharts/internal/site/testdata/` | `data/`: a fixture of two songs (one page, two pages) and the legend, tiny PDFs and allow-listed SVGs; `golden/`: the complete output of `drumcharts render` over `data/` (the HTML pages, `pages/*.svg` and `.svg.gz`, `pdf/`, the four stylesheets), which the golden test compares file by file and the `site` job serves without Go ([Checks](#checks)) |
+| `drumcharts/internal/site/testdata/` | `data/`: a fixture of three songs (one page, two pages, and one with the longest real artist word, `Underschool`, for the narrow-screen check) and the legend, tiny PDFs and allow-listed SVGs; `golden/`: the complete output of `drumcharts render` over `data/` (the HTML pages, `pages/*.svg` and `.svg.gz`, `pdf/`, the four stylesheets), which the golden test compares file by file and the `site` job serves without Go ([Checks](#checks)) |
 | `scripts/ci/drumcharts-data.sh` | Verify the pinned image and extract its data |
 | `scripts/ci/drumcharts-check.sh` | The `drumcharts` CI job |
 | `scripts/charts-check.sh` | The live check of acceptance criterion 2 |
@@ -613,7 +613,7 @@ through `install-tool.sh` with the existing pins (govulncheck comes from
 the module's `tool` directive, not from `install-tool.sh`); then
 `scripts/ci/drumcharts-check.sh`. That script exits early unless the
 diff against `HEAD^1` matches
-`^(drumcharts/|site/assets/css/|scripts/ci/(drumcharts|site_markup)|\.github/workflows/(ci|site-publish)\.yaml$)`,
+`^(drumcharts/|dashboard/go\.mod$|site/assets/css/|scripts/ci/(drumcharts|site_markup)|\.github/workflows/(ci|site-publish)\.yaml$)`,
 then runs, in `drumcharts/` and in the `step` form of
 `techradar-check.sh`: `go mod verify`, `go mod tidy -diff`,
 `golangci-lint run --config ../dashboard/.golangci.yaml ./...`,

@@ -81,7 +81,7 @@ func TestLoadClean(t *testing.T) {
 	if d.Release != "charts-2026-11-26-4215d23" || formatDate(d.Date) != "26 November 2026" {
 		t.Errorf("release %s of %s", d.Release, formatDate(d.Date))
 	}
-	if len(d.Songs) != 2 || len(d.Songs[0].Pages) != 1 || len(d.Songs[1].Pages) != 2 || len(d.Legend.Pages) != 1 {
+	if len(d.Songs) != 3 || len(d.Songs[0].Pages) != 1 || len(d.Songs[1].Pages) != 2 || len(d.Legend.Pages) != 1 {
 		t.Errorf("songs %+v, legend %d pages", d.Songs, len(d.Legend.Pages))
 	}
 }
@@ -108,6 +108,7 @@ func TestLoadRules(t *testing.T) {
 		{"bad release tag", manifest(func(m map[string]any) { m["release"] = "charts-2026-11-26" }), `charts.json: release "charts-2026-11-26" is not`},
 		{"release date", manifest(func(m map[string]any) { m["release"] = "charts-2026-02-30-4215d23" }), "has no valid date"},
 		{"commit not hex", manifest(func(m map[string]any) { m["commit"] = strings.ToUpper(m["commit"].(string)) }), "is not 40 lower-case hex"},
+		{"commit not hex with a bad release tag", manifest(func(m map[string]any) { m["release"] = "charts"; m["commit"] = "4215d23" }), `charts.json: commit "4215d23" is not 40 lower-case hex`},
 		{"commit prefix mismatch", manifest(func(m map[string]any) { m["commit"] = "5387aa2358e4fe55993320dccb60947f21bc1028" }), "does not start with the release's 4215d23"},
 		{"no legend", manifest(func(m map[string]any) { delete(m, "legend") }), "charts.json: legend.pages must be 1 to 3"},
 		{"legend pages 4", manifest(func(m map[string]any) { m["legend"] = map[string]any{"pages": 4} }), "charts.json: legend.pages must be 1 to 3"},

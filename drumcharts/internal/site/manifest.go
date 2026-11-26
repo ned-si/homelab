@@ -219,15 +219,17 @@ func checkManifest(m *Manifest, p *problems) map[string]bool {
 	if m.Schema == nil || *m.Schema != Schema {
 		p.add(name, "schema must be %d", Schema)
 	}
+	commitOK := commitRe.MatchString(m.Commit)
+	if !commitOK {
+		p.add(name, "commit %q is not 40 lower-case hex", m.Commit)
+	}
 	if r := releaseRe.FindStringSubmatch(m.Release); r == nil {
 		p.add(name, "release %q is not charts-<yyyy-mm-dd>-<7 hex>", m.Release)
 	} else {
 		if _, err := time.Parse(time.DateOnly, r[1]); err != nil {
 			p.add(name, "release %q has no valid date", m.Release)
 		}
-		if !commitRe.MatchString(m.Commit) {
-			p.add(name, "commit %q is not 40 lower-case hex", m.Commit)
-		} else if m.Commit[:7] != r[2] {
+		if commitOK && m.Commit[:7] != r[2] {
 			p.add(name, "commit %s does not start with the release's %s", m.Commit, r[2])
 		}
 	}

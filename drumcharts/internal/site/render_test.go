@@ -93,9 +93,12 @@ func TestGolden(t *testing.T) {
 		"pages/soad-toxicity-1.svg", "pages/soad-toxicity-1.svg.gz",
 		"pages/sum41-fat-lip-1.svg", "pages/sum41-fat-lip-1.svg.gz",
 		"pages/sum41-fat-lip-2.svg", "pages/sum41-fat-lip-2.svg.gz",
+		"pages/underschool-element-petit-tom-1.svg", "pages/underschool-element-petit-tom-1.svg.gz",
 		"pdf/legend.pdf", "pdf/soad-toxicity.pdf", "pdf/sum41-fat-lip.pdf",
+		"pdf/underschool-element-petit-tom.pdf",
 		"soad-toxicity/index.html", "sum41-fat-lip/index.html",
 		"theme-dark.css", "theme-light.css",
+		"underschool-element-petit-tom/index.html",
 	}
 	if got := slices.Sorted(maps.Keys(files)); !slices.Equal(got, wantNames) {
 		t.Errorf("files %q, want %q", got, wantNames)
@@ -231,7 +234,7 @@ func TestPlural(t *testing.T) {
 	}
 	files = render(t, load(t))
 	for name, want := range map[string]string{
-		"index.html":               "<p class=\"updated\">2 songs, from the release ",
+		"index.html":               "<p class=\"updated\">3 songs, from the release ",
 		"sum41-fat-lip/index.html": `<p class="lead">Sum 41 · 2 pages</p>`,
 	} {
 		if !strings.Contains(string(files[name]), want) {

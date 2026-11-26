@@ -11,7 +11,7 @@
 # and site_markup.py over the pages.
 #
 # Without --all it exits 0 when DRUMCHARTS_BASE..HEAD (default HEAD^1, main
-# for a pull request's merge commit) touches none of drumcharts/, the
+# for a pull request's merge commit) touches none of drumcharts/, dashboard/go.mod, the
 # stylesheets it copies, these scripts, site_markup.py and the workflows that
 # run them. Needs go, golangci-lint, python3, cosign and docker on PATH.
 set -euo pipefail
@@ -20,7 +20,7 @@ cd "$root"
 
 if [ "${1:-}" != "--all" ]; then
   changed=$(git diff --name-only "${DRUMCHARTS_BASE:-HEAD^1}" HEAD)
-  if ! grep -qE '^(drumcharts/|site/assets/css/|scripts/ci/(drumcharts|site_markup)|\.github/workflows/(ci|site-publish)\.yaml$)' <<<"$changed"; then
+  if ! grep -qE '^(drumcharts/|dashboard/go\.mod$|site/assets/css/|scripts/ci/(drumcharts|site_markup)|\.github/workflows/(ci|site-publish)\.yaml$)' <<<"$changed"; then
     echo "drumcharts: nothing the charts site reads changed; skipped"
     exit 0
   fi

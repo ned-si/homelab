@@ -23,7 +23,7 @@ cd "$root"
 if [ "${1:-}" != "--all" ]; then
   changed=$(git diff --name-only "${SITE_BASE:-HEAD^1}" HEAD)
   if ! grep -qE '^(site/|apps/website/|dashboard/internal/web/|drumcharts/|scripts/ci/(site[-_]|layout-check))' <<<"$changed"; then
-    echo "site: nothing under site/, apps/website/ or dashboard/internal/web/ changed; skipped"
+    echo "site: nothing under site/, apps/website/, dashboard/internal/web/ or drumcharts/ changed; skipped"
     exit 0
   fi
 fi
