@@ -533,16 +533,43 @@ func TestScorecardTiles(t *testing.T) {
 		`<p class="tile-label">Score</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value ok">7.5<span class="unit">/ 10</span> <span class="status ok">OK</span></p>`+"\n"+
 			`<p class="tile-detail">Scorecard run of 20 November 2026, 15:06</p>`,
 		`<div class="tiles checks">`,
-		`<p class="tile-label">Code-Review</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value">0<span class="unit">/ 10</span></p>`+"\n"+
-			`<p class="tile-detail">Found 0/28 approved changesets -- score normalized to 0</p>`,
-		`<p class="tile-label">SAST</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value">9<span class="unit">/ 10</span></p>`,
+		`<p class="tile-label">Branch-Protection</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value warn">4<span class="unit">/ 10</span> <span class="status warn">Warning</span></p>`+"\n"+
+			`<p class="tile-detail">branch protection is not maximal on development and all release branches</p>`+"\n"+
+			`<p class="tile-detail">`+checkNotes["Branch-Protection"]+`</p>`,
+		`<p class="tile-label">Code-Review</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>`+"\n"+
+			`<p class="tile-detail">Found 0/28 approved changesets -- score normalized to 0</p>`+"\n"+
+			`<p class="tile-detail">`+checkNotes["Code-Review"]+`</p>`,
+		`<p class="tile-label">Contributors</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>`+"\n"+
+			`<p class="tile-detail">project has 0 contributing companies or organizations -- score normalized to 0</p>`+"\n"+
+			`<p class="tile-detail">`+checkNotes["Contributors"]+`</p>`,
+		`<p class="tile-label">SAST</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value ok">9<span class="unit">/ 10</span> <span class="status ok">OK</span></p>`+"\n"+
+			`<p class="tile-detail">SAST tool detected but not run on all commits</p>`+"\n"+`</div>`,
+		`<p class="tile-label">CII-Best-Practices</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value bad">2<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>`+"\n"+
+			`<p class="tile-detail">badge detected: InProgress</p>`+"\n"+`</div>`,
 		`<p class="tile-label">Signed-Releases</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value none"><span class="status none">Not applicable</span></p>`+"\n"+
-			`<p class="tile-detail">no releases found</p>`)
+			`<p class="tile-detail">no releases found</p>`+"\n"+
+			`<p class="tile-detail">`+checkNotes["Signed-Releases"]+`</p>`)
+	if strings.Count(body, `<p class="tile-detail">On purpose: `) != 3 || len(checkNotes) != 4 {
+		t.Errorf("want the four notes of design.md, Scorecard, on their checks only")
+	}
 	checks := sub(sub(doc, "supply_chain"), "scorecard")["checks"].([]any)
 	at := -1
 	for _, c := range checks {
 		name := c.(map[string]any)["name"].(string)
 		i := strings.Index(body, `<p class="tile-label">`+name+`</p>`)
+		if score, ok := c.(map[string]any)["score"].(float64); ok && i >= 0 {
+			class := "bad"
+			switch {
+			case score >= 7:
+				class = "ok"
+			case score >= 4:
+				class = "warn"
+			}
+			value := `<p class="tile-value ` + class + `">` + strconv.Itoa(int(score)) + `<span class="unit">/ 10</span>`
+			if !strings.HasPrefix(body[i:], `<p class="tile-label">`+name+`</p>`+"\n"+`<div class="tile-body">`+"\n"+value) {
+				t.Errorf("check %s: want %s, the snapshot's score", name, value)
+			}
+		}
 		if i <= at {
 			t.Errorf("check %s missing or out of the snapshot's order", name)
 		}
@@ -571,6 +598,24 @@ func TestScoreStatus(t *testing.T) {
 	} {
 		if st, w := scoreStatus(tc.score); st != tc.st || w != tc.word {
 			t.Errorf("scoreStatus(%v) = %q %q, want %q %q", tc.score, st, w, tc.st, tc.word)
+		}
+	}
+}
+
+// A check's score on its boundaries; nil is a check that does not apply.
+func TestCheckStatus(t *testing.T) {
+	v := func(x int) *int { return &x }
+	for _, tc := range []struct {
+		score *int
+		st    status
+		word  string
+	}{
+		{v(10), statusOK, "OK"}, {v(7), statusOK, "OK"}, {v(6), statusWarn, "Warning"},
+		{v(4), statusWarn, "Warning"}, {v(3), statusBad, "Critical"}, {v(0), statusBad, "Critical"},
+		{nil, statusNone, notApplicable},
+	} {
+		if st, w := checkStatus(tc.score); st != tc.st || w != tc.word {
+			t.Errorf("checkStatus(%v) = %q %q, want %q %q", tc.score, st, w, tc.st, tc.word)
 		}
 	}
 }

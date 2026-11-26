@@ -479,7 +479,7 @@ approval and after the French dashboard (site-theme-language task 5,
 #1763), which changes the same lines, and is followed by the image
 deploy and a live check.
 
-- [ ] 28. Scorecard check colours and notes (**visible**), as in
+- [x] 28. Scorecard check colours and notes (**visible**), as in
       [design.md, Scorecard](design.md#scorecard-task-24):
       `checkStatus` in `internal/web/status.go` with a table test on
       10, 7, 6, 4, 3, 0 and `nil`; in `checkTiles` the status and word
@@ -494,5 +494,7 @@ deploy and a live check.
       criterion 25; live, after the digest bump, every check's value and
       class match the API's score, and the notes show on `/` and `/fr/`.
       [13.5]
+      #1789, English only: the operator's French for the four notes and
+      the sentence (approved 2026-11-26) lands with #1763 when it rebases.
 
 The last task ticked sets `status: done`, `closed:`, and closes #1775.

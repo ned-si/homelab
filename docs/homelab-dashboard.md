@@ -157,7 +157,7 @@ the days summer time starts and ends), the last one from midnight to now
 | Cluster, Databases and backups, other engines | The SQLite apps seen in the rolling 24 h and up, their nightly backups in the rolling 26 h and the restore tests passed in the rolling 8 days; the Valkey/Redis and ClickHouse instances seen and up, marked not backed up | The label-free `cluster:sqlite_*`, `cluster:valkey_redis_instances*` and `cluster:clickhouse_instances*` aggregates of the same PrometheusRule ([dashboard-database-engines](../.kiro/specs/dashboard-database-engines/design.md)) |
 | Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), the rework rate without a band, Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
 | Supply chain | Per first-party image (`homelab-dashboard`, `homelab-site`): "Build L2" when Kyverno verified its provenance on every Pod with a report, "Verified", "Not verified" or "No data", and the builder | `kyverno_policyreport_result_info{policy="verify-own-images"}` from kube-state-metrics, joined with `kube_pod_container_info` by Pod and counted per image ([SLSA level](#slsa-level)) |
-| Supply chain, Scorecard | The repository's OpenSSF Scorecard score out of 10 and the date of its run, every check in alphabetical order with its score (or "Not applicable" when Scorecard gives `-1`) and Scorecard's reason, a link to the [full report](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab) | `https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`, hourly, no token ([Scorecard](#scorecard)) |
+| Supply chain, Scorecard | The repository's OpenSSF Scorecard score out of 10 and the date of its run, every check in alphabetical order with its score in its status colour (or "Not applicable" when Scorecard gives `-1`), Scorecard's reason and, under Branch-Protection, Code-Review, Contributors and Signed-Releases, a note saying why the score is on purpose, a link to the [full report](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab) | `https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`, hourly, no token ([Scorecard](#scorecard)) |
 | Security | Per signal: the count of the rolling 24 h and 7 days, its share of the requests or sign-ins, and the 7 days in 28 six-hour bars. Signals: unknown host or path (no route, and `404` from the static sites), refused by an app (`401` and `403`, the `403` part in the detail), method not allowed (`405`), failed sign-ins, deployments blocked by policy (Kyverno and Pod Security in enforce mode), ingress packets dropped from the internet, runtime detections. Under the 4xx tiles, the `4xx` the Gateway answered itself, which no tile can attribute | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `pod_security_evaluations_total`, `hubble_drop_total` from `reserved:world`, the `Runtime*` alerts; each one sum over the cluster |
 | Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
 
@@ -208,6 +208,9 @@ outside -1 to 10, or whose reason is over 160 characters or has a
 control character; each dropped check counts in
 `homelab_dashboard_collect_errors_total{source="scorecard"}`. A failed
 fetch keeps the last result; after an hour the panel says from when.
+The notes under four checks are compiled in the web role
+(`checkNotes` in `dashboard/internal/web/render.go`); the scores and
+reasons are Scorecard's own.
 Compare with the API:
 
 ```sh
@@ -280,7 +283,9 @@ or "Seen"; the others read "Usual", or "Above usual" when the 24 h count
 is above 20 and three times the daily mean of the 6 days before. No
 security figure is red: the alerts page, the card counts. An image's
 provenance reads "Verified" in green or "Not verified" in amber. The
-Scorecard score is "OK" from 7.0, "Warning" from 4.0, "Critical" below.
+Scorecard score is "OK" from 7.0, "Warning" from 4.0, "Critical" below,
+and so is each check, out of 10: "OK" from 7, "Warning" from 4,
+"Critical" below, "Not applicable" without a colour for a `-1`.
 The database tiles turn where the CNPG, backup-verify and backup-freshness
 alerts fire: "Down" when a database seen in the rolling 24 h has not been
 up for 10 minutes; WAL archiving "Behind" (amber) with more than 5 files
