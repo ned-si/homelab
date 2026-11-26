@@ -128,7 +128,7 @@ window the page shows:
 | Databases: base backups | `cluster:cnpg_base_backup_fresh:count` | New | Rolling 26 h ending at the rule's last evaluation |
 | Databases: restore tests | `cluster:cnpg_restore_passed:count`, `-failed:count`, `-rows:sum`, `-duration:median_seconds` | New | Rolling 8 days ending at the rule's last evaluation (every 2 minutes) |
 | Databases: backup freshness | `min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})` at `t` | New | Rolling 30 days ending at the rule's last evaluation (every 2 minutes) |
-| Databases: up, data size | `cluster:cnpg_databases_up:count`, `cluster:cnpg_data:bytes` | New | The last 10 minutes ending at the rule's last evaluation, so a pod restart's gap is bridged; the page says "now" |
+| Databases: up, data size | `cluster:cnpg_databases_up:count`, `cluster:cnpg_data:bytes` | New | The last 10 minutes ending at the rule's last evaluation, so a pod restart's gap is bridged; the page names no window: 10 minutes is the grace before a database counts as down |
 | Databases: WAL archiving now, oldest base backup, point-in-time recovery | The other `cluster:cnpg_*` aggregates | New | No window: the state at the rule's last evaluation, the Barman timestamps the latest of the rolling 26 h |
 | Overall DORA level, the last five `ci` runs, Supply chain (tasks 21 and 24) | `overallBand`, `internal/web/status.go`; `ciRuns`, `github.go`; `supply.go` | No window of their own: the bands above, the last five runs, the latest Scorecard result and Kyverno report | Unchanged |
 
@@ -379,9 +379,9 @@ Version 9 is version 8 with every Scorecard check (#1756):
 is alphabetical for the compiled names). The rollout rule of version 3
 applies.
 
-### Version 9 (task 26)
+### Version 10 (task 26)
 
-Version 9 is version 8 plus `cluster.databases`, built every cycle
+Version 10 is version 9 plus `cluster.databases`, built every cycle
 with the cluster block and covered by `cluster.as_of`
 ([Databases](#databases-tasks-25-and-26)). Numbers only: the object
 has no string, so no name can travel in it.
@@ -389,7 +389,7 @@ has no string, so no name can travel in it.
 | Key | Value |
 | --- | --- |
 | `count` | Databases seen in the rolling 24 h, integer 0-100 |
-| `up` | Databases up now, integer 0 to `count` |
+| `up` | Databases up in the last 10 minutes, integer 0 to `count` |
 | `data_bytes` | Size of the app databases, integer 0 or more, `null` without a series |
 | `wal_archiving`, `wal_behind` | Databases archiving normally, and with more than 5 WAL files waiting but none failed; integers, their sum at most `count` |
 | `wal_archived_24h` | WAL files archived in the rolling 24 h, integer 0 or more (rounded to the nearest), `null` without a series |
@@ -1855,6 +1855,7 @@ groups:
           time() - (max by (namespace, cluster) (label_replace(
             max_over_time(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp[26h]),
             "cluster", "$1", "pod", "(.+)-[0-9]+")) > 0)
+          and on (namespace, cluster) cnpg_cluster:seen_24h
       - record: cnpg_cluster:base_backup_failed
         expr: |
           max by (namespace, cluster) (label_replace(
@@ -1864,11 +1865,13 @@ groups:
           max by (namespace, cluster) (label_replace(
             max_over_time(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp[26h]),
             "cluster", "$1", "pod", "(.+)-[0-9]+"))
+          and on (namespace, cluster) cnpg_cluster:seen_24h
       - record: cnpg_cluster:recovery_window:seconds
         expr: |
           time() - (max by (namespace, cluster) (label_replace(
             max_over_time(barman_cloud_cloudnative_pg_io_first_recoverability_point[26h]),
             "cluster", "$1", "pod", "(.+)-[0-9]+")) > 0)
+          and on (namespace, cluster) cnpg_cluster:seen_24h
       - record: cluster:cnpg_databases:count
         expr: count(cnpg_cluster:seen_24h) or vector(0)
       - record: cluster:cnpg_databases_up:count
@@ -1942,7 +1945,7 @@ groups:
             and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
             and on (cluster) cnpg_cluster:seen_24h
           ) or vector(0)
-      # The latest visible run failed, whatever its age, as BackupVerifyFailed.
+      # The latest run in the 8-day history failed, whatever its age.
       - record: cluster:cnpg_restore_failed:count
         expr: |
           count(
@@ -1971,7 +1974,8 @@ groups:
   only `last_run`. So "passed" is the latest run passed and its
   success is under 8 days old; "failed" is the latest visible run newer
   than its success, or a run with no success in the history, whatever
-  its age (as `BackupVerifyFailed`, which reads the current value); a
+  its age. This matches `BackupVerifyFailed` while the Pushgateway pod
+  lives, and keeps the failure after a new pod starts empty; a
   database with neither is "overdue": `count - restore_passed -
   restore_failed`. Overdue covers both ways a test goes missing: the
   Pushgateway still serving a pass older than 8 days (the CronJob
@@ -1998,8 +2002,10 @@ the aggregates: all healthy (8 of 8 everywhere); one database's
 series stopping for 3 minutes and coming back with a new `instance`
 label (every aggregate still 8 of 8, data bytes counted once); one
 database's series stopping for good (`up` 8 for 10 minutes, then 7,
-`count` 8 until 24 h later, then 7 and 7; base backups 8 until 26 h
-after its last backup); `last_failed_time` after `last_archived_time`
+`count` 8 until 24 h later, then 7 and 7, base backups with it); one
+database backing up and stopping 30 minutes later while another one's
+base backup is 27 h old (from 24 h to 25.5 h after the stop, `count`
+7 and `base_fresh` 6, not 7); `last_failed_time` after `last_archived_time`
 (failing) and 6 files `ready` (behind); a base backup 26 h old, one
 failed after the last good one, and one with timestamp 0 (no age
 series, not fresh); a restore run newer than its success (failed);
@@ -2040,9 +2046,10 @@ encode:
 | `wal_archived_24h` | `cluster:cnpg_wal_archived:increase24h` | `optional`, rounded to the nearest |
 | `freshness_30d` | `min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})` | `optional`, times 100, clamped to 0-100, full precision |
 
-- **Clamp.** The two groups evaluate at different instants, so for up
-  to 2 minutes after a database appears or goes away the restore counts
-  can disagree with `count`. The collector clamps `up`, `base_fresh` and
+- **Clamp.** Every per-database rule is limited to the databases in
+  `cnpg_cluster:seen_24h`, so the figures agree with `count` except for
+  the up to 2 minutes between the two groups' evaluations, when a
+  database appears or goes away and the restore counts can disagree. The collector clamps `up`, `base_fresh` and
   `wal_archiving` to `count`, then `wal_behind` to `count -
   wal_archiving` and `restore_failed` to `count - restore_passed`
   (after clamping `restore_passed` to `count`), without logging: it is
@@ -2072,7 +2079,7 @@ tile is `noDataTile(label)`:
 
 | Label | Value | Status words | Detail lines |
 | --- | --- | --- | --- |
-| PostgreSQL | `count`, unit "databases" | "Up", "Down" | "Seen in the rolling 24 h"; "<up> up now, <bytesText(data_bytes)> of data" (", … of data" left out when `null`) |
+| PostgreSQL | `count`, unit "databases" | "Up", "Down" | "Seen in the rolling 24 h"; "<up> up, <bytesText(data_bytes)> of data" (", … of data" left out when `null`) |
 | WAL archiving | `wal_archiving`, unit "of <count>" | "Archiving", "Behind", "Failing" | "<wal_archived_24h> files archived, rolling 24 h" (`thousands`) |
 | Base backups | `base_fresh`, unit "of <count>" | "Fresh", "Stale" | "Nightly, each in the rolling 26 h"; "Oldest <durationText(base_oldest_seconds)> ago" |
 | Point-in-time recovery | `recovery_window_seconds / 86400` rounded down, unit "days" | none (no class) | "The shortest window of all databases" |
@@ -2084,7 +2091,7 @@ A detail line whose figure is `null` is left out; a tile whose value is
 in `status.go` (`databasesStatus`, `walStatus`, `baseBackupStatus`,
 `restoreStatus`, `freshnessStatus`), table-tested on each boundary
 (acceptance criterion 33). On 2026-11-25 the group would read: 8
-databases seen in the rolling 24 h, 8 up now, 1 GiB of data; 8 of 8 archiving, 1,517 files; 8 of 8
+databases seen in the rolling 24 h, 8 up, 1 GiB of data; 8 of 8 archiving, 1,517 files; 8 of 8
 fresh, oldest 19 h 31 min ago; 30 days; 8 of 8 passed, 1,031,332 rows,
 median 6 min 54 s; 99.97%, Met.
 

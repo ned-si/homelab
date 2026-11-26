@@ -429,8 +429,7 @@ backups amendment (#1739).
       [13.5, 13.6]
       #1757
 
-#1670 closes with task 24. Task 24's tick closes #1670 and leaves the
-spec `active` while tasks 25-26 are open. The amendment of 2026-11-25 (#1739) reopens
+#1670 closed with tasks 24 and 27. The amendment of 2026-11-25 (#1739) reopens
 the spec with tasks 25 and 26, the "Databases and backups" group of
 the Cluster card, in order. Task 25 is **not visible**, task 26 is; each merges
 after its review round with no preview approval (operator, 2026-11-24
@@ -454,7 +453,7 @@ deploy first.
       the same instant. [14.2, 14.3, 14.6]
 - [ ] 26. Databases and backups group (**visible**), as in
       [design.md, Collector and page](design.md#collector-and-page-task-26):
-      snapshot version 9 (`cluster.databases`, numbers only) in
+      snapshot version 10 (`cluster.databases`, numbers only) in
       `snapshot.go`, `snapshot.schema.json` and `Validate`;
       `internal/collector/databases.go` with its queries and the
       clamp; `databaseTiles`, `durationText` and the five status
@@ -466,6 +465,7 @@ deploy first.
       `Closes #1739`. Check: acceptance criteria 32 and 33; live,
       after the digest bump, the card equal to the aggregates in
       Grafana at the same minute and no hidden name in
-      `snapshot.json` or the page. [2.7, 3.12, 3.14, 14.1-14.6]
+      `snapshot.json` or the page. Starts after task 27 is merged
+      (snapshot version 9). [2.7, 3.12, 3.14, 14.1-14.6]
 
 The last task ticked sets `status: done`, `closed:`, and closes #1739.

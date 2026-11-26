@@ -674,7 +674,10 @@ without learning which databases there are.
    30 days (`homelab-backup-slo`). A scrape gap shorter than the
    shortest `for:` of those alerts (10 minutes), such as an instance
    pod restart, SHALL NOT change a status. Point-in-time recovery
-   carries no status. With no database reporting, every tile of the
+   carries no status. A database whose `cnpg_collector_up` has not
+   been 1 in the last 10 minutes is "Down"; no per-database alert
+   pages for this: the app's probes and the pod alerts cover it, and
+   `CNPGMetricsAbsent` fires when none reports. With no database reporting, every tile of the
    group SHALL read "No data".
 5. EVERY window SHALL be rolling and its small text SHALL say so:
    "rolling 24 h" for the database count and the WAL files archived,
@@ -847,7 +850,10 @@ without learning which databases there are.
     job and covers: every database healthy; one database's series
     gone for 3 minutes and back with a new `instance` label (every
     aggregate unchanged); one down (`up` short of all after 10
-    minutes, still counted in the rolling 24 h, gone after it); WAL archiving failing and WAL
+    minutes, still counted in the rolling 24 h, gone after it); one
+    database backing up and stopping 30 minutes later while another
+    one's base backup is 27 h old (from 24 h to 25.5 h after the stop,
+    `count` 7 and the fresh base backups 6); WAL archiving failing and WAL
     behind; a base backup 26 h old, one failed after the last good one
     and one never taken; a restore test failed; overdue with the
     series still reporting a pass 8 days and 1 minute old
