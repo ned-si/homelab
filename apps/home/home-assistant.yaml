@@ -86,7 +86,7 @@ spec:
           args:
             - |
               # renovate: datasource=github-releases depName=christiaangoossens/hass-oidc-auth
-              OIDC_VERSION=v1.2.1
+              OIDC_VERSION=v1.3.0
               # renovate: datasource=pypi depName=joserfc
               JOSERFC_VERSION=1.8.0
               # renovate: datasource=github-releases depName=Tasshack/dreame-vacuum
