@@ -54,7 +54,9 @@ after `homelab.databases`, and four rules at the end of
 `namespace` and `container`; the dashboard reads only the label-free
 `cluster:*` aggregates.
 
-Two choices keep it cheap: the 24-hour window reads the instance rule
+The joins carry `group_left ()`: a one-to-one match with `on` keeps only
+the `on` labels, and the later rules need `engine`, `namespace` and
+`container`. Two choices keep it cheap: the 24-hour window reads the instance rule
 `db_engine:present` (13 series), not `kube_pod_container_info` (every
 container of the cluster); and up reads the last 10 minutes of
 `kube_pod_container_status_ready`.
@@ -86,13 +88,13 @@ container of the cluster); and up reads the last 10 minutes of
         # Down after 10 minutes not ready, as cnpg_cluster:up.
         - record: db_engine:up
           expr: |
-            db_engine:seen_24h * on (namespace, container)
+            db_engine:seen_24h * on (namespace, container) group_left ()
               max by (namespace, container) (max_over_time(kube_pod_container_status_ready[10m]))
             or on (engine, namespace, container) (db_engine:seen_24h * 0)
         - record: db_sqlite:backup_fresh
           expr: |
             label_replace(db_sqlite:app:info, "target", "$1", "cronjob", "(.+)")
-              * on (namespace, target) slo:backup_fresh{kind="restic"}
+              * on (namespace, target) group_left () slo:backup_fresh{kind="restic"}
         - record: cluster:sqlite_databases:count
           expr: count(db_engine:seen_24h{engine="sqlite"}) or vector(0)
         - record: cluster:sqlite_databases_up:count
@@ -119,12 +121,12 @@ by app:
         - record: db_sqlite:restore_last_run:timestamp
           expr: |
             label_replace(db_sqlite:app:info{restore_target!=""}, "target", "$1", "restore_target", "(.+)")
-              * on (target)
+              * on (target) group_left ()
             max by (target) (max_over_time(backup_verify_last_run_timestamp_seconds{check="restic"}[8d]))
         - record: db_sqlite:restore_last_success:timestamp
           expr: |
             label_replace(db_sqlite:app:info{restore_target!=""}, "target", "$1", "restore_target", "(.+)")
-              * on (target)
+              * on (target) group_left ()
             max by (target) (max_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[8d]))
         - record: cluster:sqlite_restore_passed:count
           expr: |

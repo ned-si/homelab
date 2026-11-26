@@ -123,11 +123,14 @@ homelab runs and how each one is protected.
 
 1. `tests/prometheus/databases_test.yaml` passes in the `promtool` job
    and covers: every engine healthy (9, 9, 9 fresh, 4 passed, 0
-   failed; 3, 3; 1, 1); an SQLite container not ready for 11 minutes
-   (up 8) and one with a 5-minute gap (up 9); an old Valkey pod not
-   ready next to the ready one (count 1, up 1); a stale CronJob (fresh
-   8); a failed restore test (failed 1); a pass 9 days old (passed 3);
-   a container gone for 25 hours (count 8); every aggregate without a
+   failed; 3, 3; 1, 1), with an unlisted container and a Redis
+   exporter not counted and an old Valkey pod not ready next to the
+   ready one counted once and up; an SQLite container down 10 minutes
+   after it stops being ready, and one with a 5-minute gap in its ready
+   series still up; a stale CronJob (one fewer fresh); a test run after
+   the last pass and a run without a pass (both failed); a pass 8 days
+   and 1 minute old (neither passed nor failed); a container gone for
+   more than 24 hours (counted, then not); every aggregate without a
    label. [1.1-1.5]
 2. After task 1 merges, Grafana's Prometheus returns the nine
    aggregates with the values of today's cluster. [1.3, 1.4]
