@@ -16,12 +16,13 @@ var assets embed.FS
 var page = template.Must(template.New("page.html").Funcs(template.FuncMap{"em": em}).ParseFS(assets, "assets/page.html"))
 
 // emphasis is *text*: an English expression in the French text, set in
-// italics (the operator's rule, 2026-11-26).
-var emphasis = regexp.MustCompile(`\*([^*]+)\*`)
+// italics (the operator's rule, 2026-11-26). A mark inside a word or
+// before a dot, as in *.lilalala.com, is not one.
+var emphasis = regexp.MustCompile(`(^|[^\pL\pN*])\*([^\s*.][^*]*[^\s*]|[^\s*.])\*`)
 
 // em escapes s, then sets each *text* in <em>.
 func em(s string) template.HTML {
-	return template.HTML(emphasis.ReplaceAllString(html.EscapeString(s), "<em>$1</em>")) //nolint:gosec // G203: escaped first, only <em> is added.
+	return template.HTML(emphasis.ReplaceAllString(html.EscapeString(s), "${1}<em>${2}</em>")) //nolint:gosec // G203: escaped first, only <em> is added.
 }
 
 // plain is s without the emphasis marks, for a tooltip.
