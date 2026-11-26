@@ -158,6 +158,20 @@ data:
                 try_files $uri $uri/ =404;
                 add_header Cache-Control "public, max-age=300";
             }
+
+            # The French page, as on the landing page.
+            location = /fr/ {
+                try_files /index-fr.html =404;
+                add_header Cache-Control "public, max-age=300";
+            }
+
+            location = /fr {
+                return 301 /fr/;
+            }
+
+            location = /index-fr.html {
+                internal;
+            }
         }
 
         server {
@@ -204,5 +218,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-nginx-5999khhbgd
+  name: website-nginx-9k9gmmk994
   namespace: website

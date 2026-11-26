@@ -61,6 +61,7 @@ type Entry struct {
 	Quadrant string `yaml:"quadrant"`
 	Ring     string `yaml:"ring"`
 	Reason   string `yaml:"reason"`
+	ReasonFR string `yaml:"reason_fr"`
 	Link     string `yaml:"link,omitempty"`
 	Moved    string `yaml:"moved,omitempty"`
 }
@@ -126,24 +127,32 @@ func check(e Entry, root fs.StatFS) []error {
 	if e.Moved != "" && !moves[e.Moved] {
 		errs = append(errs, fmt.Errorf("unknown moved %q, want up, down or new", e.Moved))
 	}
-	switch {
-	case strings.TrimSpace(e.Reason) == "":
-		errs = append(errs, errors.New("empty reason"))
-	case strings.ContainsAny(e.Reason, "\r\n"):
-		errs = append(errs, errors.New("reason on more than one line"))
-	case utf8.RuneCountInString(e.Reason) > MaxReason:
-		errs = append(errs, fmt.Errorf("reason of %d characters, want at most %d", utf8.RuneCountInString(e.Reason), MaxReason))
-	}
-	if strings.ContainsRune(e.Reason, '\u2014') || strings.ContainsRune(e.Name, '\u2014') {
+	errs = append(errs, checkReason("reason", e.Reason)...)
+	errs = append(errs, checkReason("reason_fr", e.ReasonFR)...)
+	if strings.ContainsRune(e.Reason, '\u2014') || strings.ContainsRune(e.ReasonFR, '\u2014') || strings.ContainsRune(e.Name, '\u2014') {
 		errs = append(errs, errors.New("em dash"))
 	}
-	if m := denied.FindString(e.Name + " " + e.Reason); m != "" {
+	if m := denied.FindString(e.Name + " " + e.Reason + " " + e.ReasonFR); m != "" {
 		errs = append(errs, fmt.Errorf("names %q, which the public pages never name", m))
 	}
 	if err := checkLink(e.Link, root); err != nil {
 		errs = append(errs, err)
 	}
 	return errs
+}
+
+// checkReason holds reason and reason_fr to one line of at most MaxReason
+// characters.
+func checkReason(field, reason string) []error {
+	switch {
+	case strings.TrimSpace(reason) == "":
+		return []error{errors.New("empty " + field)}
+	case strings.ContainsAny(reason, "\r\n"):
+		return []error{errors.New(field + " on more than one line")}
+	case utf8.RuneCountInString(reason) > MaxReason:
+		return []error{fmt.Errorf("%s of %d characters, want at most %d", field, utf8.RuneCountInString(reason), MaxReason)}
+	}
+	return nil
 }
 
 func checkLink(link string, root fs.StatFS) error {
@@ -241,7 +250,19 @@ func Slug(name string) string {
 }
 
 // label is the native tooltip of a blip: "12. Cilium (Platform, Adopt):
-// <reason>".
-func label(n int, e Entry) string {
-	return strconv.Itoa(n) + ". " + e.Name + " (" + name(Quadrants, e.Quadrant) + ", " + name(Rings, e.Ring) + "): " + e.Reason
+// <reason>", in l's language.
+func label(n int, e Entry, l Lang) string {
+	colon := ": "
+	if l.Code == "fr" {
+		colon = "\u00a0: "
+	}
+	return strconv.Itoa(n) + ". " + e.Name + " (" + l.T("quadrant."+e.Quadrant) + ", " + l.T("ring."+e.Ring) + ")" + colon + plain(e.reason(l))
+}
+
+// reason is the entry's reason in l's language.
+func (e Entry) reason(l Lang) string {
+	if l.Code == "fr" {
+		return e.ReasonFR
+	}
+	return e.Reason
 }

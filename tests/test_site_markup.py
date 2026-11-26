@@ -295,7 +295,7 @@ FR_NAV = [
     ("Accueil", "https://nedsi.io/fr/"),
     ("Blog", "/fr/"),
     ("Homelab", "https://homelab.nedsi.io/"),
-    ("Tech radar", "https://techradar.nedsi.io/"),
+    ("Tech radar", "https://techradar.nedsi.io/fr/"),
     ("À propos", "/fr/about/"),
 ]
 

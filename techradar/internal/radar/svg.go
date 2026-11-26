@@ -12,10 +12,10 @@ import (
 // horizontal axis and one numbered blip per entry, a link to its legend
 // item. Styled by class only (techradar.css), so the page's CSP needs no
 // inline style; the hover label is CSS, the tooltip the native <title>.
-func SVG(blips []Blip) string {
+func SVG(blips []Blip, l Lang) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %d %d" role="group" focusable="false" aria-label="%s">`+"\n",
-		Size, Size, html.EscapeString(fmt.Sprintf("Tech radar: %d entries in four quadrants and four rings, listed in the legend below.", len(blips))))
+		Size, Size, html.EscapeString(fmt.Sprintf(l.T("chart.label"), len(blips))))
 	for _, r := range Radii {
 		fmt.Fprintf(&b, `<circle class="ring-line" cx="%d" cy="%d" r="%s"/>`+"\n", centre, centre, num(r))
 	}
@@ -24,7 +24,7 @@ func SVG(blips []Blip) string {
 	for i, r := range Rings {
 		mid := (innerRadius(i) + Radii[i]) / 2
 		for _, x := range []float64{centre - mid, centre + mid} {
-			fmt.Fprintf(&b, `<text class="ring-name" x="%s" y="%d">%s</text>`+"\n", num(x), centre+6, r.Name)
+			fmt.Fprintf(&b, `<text class="ring-name" x="%s" y="%d">%s</text>`+"\n", num(x), centre+6, html.EscapeString(l.T("ring."+r.ID)))
 		}
 	}
 	for _, bl := range blips {
@@ -36,8 +36,8 @@ func SVG(blips []Blip) string {
 		}
 		fmt.Fprintf(&b, `<a class="blip ring-%s" href="#entry-%s"><title>%s</title>%s<text class="blip-number" x="%s" y="%s" aria-hidden="true">%d</text>`+
 			`<g class="blip-label" aria-hidden="true"><text class="%s" x="%s" y="%s">%s</text></g></a>`+"\n",
-			bl.Entry.Ring, Slug(bl.Entry.Name), html.EscapeString(label(bl.Number, bl.Entry)), shape(bl), num(bl.X), num(bl.Y+3), bl.Number,
-			side, num(bl.X+dx), num(bl.Y+5), html.EscapeString(bl.Entry.Name+" · "+name(Rings, bl.Entry.Ring)))
+			bl.Entry.Ring, Slug(bl.Entry.Name), html.EscapeString(label(bl.Number, bl.Entry, l)), shape(bl), num(bl.X), num(bl.Y+3), bl.Number,
+			side, num(bl.X+dx), num(bl.Y+5), html.EscapeString(bl.Entry.Name+" · "+l.T("ring."+bl.Entry.Ring)))
 	}
 	b.WriteString("</svg>")
 	return b.String()

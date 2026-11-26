@@ -21,21 +21,25 @@ entries:
     quadrant: infrastructure
     ring: adopt
     reason: Immutable, API-only nodes with the machine config in git.
+    reason_fr: Des nodes immuables, pilotés par API.
     link: docs/talos.md
   - name: Service mesh
     quadrant: platform
     ring: hold
     reason: Cilium already gives the policies and the flows.
+    reason_fr: Cilium fournit déjà les policies et les flux.
     link: "docs/decisions.md#no-service-mesh"
   - name: Wide events
     quadrant: techniques
     ring: assess
     reason: One rich event per request.
+    reason_fr: Un événement riche par requête.
     link: "#734"
   - name: Go
     quadrant: tools
     ring: adopt
     reason: One static binary.
+    reason_fr: Un binaire statique.
     link: .kiro/specs/tech-radar/
     moved: new
 `
@@ -61,7 +65,7 @@ func TestParseClean(t *testing.T) {
 // entry is clean's first entry with one line replaced or added.
 func entry(field, value string) string {
 	lines := strings.Split(clean, "\n")
-	head := lines[:7]
+	head := lines[:8]
 	out := []string{}
 	replaced := false
 	for _, l := range head {
@@ -94,6 +98,10 @@ func TestParseErrors(t *testing.T) {
 		{"two-line reason", entry("reason", `"One line.\nTwo lines."`), "more than one line"},
 		{"long reason", entry("reason", strings.Repeat("a", MaxReason+1)), "reason of 141 characters"},
 		{"em dash", entry("reason", "Immutable \u2014 and API-only."), "em dash"},
+		{"empty reason_fr", entry("reason_fr", `""`), "empty reason_fr"},
+		{"long reason_fr", entry("reason_fr", strings.Repeat("a", MaxReason+1)), "reason_fr of 141 characters"},
+		{"em dash in reason_fr", entry("reason_fr", "Immuable \u2014 et par API."), "em dash"},
+		{"denied term in reason_fr", entry("reason_fr", "Pour les cameras."), `names "cameras"`},
 		{"missing link path", entry("link", "docs/nope.md"), `link "docs/nope.md": no such path`},
 		{"escaping link path", entry("link", "../etc/passwd"), "not a repository path"},
 		{"issue not a number", entry("link", `"#12a"`), "an issue is #<number>"},
