@@ -1,8 +1,9 @@
 # The tech radar at https://techradar.nedsi.io/ (.kiro/specs/tech-radar/).
 # Fields: name, quadrant (techniques, tools, platform, infrastructure),
 # ring (adopt, trial, assess, hold), reason (one line, at most 140
-# characters), optional link (#<issue> or a repository path) and moved
-# (up, down, new). After a change: task techradar:render.
+# characters), reason_fr (the reason in Swiss French, the same rules),
+# optional link (#<issue> or a repository path) and moved (up, down, new).
+# After a change: task techradar:render.
 updated: 2026-11-25
 entries:
   # Techniques
@@ -10,131 +11,157 @@ entries:
     quadrant: techniques
     ring: adopt
     reason: "Merging deploys and a revert rolls back; Argo CD tracks main."
+    reason_fr: "Merger déploie et un revert fait le rollback ; Argo CD suit main."
     link: "docs/decisions.md#main-is-production"
   - name: Rendered manifests in git
     quadrant: techniques
     ring: adopt
     reason: "Every object Argo CD applies is reviewed as a file in the pull request."
+    reason_fr: "Chaque objet appliqué par Argo CD est relu comme fichier dans la pull request."
     link: "docs/architecture.md"
   - name: CI as the only gate
     quadrant: techniques
     ring: adopt
     reason: "No human approval: green CI merges, a degraded app is reverted."
+    reason_fr: "Aucune approbation humaine : la CI verte merge, une app dégradée est revertée."
     link: "docs/decisions.md#no-human-gates"
   - name: Automatic rollback
     quadrant: techniques
     ring: adopt
     reason: "A merge that degrades an app is reverted, with an outage guard."
+    reason_fr: "Un merge qui dégrade une app est reverté, avec un garde-fou en cas de panne."
     link: "docs/decisions.md#automatic-rollback"
   - name: Deterministic first
     quadrant: techniques
     ring: adopt
     reason: "Scripts, checks and thresholds decide; AI writes and summarises."
+    reason_fr: "Scripts, contrôles et seuils décident ; l'IA rédige et résume."
     link: "docs/decisions.md#deterministic-first"
   - name: SLOs and error budgets
     quadrant: techniques
     ring: adopt
     reason: "One number per app, 99.5% over 30 days, from public probes."
+    reason_fr: "Un chiffre par app, 99,5 % sur 30 jours, mesuré par des sondes publiques."
     link: "docs/sre.md"
   - name: Page only when urgent and actionable
     quadrant: techniques
     ring: adopt
     reason: "Everything else is on a dashboard, never on the phone."
+    reason_fr: "Tout le reste est sur un dashboard, jamais sur le téléphone."
     link: "docs/sre.md"
   - name: Restore-tested backups
     quadrant: techniques
     ring: adopt
     reason: "A backup counts once a scheduled restore of it has passed."
+    reason_fr: "Une sauvegarde compte une fois qu'une restauration planifiée a réussi."
     link: "docs/backups.md"
   - name: Spec-driven development
     quadrant: techniques
     ring: adopt
     reason: "Requirements, design and tasks merged before the code."
+    reason_fr: "Exigences, design et tâches mergés avant le code."
     link: "docs/spec-driven-development.md"
   - name: Agent-written pull requests
     quadrant: techniques
     ring: adopt
     reason: "Agents implement through PRs; CI and the specs keep them honest."
+    reason_fr: "Des agents implémentent par PR ; la CI et les specs les gardent honnêtes."
     link: "docs/spec-driven-development.md"
   - name: Trunk-based with squash merges
     quadrant: techniques
     ring: adopt
     reason: "One commit per pull request on a linear main."
+    reason_fr: "Un commit par pull request sur un main linéaire."
     link: "docs/decisions.md#squash-merge"
   - name: Images pinned by digest
     quadrant: techniques
     ring: adopt
     reason: "A tag can move; a digest cannot."
+    reason_fr: "Un tag peut bouger ; un digest, non."
     link: "docs/testing.md"
   - name: Keyless signing and SLSA provenance
     quadrant: techniques
     ring: adopt
     reason: "Own images signed by their workflow and checked by Kyverno."
+    reason_fr: "Nos images signées par leur workflow et vérifiées par Kyverno."
     link: ".kiro/specs/image-provenance/"
   - name: DORA metrics
     quadrant: techniques
     ring: adopt
     reason: "Delivery measured from git, GitHub and alerts, live on the dashboard."
+    reason_fr: "La livraison mesurée depuis git, GitHub et les alertes, en direct sur le dashboard."
     link: ".kiro/specs/homelab-dashboard/"
   - name: Database majors fix forward
     quadrant: techniques
     ring: adopt
     reason: "A Postgres major is a one-way door: fresh backup, then forward."
+    reason_fr: "Une version majeure de Postgres est sans retour : sauvegarde fraîche, puis en avant."
     link: "docs/decisions.md#database-majors-fix-forward"
   - name: Scheduled pentests
     quadrant: techniques
     ring: adopt
     reason: "A scoped run against our own names and addresses, findings as issues."
+    reason_fr: "Un test cadré contre nos propres noms et adresses, les résultats en issues."
     link: "docs/pentest/README.md"
   - name: Default-deny network policies
     quadrant: techniques
     ring: trial
     reason: "Enforced in a few namespaces; app allow-lists still in audit."
+    reason_fr: "Appliquées dans quelques namespaces ; les allow-lists des apps encore en audit."
     link: "#709"
   - name: Pod Security restricted
     quadrant: techniques
     ring: trial
     reason: "Kyverno restricted policies in Audit until their reports are clean."
+    reason_fr: "Les policies Kyverno restricted en Audit jusqu'à des rapports propres."
     link: "#1021"
   - name: GitHub App instead of PATs
     quadrant: techniques
     ring: trial
     reason: "Short-lived tokens for the pentest workflows; PATs remain elsewhere."
+    reason_fr: "Des tokens de courte durée pour les workflows de pentest ; les PAT restent ailleurs."
     link: "docs/pentest/README.md"
   - name: Chaos experiments tied to SLOs
     quadrant: techniques
     ring: assess
     reason: "Break things on purpose, within the error budget."
+    reason_fr: "Casser des choses exprès, dans les limites de l'error budget."
     link: "#733"
   - name: Wide events
     quadrant: techniques
     ring: assess
     reason: "One rich event per request instead of three signals."
+    reason_fr: "Un événement riche par requête au lieu de trois signaux."
     link: "#734"
   - name: Canary tokens
     quadrant: techniques
     ring: assess
     reason: "Fake credentials that page when touched."
+    reason_fr: "De faux identifiants qui déclenchent une alerte quand on y touche."
     link: "#1618"
   - name: Weekly SBOM and CVE scan
     quadrant: techniques
     ring: assess
     reason: "What runs, scanned weekly, not only at build time."
+    reason_fr: "Ce qui tourne, scanné chaque semaine, pas seulement au build."
     link: "#1507"
   - name: Disaster recovery site
     quadrant: techniques
     ring: assess
     reason: "Where to rebuild if the house is gone, and how fast."
+    reason_fr: "Où tout reconstruire si la maison n'est plus là, et en combien de temps."
     link: "#918"
   - name: Kubernetes OIDC through Keycloak
     quadrant: techniques
     ring: assess
     reason: "Personal API credentials instead of a shared kubeconfig."
+    reason_fr: "Des accès API personnels au lieu d'un kubeconfig partagé."
     link: "#711"
   - name: ADR directory
     quadrant: techniques
     ring: hold
     reason: "ADRs rot in a one-person repository; decisions live in the docs."
+    reason_fr: "Les ADR pourrissent dans un dépôt à une personne ; les décisions vivent dans la doc."
     link: "docs/decisions.md"
 
   # Tools and languages
@@ -142,126 +169,151 @@ entries:
     quadrant: tools
     ring: adopt
     reason: "The dashboard and this radar: one static binary, typed, tested."
+    reason_fr: "Le dashboard et ce radar : un binaire statique, typé, testé."
     link: "docs/decisions.md#the-public-dashboard-is-a-first-party-go-app"
   - name: Python
     quadrant: tools
     ring: adopt
     reason: "CI scripts and checks, with pytest."
+    reason_fr: "Les scripts et contrôles de la CI, avec pytest."
     link: "docs/testing.md"
   - name: Hugo
     quadrant: tools
     ring: adopt
     reason: "One pinned binary, no theme, no npm tree, strict CSP possible."
+    reason_fr: "Un binaire épinglé, pas de thème, pas d'arbre npm, CSP stricte possible."
     link: ".kiro/specs/public-website/design.md"
   - name: OpenTofu
     quadrant: tools
     ring: adopt
     reason: "The cloud resources, applied by a workflow through GitHub OIDC."
+    reason_fr: "Les ressources cloud, appliquées par un workflow via GitHub OIDC."
     link: "docs/bootstrap.md"
   - name: SOPS with age
     quadrant: tools
     ring: adopt
     reason: "Secrets encrypted in git, decrypted by KSOPS in Argo CD."
+    reason_fr: "Les secrets chiffrés dans git, déchiffrés par KSOPS dans Argo CD."
     link: "docs/secrets.md"
   - name: Renovate
     quadrant: tools
     ring: adopt
     reason: "Every dependency pinned and updated, automerged on green CI."
+    reason_fr: "Chaque dépendance épinglée et mise à jour, automergée sur CI verte."
     link: "docs/testing.md"
   - name: GitHub Actions
     quadrant: tools
     ring: adopt
     reason: "CI and publishing, every action pinned to a SHA."
+    reason_fr: "La CI et la publication, chaque action épinglée à un SHA."
     link: "docs/testing.md"
   - name: cosign
     quadrant: tools
     ring: adopt
     reason: "Keyless signatures with the workflow identity."
+    reason_fr: "Des signatures keyless avec l'identité du workflow."
     link: ".kiro/specs/image-provenance/"
   - name: GitHub artifact attestations
     quadrant: tools
     ring: adopt
     reason: "SLSA v1 provenance for the own images, SLSA Build L2."
+    reason_fr: "Provenance SLSA v1 pour nos images, SLSA Build L2."
     link: ".kiro/specs/homelab-dashboard/design.md"
   - name: OpenSSF Scorecard
     quadrant: tools
     ring: adopt
     reason: "A weekly score of the repository's supply-chain practice."
+    reason_fr: "Une note hebdomadaire des pratiques supply chain du dépôt."
     link: ".kiro/specs/scorecard-hardening/"
   - name: talhelper
     quadrant: tools
     ring: adopt
     reason: "The Talos machine configs rendered from one file."
+    reason_fr: "Les configs machine Talos générées depuis un seul fichier."
     link: "docs/talos.md"
   - name: Kustomize and Helm
     quadrant: tools
     ring: adopt
     reason: "Helm charts rendered through Kustomize into deploy/."
+    reason_fr: "Les charts Helm rendus via Kustomize dans deploy/."
     link: "docs/architecture.md"
   - name: kubeconform and kube-linter
     quadrant: tools
     ring: adopt
     reason: "Schema and practice checks on every rendered manifest."
+    reason_fr: "Contrôles de schéma et de bonnes pratiques sur chaque manifeste rendu."
     link: "docs/testing.md"
   - name: Trivy
     quadrant: tools
     ring: adopt
     reason: "The image and config gate in CI."
+    reason_fr: "Le contrôle des images et de la config dans la CI."
     link: "docs/testing.md"
   - name: gitleaks
     quadrant: tools
     ring: adopt
     reason: "No secret reaches a commit, public repository or not."
+    reason_fr: "Aucun secret n'atteint un commit, dépôt public ou non."
     link: "docs/testing.md"
   - name: pre-commit
     quadrant: tools
     ring: adopt
     reason: "The same checks locally on commit and push."
+    reason_fr: "Les mêmes contrôles en local au commit et au push."
     link: "docs/testing.md"
   - name: kind
     quadrant: tools
     ring: adopt
     reason: "A throwaway cluster in CI for a server-side dry run and a real boot."
+    reason_fr: "Un cluster jetable dans la CI pour un dry run côté serveur et un vrai démarrage."
     link: "docs/testing.md"
   - name: chrome-headless-shell
     quadrant: tools
     ring: adopt
     reason: "Screenshot and layout checks without a pixel diff."
+    reason_fr: "Contrôles de captures d'écran et de mise en page sans diff de pixels."
     link: ".kiro/specs/homelab-dashboard/design.md"
   - name: OWASP ZAP
     quadrant: tools
     ring: adopt
     reason: "The DAST scan of the public names."
+    reason_fr: "Le scan DAST des noms publics."
     link: "docs/pentest/README.md"
   - name: Task
     quadrant: tools
     ring: adopt
     reason: "One Taskfile for render, checks and Talos operations."
+    reason_fr: "Un seul Taskfile pour le rendu, les contrôles et les opérations Talos."
     link: "Taskfile.yml"
   - name: Kiro
     quadrant: tools
     ring: adopt
     reason: "The agents that write most pull requests, held to the specs."
+    reason_fr: "Les agents qui écrivent la plupart des pull requests, tenus par les specs."
     link: "docs/spec-driven-development.md"
   - name: Lore
     quadrant: tools
     ring: assess
     reason: "Memory for coding agents; not evaluated yet, the exact project first."
+    reason_fr: "Une mémoire pour agents de code ; pas encore évalué, d'abord le projet exact."
     link: "#1675"
   - name: Astro and Eleventy
     quadrant: tools
     ring: hold
     reason: "An npm dependency tree to patch for a static blog."
+    reason_fr: "Un arbre de dépendances npm à maintenir pour un blog statique."
     link: ".kiro/specs/public-website/design.md"
   - name: Zola
     quadrant: tools
     ring: hold
     reason: "Fine, but a smaller ecosystem and nothing gained over Hugo."
+    reason_fr: "Bien, mais un écosystème plus petit et rien de gagné par rapport à Hugo."
     link: ".kiro/specs/public-website/design.md"
   - name: Ansible
     quadrant: tools
     ring: hold
     reason: "Node playbooks replaced by Talos machine configs."
+    reason_fr: "Les playbooks des nodes remplacés par les configs machine Talos."
     link: "docs/decisions.md#talos-built-as-a-new-cluster"
 
   # Platform
@@ -269,218 +321,261 @@ entries:
     quadrant: platform
     ring: adopt
     reason: "Root, three layers, one Application per app, tracking main."
+    reason_fr: "Une racine, trois couches, une Application par app, qui suit main."
     link: "docs/architecture.md"
   - name: Kyverno
     quadrant: platform
     ring: adopt
     reason: "Baseline policies in Deny, in CI and in the cluster."
+    reason_fr: "Les policies de base en Deny, dans la CI et dans le cluster."
     link: "docs/testing.md"
   - name: CloudNativePG
     quadrant: platform
     ring: adopt
     reason: "Postgres with WAL and base backups to S3 through Barman Cloud."
+    reason_fr: "Postgres avec WAL et sauvegardes de base vers S3 via Barman Cloud."
     link: "docs/backups.md"
   - name: Keycloak
     quadrant: platform
     ring: adopt
     reason: "One sign-on for every app, access by group, TOTP for admins."
+    reason_fr: "Une seule connexion pour toutes les apps, accès par groupe, TOTP pour les admins."
     link: "docs/architecture.md"
   - name: cert-manager
     quadrant: platform
     ring: adopt
     reason: "Let's Encrypt over DNS-01, renewed without anyone noticing."
+    reason_fr: "Let's Encrypt via DNS-01, renouvelé sans que personne ne le remarque."
     link: "docs/networking.md#certificates"
   - name: external-dns
     quadrant: platform
     ring: adopt
     reason: "DNS records from the routes, upsert only."
+    reason_fr: "Les enregistrements DNS tirés des routes, en upsert seulement."
     link: "docs/networking.md#dns"
   - name: Prometheus
     quadrant: platform
     ring: adopt
     reason: "Metrics for 30 days, the SLOs as recording rules."
+    reason_fr: "Les métriques sur 30 jours, les SLO en recording rules."
     link: "docs/observability.md"
   - name: Alertmanager
     quadrant: platform
     ring: adopt
     reason: "Pages through ntfy, quiet hours, only urgent alerts."
+    reason_fr: "Les alertes via ntfy, heures calmes, seulement l'urgent."
     link: "docs/observability.md#notifications"
   - name: Grafana
     quadrant: platform
     ring: adopt
     reason: "The dashboards, behind Keycloak."
+    reason_fr: "Les dashboards, derrière Keycloak."
     link: "docs/observability.md#dashboards"
   - name: Vector
     quadrant: platform
     ring: adopt
     reason: "Pod and Talos logs shipped as structured events."
+    reason_fr: "Les logs des pods et de Talos envoyés comme événements structurés."
     link: "docs/observability.md#logs"
   - name: Hubble
     quadrant: platform
     ring: adopt
     reason: "Network flows from Cilium, behind Keycloak."
+    reason_fr: "Les flux réseau de Cilium, derrière Keycloak."
     link: "docs/networking.md"
   - name: tuppr
     quadrant: platform
     ring: adopt
     reason: "Talos and Kubernetes upgrades rolled out node by node."
+    reason_fr: "Les mises à jour de Talos et Kubernetes déployées node par node."
     link: "docs/talos.md#upgrades"
   - name: restic
     quadrant: platform
     ring: adopt
     reason: "File backups to S3 and the NAS, restore-tested weekly."
+    reason_fr: "Sauvegardes de fichiers vers S3 et le NAS, restauration testée chaque semaine."
     link: "docs/backups.md"
   - name: Headlamp
     quadrant: platform
     ring: adopt
     reason: "A cluster UI behind Keycloak."
+    reason_fr: "Une interface pour le cluster, derrière Keycloak."
     link: "docs/remote-access.md"
   - name: ntfy
     quadrant: platform
     ring: adopt
     reason: "Push notifications for pages."
+    reason_fr: "Les notifications push pour les alertes."
     link: "docs/observability.md#notifications"
   - name: PostgreSQL
     quadrant: platform
     ring: adopt
     reason: "The one database engine, run by CloudNativePG."
+    reason_fr: "Le seul moteur de base de données, exploité par CloudNativePG."
     link: "docs/backups.md"
   - name: Immich
     quadrant: platform
     ring: adopt
     reason: "The photo library, signed in through Keycloak."
+    reason_fr: "La photothèque, connexion via Keycloak."
     link: "apps/immich/"
   - name: Plex
     quadrant: platform
     ring: adopt
     reason: "Films and series on the TVs, off SSO so the TV apps sign in."
+    reason_fr: "Films et séries sur les TV, sans SSO pour que les apps TV se connectent."
     link: "apps/theater/plex.yaml"
   - name: Jellyfin
     quadrant: platform
     ring: adopt
     reason: "The open-source media server next to Plex, off SSO."
+    reason_fr: "Le serveur média open source à côté de Plex, sans SSO."
     link: "apps/theater/jellyfin.yaml"
   - name: Paperless-ngx
     quadrant: platform
     ring: adopt
     reason: "Scanned documents, searchable."
+    reason_fr: "Les documents scannés, avec recherche."
     link: "apps/paperless/"
   - name: Mealie
     quadrant: platform
     ring: adopt
     reason: "The household's recipes."
+    reason_fr: "Les recettes du ménage."
     link: "apps/mealie/"
   - name: Syncthing
     quadrant: platform
     ring: adopt
     reason: "Device sync without a cloud in the middle."
+    reason_fr: "Synchronisation des appareils sans cloud au milieu."
     link: "apps/syncthing/"
   - name: Audiobookshelf
     quadrant: platform
     ring: adopt
     reason: "Audiobooks and podcasts."
+    reason_fr: "Livres audio et podcasts."
     link: "apps/books/audiobookshelf.yaml"
   - name: Calibre-Web
     quadrant: platform
     ring: adopt
     reason: "The e-book library."
+    reason_fr: "La bibliothèque d'e-books."
     link: "apps/books/calibre-web.yaml"
   - name: Home Assistant
     quadrant: platform
     ring: adopt
     reason: "Home automation, local first."
+    reason_fr: "La domotique, en local d'abord."
     link: "apps/home/home-assistant.yaml"
   - name: Mosquitto
     quadrant: platform
     ring: adopt
     reason: "The MQTT broker for the home devices."
+    reason_fr: "Le broker MQTT pour les appareils de la maison."
     link: "apps/home/mosquitto.yaml"
   - name: Zigbee2MQTT
     quadrant: platform
     ring: adopt
     reason: "Zigbee devices on MQTT, no vendor hub."
+    reason_fr: "Les appareils Zigbee sur MQTT, sans hub de fabricant."
     link: "apps/home/zigbee2mqtt.yaml"
   - name: healthchecks.io
     quadrant: platform
     ring: adopt
     reason: "The dead man's switch: pages when the cluster goes silent."
+    reason_fr: "Le dead man's switch : une alerte quand le cluster se tait."
     link: "docs/observability.md"
   - name: Tetragon
     quadrant: platform
     ring: trial
     reason: "Runtime detection that pages on critical events; nothing is blocked yet."
+    reason_fr: "Détection à l'exécution qui alerte sur les événements critiques ; rien n'est encore bloqué."
     link: "docs/observability.md#runtime-tetragon"
   - name: SigNoz
     quadrant: platform
     ring: trial
     reason: "Logs on ClickHouse, on trial as the one place for signals."
+    reason_fr: "Les logs sur ClickHouse, à l'essai comme endroit unique pour les signaux."
     link: "#801"
   - name: Jamulus
     quadrant: platform
     ring: trial
     moved: new
     reason: "Rehearsing together from different places, unlisted on the home line."
+    reason_fr: "Répéter ensemble depuis des lieux différents, non répertorié, sur la connexion de la maison."
     link: "docs/jamulus.md"
   - name: Umami
     quadrant: platform
     ring: assess
     reason: "Cookieless statistics, chosen and not deployed yet."
+    reason_fr: "Des statistiques sans cookie, choisies, pas encore déployées."
     link: ".kiro/specs/public-website/"
   - name: OpenBao with External Secrets
     quadrant: platform
     ring: assess
     reason: "Cluster-owned secrets issued, not stored."
+    reason_fr: "Des secrets du cluster émis, pas stockés."
     link: "#713"
   - name: KEDA
     quadrant: platform
     ring: assess
     reason: "Event-driven scaling, with the HA work."
+    reason_fr: "Mise à l'échelle par événements, avec le travail sur la haute disponibilité."
     link: "#917"
   - name: Shirudo
     quadrant: platform
     ring: assess
     reason: "eBPF shields for unpatched code paths, once arm64 and Talos fit."
+    reason_fr: "Des boucliers eBPF pour les chemins de code non corrigés, quand arm64 et Talos suivront."
     link: "#1628"
   - name: Honeycomb and OBI
     quadrant: platform
     ring: assess
     reason: "Traces from eBPF instrumentation, compared with SigNoz."
+    reason_fr: "Des traces issues de l'instrumentation eBPF, comparées à SigNoz."
     link: "#734"
   - name: CrowdSec
     quadrant: platform
     ring: assess
     reason: "A shared blocklist at the Gateway; not evaluated yet."
+    reason_fr: "Une liste de blocage partagée au Gateway ; pas encore évalué."
     link: "#1676"
   - name: Loki
     quadrant: platform
     ring: hold
     reason: "Indexes labels only; the fallback if the SigNoz trial fails."
+    reason_fr: "N'indexe que les labels ; la solution de repli si l'essai SigNoz échoue."
     link: "docs/observability.md#why-it-is-like-this"
   - name: Service mesh
     quadrant: platform
     ring: hold
     reason: "Cilium already gives the policies and the flows, without sidecars."
+    reason_fr: "Cilium fournit déjà les policies et les flux, sans sidecars."
     link: "docs/decisions.md#no-service-mesh"
   - name: Seafile
     quadrant: platform
     ring: hold
     reason: "Removed: Syncthing and Paperless-ngx cover its uses."
+    reason_fr: "Retiré : Syncthing et Paperless-ngx couvrent ses usages."
     link: "docs/decisions.md#seafile-removed"
   - name: Policy Reporter UI
     quadrant: platform
     ring: hold
     reason: "Grafana is the one view for policy reports."
+    reason_fr: "Grafana est la seule vue pour les rapports de policies."
     link: ".kiro/specs/wave3-runtime-security/"
   - name: Dex in Argo CD
     quadrant: platform
     ring: hold
     reason: "Unused: Argo CD signs in with Keycloak directly."
+    reason_fr: "Inutile : Argo CD se connecte directement à Keycloak."
     link: "#969"
   - name: SonoBus
     quadrant: platform
     ring: hold
     moved: new
     reason: "Peer to peer: each player sends to every other; a central server suits the cluster."
+    reason_fr: "Pair à pair : chaque musicien envoie à tous les autres ; un serveur central convient mieux au cluster."
     link: "#1702"
 
   # Infrastructure
@@ -488,89 +583,107 @@ entries:
     quadrant: infrastructure
     ring: adopt
     reason: "One API for every workload, run on Talos."
+    reason_fr: "Une API pour chaque workload, sur Talos."
     link: "docs/architecture.md#cluster"
   - name: Talos Linux
     quadrant: infrastructure
     ring: adopt
     reason: "Immutable, API-only nodes with the machine config in git."
+    reason_fr: "Des nodes immuables, pilotés par API, avec la config machine dans git."
     link: "docs/talos.md"
   - name: Cilium
     quadrant: infrastructure
     ring: adopt
     reason: "kube-proxy replacement, LB-IPAM, L2 announcements and the Gateway."
+    reason_fr: "Remplace kube-proxy, LB-IPAM, annonces L2 et le Gateway."
     link: "docs/networking.md"
   - name: Gateway API
     quadrant: infrastructure
     ring: adopt
     reason: "One shared Gateway for every public name."
+    reason_fr: "Un seul Gateway partagé pour tous les noms publics."
     link: "docs/networking.md#gateway"
   - name: TrueNAS SCALE
     quadrant: infrastructure
     ring: adopt
     reason: "The NAS: ZFS, iSCSI and NFS, driven by its API."
+    reason_fr: "Le NAS : ZFS, iSCSI et NFS, piloté par son API."
     link: ".kiro/specs/nas-on-truenas-scale/"
   - name: democratic-csi
     quadrant: infrastructure
     ring: adopt
     reason: "iSCSI volumes from the NAS on demand, Retain for data."
+    reason_fr: "Des volumes iSCSI du NAS à la demande, Retain pour les données."
     link: "docs/architecture.md"
   - name: Tailscale
     quadrant: infrastructure
     ring: adopt
     reason: "kubectl and talosctl only over the tailnet."
+    reason_fr: "kubectl et talosctl uniquement via le tailnet."
     link: "docs/remote-access.md"
   - name: Cloudflare DNS
     quadrant: infrastructure
     ring: adopt
     reason: "Free zones, DNS-01 for certificates, DNS only."
+    reason_fr: "Zones gratuites, DNS-01 pour les certificats, DNS seulement."
     link: "docs/networking.md#dns"
   - name: AWS S3
     quadrant: infrastructure
     ring: adopt
     reason: "Off-site backups with locked object versions."
+    reason_fr: "Sauvegardes hors site avec versions d'objets verrouillées."
     link: "docs/backups.md#the-bucket"
   - name: Turing Pi 2 with RK1
     quadrant: infrastructure
     ring: trial
     reason: "Four quiet arm64 nodes on one board, which is a single point of failure."
+    reason_fr: "Quatre nodes arm64 silencieux sur une carte, qui est un point de défaillance unique."
     link: "#985"
   - name: NVMe per node
     quadrant: infrastructure
     ring: assess
     reason: "Revisit from the eMMC wear trend."
+    reason_fr: "À revoir selon l'usure de l'eMMC."
     link: "#738"
   - name: SELinux enforcing on the nodes
     quadrant: infrastructure
     ring: assess
     reason: "Another layer under the pods."
+    reason_fr: "Une couche de plus sous les pods."
     link: "#737"
   - name: TrueNAS CORE
     quadrant: infrastructure
     ring: hold
     reason: "Replaced by SCALE in November 2026."
+    reason_fr: "Remplacé par SCALE en novembre 2026."
     link: "#1305"
   - name: kube-vip
     quadrant: infrastructure
     ring: hold
     reason: "Talos holds the API VIP itself."
+    reason_fr: "Talos tient lui-même la VIP de l'API."
     link: "docs/networking.md#why-it-is-like-this"
   - name: ingress-nginx
     quadrant: infrastructure
     ring: hold
     reason: "Retired upstream; the Cilium Gateway replaced it."
+    reason_fr: "Abandonné en amont ; le Gateway Cilium l'a remplacé."
     link: "docs/networking.md#why-it-is-like-this"
   - name: kubeadm
     quadrant: infrastructure
     ring: hold
     reason: "The old cluster; rebuilt on Talos."
+    reason_fr: "L'ancien cluster ; reconstruit sur Talos."
     link: "docs/decisions.md#talos-built-as-a-new-cluster"
   - name: GitHub Pages
     quadrant: infrastructure
     ring: hold
     reason: "Cannot set a CSP header for the public site."
+    reason_fr: "Impossible d'y définir un en-tête CSP pour le site public."
     link: ".kiro/specs/public-website/design.md"
   - name: Cloudflare proxy and Pages
     quadrant: infrastructure
     ring: hold
     reason: "A token with account write access and data pushed out of the house."
+    reason_fr: "Un token avec droits d'écriture sur le compte et des données qui sortent de la maison."
     link: ".kiro/specs/public-website/design.md"

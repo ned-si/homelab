@@ -173,9 +173,11 @@ standard as the dashboard's Go code.
 - Cost: nothing paid.
 - Size: the rendered page under 300 KiB, well inside a ConfigMap's
   1 MiB.
-- Language: English, British spelling; the intro in the operator's
-  voice, the reasons in plain reference text; no em dashes; "agents",
-  never "bots".
+- Language: English, British spelling, and Swiss French at `/fr/`
+  (`reason_fr`, the catalogue in `i18n.go`,
+  [site-theme-language](../site-theme-language/requirements.md#requirement-4-english-and-french));
+  the intro in the operator's voice, the reasons in plain reference
+  text; no em dashes; "agents", never "bots".
 
 ## Acceptance criteria
 

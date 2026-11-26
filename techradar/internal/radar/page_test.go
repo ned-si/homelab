@@ -21,11 +21,13 @@ const fixture = clean + `  - name: Kyverno
     quadrant: platform
     ring: adopt
     reason: Baseline policies in Deny.
+    reason_fr: Les policies de base en Deny.
     moved: up
   - name: Tetragon
     quadrant: platform
     ring: trial
     reason: Runtime detection that pages on critical events.
+    reason_fr: Détection à l'exécution qui alerte sur les événements critiques.
     moved: down
 `
 
@@ -38,18 +40,19 @@ func TestPageGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const golden = "testdata/index.golden.html"
-	if *update {
-		if err := os.WriteFile(golden, files["index.html"], 0o600); err != nil {
+	for file, golden := range map[string]string{"index.html": "testdata/index.golden.html", "index-fr.html": "testdata/index-fr.golden.html"} {
+		if *update {
+			if err := os.WriteFile(golden, files[file], 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		want, err := os.ReadFile(golden) //nolint:gosec // G304: a golden file under testdata/.
+		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	want, err := os.ReadFile(golden)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(string(want), string(files["index.html"])); diff != "" {
-		t.Errorf("index.html differs from %s (-want +got); go test -update rewrites it:\n%s", golden, diff)
+		if diff := cmp.Diff(string(want), string(files[file])); diff != "" {
+			t.Errorf("%s differs from %s (-want +got); go test -update rewrites it:\n%s", file, golden, diff)
+		}
 	}
 	again, err := Render(r, repo)
 	if err != nil {
@@ -150,7 +153,7 @@ func TestSVGMarkup(t *testing.T) {
 	classes := map[string]bool{"ring-adopt": true, "ring-trial": true, "ring-assess": true, "ring-hold": true, "axis": true, "ring-line": true, "ring-name": true, "blip": true, "blip-number": true, "blip-label": true, "blip-label-start": true, "blip-label-end": true}
 	numeric := regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 	pathData := regexp.MustCompile(`^M[0-9. L]+ Z$`)
-	dec := xml.NewDecoder(strings.NewReader(SVG(blips)))
+	dec := xml.NewDecoder(strings.NewReader(SVG(blips, Langs[1])))
 	for {
 		tok, err := dec.Token()
 		if errors.Is(err, io.EOF) {
@@ -273,5 +276,76 @@ func TestContrast(t *testing.T) {
 	}
 	if m := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b`).Find(css); m != nil {
 		t.Errorf("techradar.css holds the colour %s; colours live in the palette", m)
+	}
+}
+
+// TestCatalogue holds both languages to the same keys, no empty string, no
+// em dash and no "bot" (site-theme-language Requirement 4.9).
+func TestCatalogue(t *testing.T) {
+	bot := regexp.MustCompile(`(?i)\bro?bots?\b`)
+	for key := range catalogue["en"] {
+		if _, ok := catalogue["fr"][key]; !ok {
+			t.Errorf("fr: no %q", key)
+		}
+	}
+	for code, strs := range catalogue {
+		for key, s := range strs {
+			if _, ok := catalogue["en"][key]; !ok {
+				t.Errorf("en: no %q (in %s)", key, code)
+			}
+			switch {
+			case strings.TrimSpace(s) == "":
+				t.Errorf("%s %q: empty", code, key)
+			case strings.ContainsRune(s, '\u2014'):
+				t.Errorf("%s %q: em dash", code, key)
+			case bot.MatchString(s):
+				t.Errorf("%s %q: says bot, want agent", code, key)
+			}
+		}
+	}
+	for _, q := range Quadrants {
+		for _, l := range Langs {
+			if l.T("quadrant."+q.ID) == "quadrant."+q.ID {
+				t.Errorf("%s: no name for quadrant %s", l.Code, q.ID)
+			}
+		}
+	}
+	for _, r := range Rings {
+		if Langs[0].T("ring."+r.ID) != r.Name {
+			t.Errorf("en: ring %s is %q, want %q", r.ID, Langs[0].T("ring."+r.ID), r.Name)
+		}
+	}
+}
+
+// TestFrenchPage renders every reason_fr of entries.yaml in index-fr.html,
+// from the same placement as index.html.
+func TestFrenchPage(t *testing.T) {
+	root, err := RepoFS("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Radar{Entries: realEntries(t)}
+	files, err := Render(r, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fr := string(files["index-fr.html"])
+	for _, e := range r.Entries {
+		if !strings.Contains(fr, htmlText(e.ReasonFR)) {
+			t.Errorf("index-fr.html has no reason_fr of %s", e.Name)
+		}
+	}
+	pos := regexp.MustCompile(`<a class="blip [^"]+" href="[^"]+"><title>\d+\. `)
+	if !strings.Contains(fr, `<html lang="fr-CH">`) || len(pos.FindAllString(fr, -1)) != len(r.Entries) {
+		t.Errorf("index-fr.html: want lang fr-CH and %d blips", len(r.Entries))
+	}
+	strip := regexp.MustCompile(`<title>[^<]*</title>|<text class="(ring-name|blip-label-start|blip-label-end)"[^>]*>[^<]*</text>|aria-label="[^"]*"`)
+	en, frChart := files["index.html"], files["index-fr.html"]
+	chart := func(b []byte) string {
+		s := string(b)
+		return strip.ReplaceAllString(s[strings.Index(s, "<svg"):strings.Index(s, "</svg>")], "")
+	}
+	if chart(en) != chart(frChart) {
+		t.Error("the blips sit in different places in the two languages")
 	}
 }

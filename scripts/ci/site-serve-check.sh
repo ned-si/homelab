@@ -158,6 +158,12 @@ body nedsi.io /fr/ 'lang="fr-CH"'
 body nedsi.io / 'lang="en-GB"'
 check 301 /fr/ 8080 nedsi.io /fr
 check 404 - 8080 nedsi.io /index-fr.html
+check 200 - 8080 techradar.nedsi.io /fr/
+header techradar.nedsi.io /fr/ cache-control "public, max-age=300"
+body techradar.nedsi.io /fr/ '<html lang="fr-CH">'
+body techradar.nedsi.io / '<html lang="en-GB">'
+check 301 /fr/ 8080 techradar.nedsi.io /fr
+check 404 - 8080 techradar.nedsi.io /index-fr.html
 header blog.nedsi.io /about/ cache-control "public, max-age=300" -H 'Cookie: theme=light'
 curl -s -m 5 -H 'Host: blog.nedsi.io' http://127.0.0.1:8080/robots.txt | grep -qx 'Disallow: /set-theme/' \
   || { echo "FAIL blog.nedsi.io/robots.txt: no Disallow: /set-theme/"; rc=1; }

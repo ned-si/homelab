@@ -69,12 +69,13 @@ cp "$root/apps/website/techradar/techradar.css" "$www/"
 cp -R "$public/css" "$www/css"
 cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
 pages=(landing blog about privacy dashboard techradar)
-# The pages whose preferences match the landing page's. The dashboard and
-# the tech radar get the language toggle in site-theme-language tasks 5
-# and 6; until then their preferences are narrower.
-themed="landing blog about privacy article landing-fr blog-fr about-fr privacy-fr"
+# The pages whose preferences match the landing page's. The dashboard gets
+# the language toggle in site-theme-language task 5; until then its
+# preferences are narrower.
+themed="landing blog about privacy article techradar landing-fr blog-fr about-fr privacy-fr techradar-fr"
 # One comparison per language; the first page of each is the reference.
-fr_pages=(landing-fr blog-fr about-fr privacy-fr)
+fr_pages=(landing-fr blog-fr about-fr privacy-fr techradar-fr)
+cp "$root/apps/website/techradar/index-fr.html" "$work/techradar-fr.html"
 cp "$root/apps/website/landing/index-fr.html" "$work/landing-fr.html"
 cp "$public/fr/index.html" "$work/blog-fr.html"
 cp "$public/fr/about/index.html" "$work/about-fr.html"

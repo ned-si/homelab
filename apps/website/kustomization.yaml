@@ -28,6 +28,7 @@ configMapGenerator:
   - name: website-techradar
     files:
       - techradar/index.html
+      - techradar/index-fr.html
       - techradar/layout.css
       - techradar/techradar.css
       - techradar/theme-dark.css
@@ -187,11 +188,14 @@ patches:
               location "$site/set-theme/light//example.com/" /example.com/
               hdr "$site/" set-cookie -
             done
-            # The French landing page (site-theme-language Requirement 5.1).
-            # The blog's French pages are in the homelab-site image: their
-            # cases join this smoke after its digest bump.
-            expect 200 https://nedsi.io/fr/
-            hdr https://nedsi.io/fr/ cache-control "public, max-age=300"
-            body https://nedsi.io/fr/ '<html lang="fr-CH">'
+            # The French landing page and tech radar (site-theme-language
+            # Requirement 5.1). The blog's French pages are in the
+            # homelab-site image: their cases join this smoke after its
+            # digest bump.
+            for url in https://nedsi.io/fr/ https://techradar.nedsi.io/fr/; do
+              expect 200 "$url"
+              hdr "$url" cache-control "public, max-age=300"
+              body "$url" '<html lang="fr-CH">'
+            done
             exit "$fail"
           - postsync-smoke

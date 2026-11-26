@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fr-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar techno · nedsi</title>
+<meta name="description" content="Ce que le homelab nedsi utilise, essaie, évalue et met de côté, et pourquoi.">
+<meta name="author" content="nedsi">
+<link rel="canonical" href="https://techradar.nedsi.io/fr/">
+<link rel="alternate" hreflang="en" href="https://techradar.nedsi.io/">
+<link rel="alternate" hreflang="fr" href="https://techradar.nedsi.io/fr/">
+<link rel="alternate" hreflang="x-default" href="https://techradar.nedsi.io/">
+<link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/fr/index.xml" title="nedsi">
+<link rel="stylesheet" href="/layout.css">
+<link rel="stylesheet" href="/techradar.css">
+<link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+<header class="site">
+<nav class="site" aria-label="Site">
+<a href="https://nedsi.io/fr/">Accueil</a>
+<a href="https://blog.nedsi.io/fr/">Blog</a>
+<a href="https://homelab.nedsi.io/">Homelab</a>
+<a href="/fr/" aria-current="page">Radar techno</a>
+<a href="https://blog.nedsi.io/fr/about/">À propos</a>
+</nav>
+<p class="prefs">
+<span class="lang"><a href="https://techradar.nedsi.io/" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>
+<a class="to-light" href="/set-theme/light/fr/" rel="nofollow" title="Thème clair, mémorisé dans un cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">Thème clair</span></a>
+<a class="to-dark" href="/set-theme/dark/fr/" rel="nofollow" title="Thème sombre"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">Thème sombre</span></a>
+</p>
+</header>
+<main>
+<h1>Radar techno</h1>
+<p class="lead">Avec quoi le homelab est construit, et pourquoi.</p>
+<div class="intro">
+<p>Chaque technologie et chaque technique que le homelab utilise, essaie, surveille ou a écartée, chacune avec une raison en une ligne et un lien vers l&#39;endroit où la décision est écrite. Ces raisons étaient éparpillées entre docs, specs et issues. Maintenant elles sont sur une seule page, dans l&#39;esprit du <a href="https://github.com/zalando/tech-radar">tech radar de Zalando</a> (sans le JavaScript).</p>
+<ul class="rings">
+<li><strong class="ring-adopt">Adopter</strong> : utilisé, et je le choisirais à nouveau.</li>
+<li><strong class="ring-trial">Essayer</strong> : utilisé à l&#39;essai, ou avec une limite connue sur laquelle je travaille.</li>
+<li><strong class="ring-assess">Évaluer</strong> : étudié ou prévu, pas encore utilisé.</li>
+<li><strong class="ring-hold">Suspendre</strong> : écarté, retiré ou remplacé ; la raison dit pourquoi.</li>
+</ul>
+<p class="updated">6 entrées, mises à jour le <time datetime="2026-11-25">25 novembre 2026</time>. Les numéros du graphique correspondent à la légende en dessous ; pointez-en un pour son nom et son anneau, ou suivez-le jusqu&#39;à sa raison.</p>
+</div>
+<figure class="chart">
+<p class="quadrant quadrant-techniques">Techniques</p>
+<p class="quadrant quadrant-tools">Outils et langages</p>
+<svg viewBox="0 0 800 800" role="group" focusable="false" aria-label="Radar techno : 6 entrées dans quatre quadrants et quatre anneaux, listées dans la légende en dessous.">
+<circle class="ring-line" cx="400" cy="400" r="170"/>
+<circle class="ring-line" cx="400" cy="400" r="255"/>
+<circle class="ring-line" cx="400" cy="400" r="330"/>
+<circle class="ring-line" cx="400" cy="400" r="400"/>
+<line class="axis" x1="0" y1="400" x2="800" y2="400"/>
+<line class="axis" x1="400" y1="0" x2="400" y2="800"/>
+<text class="ring-name" x="315" y="406">Adopter</text>
+<text class="ring-name" x="485" y="406">Adopter</text>
+<text class="ring-name" x="187.5" y="406">Essayer</text>
+<text class="ring-name" x="612.5" y="406">Essayer</text>
+<text class="ring-name" x="107.5" y="406">Évaluer</text>
+<text class="ring-name" x="692.5" y="406">Évaluer</text>
+<text class="ring-name" x="35" y="406">Suspendre</text>
+<text class="ring-name" x="765" y="406">Suspendre</text>
+<a class="blip ring-assess" href="#entry-wide-events"><title>1. Wide events (Techniques, Évaluer) : Un événement riche par requête.</title><circle cx="303.2" cy="122.7" r="8"/><text class="blip-number" x="303.2" y="125.7" aria-hidden="true">1</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="317.2" y="127.7">Wide events · Évaluer</text></g></a>
+<a class="blip ring-adopt" href="#entry-go"><title>2. Go (Outils et langages, Adopter) : Un binaire statique.</title><path d="M423.3 297.5 L425.9 303.9 L432.8 304.4 L427.6 308.9 L429.2 315.6 L423.3 312 L417.4 315.6 L419 308.9 L413.8 304.4 L420.7 303.9 Z"/><text class="blip-number" x="423.3" y="310.5" aria-hidden="true">2</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="409.3" y="312.5">Go · Adopter</text></g></a>
+<a class="blip ring-adopt" href="#entry-kyverno"><title>3. Kyverno (Plateforme, Adopter) : Les policies de base en Deny.</title><path d="M356.2 542.1 L360.1 560.1 L342.9 554.8 Z"/><text class="blip-number" x="353.3" y="554.7" aria-hidden="true">3</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="367.3" y="556.7">Kyverno · Adopter</text></g></a>
+<a class="blip ring-trial" href="#entry-tetragon"><title>4. Tetragon (Plateforme, Essayer) : Détection à l&#39;exécution qui alerte sur les événements critiques.</title><path d="M333.1 583 L330.1 564.9 L347 571.1 Z"/><text class="blip-number" x="336.5" y="576.6" aria-hidden="true">4</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="350.5" y="578.6">Tetragon · Essayer</text></g></a>
+<a class="blip ring-hold" href="#entry-service-mesh"><title>5. Service mesh (Plateforme, Suspendre) : Cilium fournit déjà les policies et les flux.</title><circle cx="35.9" cy="530.9" r="8"/><text class="blip-number" x="35.9" y="533.9" aria-hidden="true">5</text><g class="blip-label" aria-hidden="true"><text class="blip-label-start" x="49.9" y="535.9">Service mesh · Suspendre</text></g></a>
+<a class="blip ring-adopt" href="#entry-talos-linux"><title>6. Talos Linux (Infrastructure, Adopter) : Des nodes immuables, pilotés par API.</title><circle cx="420.4" cy="468.3" r="8"/><text class="blip-number" x="420.4" y="471.3" aria-hidden="true">6</text><g class="blip-label" aria-hidden="true"><text class="blip-label-end" x="406.4" y="473.3">Talos Linux · Adopter</text></g></a>
+</svg>
+<p class="quadrant quadrant-platform">Plateforme</p>
+<p class="quadrant quadrant-infrastructure">Infrastructure</p>
+</figure>
+<div class="legend">
+<section aria-labelledby="q-techniques">
+<h2 id="q-techniques">Techniques</h2>
+<h3 class="ring-adopt">Adopter</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-trial">Essayer</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-assess">Évaluer</h3>
+<ol>
+<li value="1" id="entry-wide-events"><a href="https://github.com/ned-si/homelab/issues/734">Wide events</a>&nbsp;: Un événement riche par requête.</li>
+</ol>
+<h3 class="ring-hold">Suspendre</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+</section>
+<section aria-labelledby="q-tools">
+<h2 id="q-tools">Outils et langages</h2>
+<h3 class="ring-adopt">Adopter</h3>
+<ol>
+<li value="2" id="entry-go"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/tech-radar">Go</a> <span class="moved">(nouveau)</span>&nbsp;: Un binaire statique.</li>
+</ol>
+<h3 class="ring-trial">Essayer</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-assess">Évaluer</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-hold">Suspendre</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+</section>
+<section aria-labelledby="q-platform">
+<h2 id="q-platform">Plateforme</h2>
+<h3 class="ring-adopt">Adopter</h3>
+<ol>
+<li value="3" id="entry-kyverno">Kyverno <span class="moved">(rapproché du centre)</span>&nbsp;: Les policies de base en Deny.</li>
+</ol>
+<h3 class="ring-trial">Essayer</h3>
+<ol>
+<li value="4" id="entry-tetragon">Tetragon <span class="moved">(éloigné du centre)</span>&nbsp;: Détection à l&#39;exécution qui alerte sur les événements critiques.</li>
+</ol>
+<h3 class="ring-assess">Évaluer</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-hold">Suspendre</h3>
+<ol>
+<li value="5" id="entry-service-mesh"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-service-mesh">Service mesh</a>&nbsp;: Cilium fournit déjà les policies et les flux.</li>
+</ol>
+</section>
+<section aria-labelledby="q-infrastructure">
+<h2 id="q-infrastructure">Infrastructure</h2>
+<h3 class="ring-adopt">Adopter</h3>
+<ol>
+<li value="6" id="entry-talos-linux"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">Talos Linux</a>&nbsp;: Des nodes immuables, pilotés par API.</li>
+</ol>
+<h3 class="ring-trial">Essayer</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-assess">Évaluer</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+<h3 class="ring-hold">Suspendre</h3>
+<p class="none">Rien ici pour l&#39;instant.</p>
+</section>
+</div>
+</main>
+<footer class="site">
+<p><a href="https://blog.nedsi.io/fr/privacy/">Confidentialité</a>.</p>
+</footer>
+</body>
+</html>
