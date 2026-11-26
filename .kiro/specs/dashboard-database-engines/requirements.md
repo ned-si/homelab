@@ -1,7 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-26
+closed: 2026-11-26
 issue: 1771
 ---
 

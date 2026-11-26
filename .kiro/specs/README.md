@@ -66,7 +66,6 @@ Change specs, active:
 | --- | --- | --- | --- |
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 5: the cluster objects and the route |
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
-| [dashboard-database-engines](dashboard-database-engines/) | 2026-11-26 | #1771 | task 1: the recording rules for SQLite, Valkey/Redis and ClickHouse |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
 | [drum-charts-site](drum-charts-site/) | 2026-11-26 | #1761 | task 1: the site data and its image in ned-si/drum-charts |
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
@@ -83,6 +82,7 @@ Change specs, done:
 | Spec | Created | Closed |
 | --- | --- | --- |
 | [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | 2026-11-02 |
+| [dashboard-database-engines](dashboard-database-engines/) | 2026-11-26 | 2026-11-26 |
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |
 | [nas-on-truenas-scale](nas-on-truenas-scale/) | 2026-11-16 | 2026-11-18, snapshot destroy in #1497 |
 | [paperless-documents](paperless-documents/) | 2026-11-03 | 2026-11-04 |
