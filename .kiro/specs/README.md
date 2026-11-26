@@ -72,7 +72,6 @@ Change specs, active:
 | [image-provenance](image-provenance/) | 2026-11-18 | #725 | task 1: the image inventory and its read-only workflow |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [public-website](public-website/) | 2026-11-13 | #971 | tasks 11-12: the Home and About text, one layout across the public pages |
-| [self-hosted-jamulus](self-hosted-jamulus/) | 2026-11-25 | #1702 | task 2: the app, its LoadBalancer and network policy |
 | [site-theme-language](site-theme-language/) | 2026-11-25 | #1662 | task 1: the theme on `nedsi.io` and the blog, after public-website task 12 |
 | [tech-radar](tech-radar/) | 2026-11-25 | #1671 | task 3: the nav link, the landing card and the layout check, after public-website task 12 |
 
@@ -89,6 +88,7 @@ Change specs, done:
 | [per-app-hardening](per-app-hardening/) | 2026-11-04 | 2026-11-13 |
 | [pod-security-restricted](pod-security-restricted/) | 2026-11-04 | 2026-11-06 |
 | [scorecard-hardening](scorecard-hardening/) | 2026-10-16 | 2026-10-26 |
+| [self-hosted-jamulus](self-hosted-jamulus/) | 2026-11-25 | 2026-11-25, the DNS record in #1742 |
 | [wave3-network-logs](wave3-network-logs/) | 2026-10-16 | 2026-11-02 |
 | [wave3-reliability](wave3-reliability/) | 2026-10-16 | 2026-10-16 |
 | [wave3-runtime-security](wave3-runtime-security/) | 2026-10-17 | 2026-10-27 |

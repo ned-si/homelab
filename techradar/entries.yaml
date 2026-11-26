@@ -415,6 +415,12 @@ entries:
     ring: trial
     reason: "Logs on ClickHouse, on trial as the one place for signals."
     link: "#801"
+  - name: Jamulus
+    quadrant: platform
+    ring: trial
+    moved: new
+    reason: "Rehearsing together from different places, unlisted on the home line."
+    link: "docs/jamulus.md"
   - name: Umami
     quadrant: platform
     ring: assess
@@ -470,6 +476,12 @@ entries:
     ring: hold
     reason: "Unused: Argo CD signs in with Keycloak directly."
     link: "#969"
+  - name: SonoBus
+    quadrant: platform
+    ring: hold
+    moved: new
+    reason: "Peer to peer: each player sends to every other; a central server suits the cluster."
+    link: "#1702"
 
   # Infrastructure
   - name: Kubernetes

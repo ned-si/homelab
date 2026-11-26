@@ -39,6 +39,12 @@ needs one ([README](../README.md)).
       test, the ingest canary, the import script, the mail import off.
       [7.1-7.5] (#1009, #1014, #1035, #1016, #1054, #1080, #1091, #1092,
       #1094; the import batches are #1093)
+- [x] 25. Jamulus for playing music together, change spec
+      [self-hosted-jamulus](../self-hosted-jamulus/): our signed image
+      from the upstream .deb, the hardened app on `192.168.1.202` UDP
+      41124, the probe and `JamulusDown`, the DNS name, the pentest scope
+      and threat model, the docs. (#1713, #1720, #1723, #1729, #1734,
+      #1745)
 
 ## Moved to the backlog (2026-10-26)
 

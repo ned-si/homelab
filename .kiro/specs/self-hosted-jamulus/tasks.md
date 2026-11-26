@@ -93,7 +93,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       model](design.md#pentest-and-threat-model)). Check:
       `scripts/pentest-scope-check.sh` passes; `ci` (actionlint, repo
       policy) is green. [7] (#1734)
-- [ ] 6. Docs and done (**live** for the radar): `docs/jamulus.md`,
+- [x] 6. Docs and done (**live** for the radar): `docs/jamulus.md`,
       `docs/runbooks/jamulus.md` (with the router rule and its phone check
       exactly as in [design, Operator steps](design.md#operator-steps),
       and the upstream key rule in the upgrade section), the per-player
@@ -105,7 +105,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       `.kiro/specs/README.md`, and #1702 closed. Check: links resolve in
       `ci`; `curl -s https://techradar.nedsi.io/ | grep -c
       'Jamulus\|SonoBus'` is at least 2; a newcomer can connect from
-      `docs/jamulus.md` alone. [4.3, 8]
+      `docs/jamulus.md` alone. [4.3, 8] (#1745)
 
 The operator's router rule is not a task: he sets it, as written in
 [design, Operator steps](design.md#operator-steps), only when remote
