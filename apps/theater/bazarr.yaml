@@ -265,7 +265,7 @@ spec:
       initContainers:
         - name: seed-config
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:a1f84da6faf2e245fc70d5dbbf24fc60324d2b57ee5ce208289260665a4332b7
+          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:9d10833dc558129484372486125ce764e9dbf7800c29c0bb9d6f360c18de3525
           imagePullPolicy: IfNotPresent
           command: ["sh", "/managed/seed.sh"]
           envFrom:
@@ -295,7 +295,7 @@ spec:
         - name: bazarr
           # Starts as root (s6-overlay), then drops to PUID/PGID.
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:a1f84da6faf2e245fc70d5dbbf24fc60324d2b57ee5ce208289260665a4332b7
+          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:9d10833dc558129484372486125ce764e9dbf7800c29c0bb9d6f360c18de3525
           imagePullPolicy: IfNotPresent
           env:
             - name: TZ
@@ -407,7 +407,7 @@ spec:
       containers:
         - name: settings
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:a1f84da6faf2e245fc70d5dbbf24fc60324d2b57ee5ce208289260665a4332b7
+          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:9d10833dc558129484372486125ce764e9dbf7800c29c0bb9d6f360c18de3525
           imagePullPolicy: IfNotPresent
           command: ["python3", "/managed/settings.py"]
           env:
@@ -474,7 +474,7 @@ spec:
           containers:
             - name: nightly
               # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-              image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:a1f84da6faf2e245fc70d5dbbf24fc60324d2b57ee5ce208289260665a4332b7
+              image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:9d10833dc558129484372486125ce764e9dbf7800c29c0bb9d6f360c18de3525
               imagePullPolicy: IfNotPresent
               command: ["python3", "/managed/settings.py"]
               env:
