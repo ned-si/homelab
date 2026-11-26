@@ -81,14 +81,13 @@ its task 6.
       tree and screenshots; the landing page's overview item and card
       link; the privacy page's "Sent to" row; the charts pages in
       `layout-check.sh`; the site-theme-language lines this spec
-      supersedes. If site-theme-language task 4 has merged, the French
-      nav label, landing text and privacy row first go to the operator
-      for review. Then the `homelab-site` and dashboard image deploys.
+      supersedes. If site-theme-language task 4 has merged, also the
+      French nav label, landing text and privacy row, from the reviewed
+      table. Then the `homelab-site` and dashboard image deploys.
       Check: acceptance criteria 9-11 live. [3.7, 6.1-6.4]
 - [ ] 7. French at `charts.nedsi.io/fr/` (**ned-si/homelab**, live),
-      after site-theme-language task 4: the strings of
-      [design, Strings](design.md#strings) proposed to the operator in
-      two columns, then the `fr` catalogue with his corrections, the
+      after site-theme-language task 4: the `fr` catalogue from the
+      reviewed French of [design, Strings](design.md#strings), the
       `fr/` tree, the toggle, `hreflang` and canonical, `TestCatalogue`,
       the golden pages in French, the French `NAV` target for Charts.
       Check: acceptance criterion 14 live. [7]

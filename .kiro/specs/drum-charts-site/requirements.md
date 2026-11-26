@@ -138,8 +138,8 @@ or my screen, and download it to print or keep.
    themes, as the PDF prints, with a border in the theme's rule colour.
 6. THE home page SHALL carry a short intro in the operator's voice, the
    number of songs and the date of the release they come from, the
-   licence (CC BY 4.0 with its link), the attribution ("the songs belong
-   to their authors") and a link to the source repository.
+   attribution ("the songs belong to their authors") and a link to the
+   source repository; no licence (it stays in the repository).
 7. EVERY page SHALL carry the shared layout, the navigation bar with
    "Charts" marked current, the preferences and the site's footer.
 8. THE pages SHALL read without horizontal scrolling from 320 px wide up
@@ -230,9 +230,8 @@ French, like the other public pages.
    catalogue test of site-theme-language Requirement 4.9; dates SHALL
    follow `fr-CH` on French pages.
 3. EVERY French string SHALL be proposed to the operator next to its
-   English original and published only with his corrections. Until then
-   every string in the design's table is marked "awaiting the operator's
-   review".
+   English original and published only with his corrections. The
+   design's table holds the French as he corrected it on 2026-11-26.
 
 ## Requirement 8: Built and tested like the radar
 

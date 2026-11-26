@@ -411,7 +411,7 @@ The home page:
 </tbody>
 </table>
 <p class="updated">14 songs, from the release <a href="https://github.com/ned-si/drum-charts/releases/tag/charts-2026-11-26-5387aa2">charts-2026-11-26-5387aa2</a> of <time datetime="2026-11-26">26 November 2026</time>.</p>
-<p class="licence">... CC BY 4.0, the attribution, the source link ...</p>
+<p class="credits">... the attribution, the source link ...</p>
 </main>
 ```
 
@@ -550,7 +550,7 @@ has it; a song can be renamed or removed.
   deploys, which follow the merge through Renovate.
 - `SITE_HOSTS` and `THEMED` gain `charts.nedsi.io` (task 3), `LINKS`
   gains `https://github.com/ned-si/drum-charts` (the release and source
-  links) and `https://creativecommons.org/licenses/by/4.0/`.
+  links).
 - `site_markup.py` gains a media rule for the charts site only (when
   `self.host == "charts.nedsi.io"`, said in its docstring): no `<audio>`,
   `<video>`, `<source>`, `<embed>` or `<object>`, and no `href` or `src`
@@ -636,45 +636,46 @@ The job joins the `ci` job's `needs:` list and its result loop.
 
 ### Strings
 
-Every new user-visible string. English is final once the spec merges;
-each French string is drafted in task 7 (or task 6 for the landing page,
-the privacy row and the French nav label, if site-theme-language task 4
-merged first) and stays **awaiting the operator's review** until he has
-corrected it.
+Every new user-visible string. The French column is the operator's
+corrected text (2026-11-26); the catalogue and the pages use it as is,
+from task 7 (or task 6 for the landing page, the privacy row and the
+French nav label, if site-theme-language task 4 merged first). English
+words kept in French text are in italics (`<em>` in the catalogue).
 
 | Key or place | English | French |
 | --- | --- | --- |
-| `NAV`, every public page | Charts | awaiting the operator's review |
-| `home.title` | Drum charts · nedsi | awaiting the operator's review |
-| `home.description` | nedsi's drum charts, to read in the browser or download as PDF. | awaiting the operator's review |
-| `home.heading` | Drum charts | awaiting the operator's review |
-| `home.lead` | The songs I play, charted by section. | awaiting the operator's review |
-| `home.intro` | Each chart follows the structure of the song rather than every note: one staff per section, repeat counts above, and a line of text where a part comes back. A chart fits on two A4 pages, three for a long song, so nothing needs a page turn. The note heads are explained in the {legend}. | awaiting the operator's review |
-| `home.legend_link` | legend | awaiting the operator's review |
-| `home.songs` | Songs | awaiting the operator's review |
-| `home.col_song`, `home.col_artist`, `home.col_pages`, `home.col_pdf` | Song, Artist, Pages, PDF | awaiting the operator's review |
-| `home.pdf` | PDF | awaiting the operator's review |
-| `home.pdf_label` | Download the PDF of {title} | awaiting the operator's review |
-| `home.updated.one`, `home.updated.other` | 1 song, from the release {release} of {date}. / {count} songs, from the release {release} of {date}. | awaiting the operator's review |
-| `home.licence` | The charts are my transcriptions of the drum parts, under {licence}; the songs belong to their authors. The source is on {github}. | awaiting the operator's review |
-| `home.licence_link`, `home.github_link` | CC BY 4.0, GitHub | awaiting the operator's review |
-| `song.title` | {title}, {artist} · Drum charts · nedsi | awaiting the operator's review |
-| `song.description` | Drum chart of {title} by {artist}, to read in the browser or download as PDF. | awaiting the operator's review |
-| `song.lead` | {artist} · {pages} | awaiting the operator's review |
-| `pages.one`, `pages.other` | 1 page, {n} pages | awaiting the operator's review |
-| `song.download` | Download the PDF | awaiting the operator's review |
-| `song.all` | All charts | awaiting the operator's review |
-| `song.legend` | Legend | awaiting the operator's review |
-| `song.page_alt` | {title} by {artist}, page {n} of {total} | awaiting the operator's review |
-| `legend.title` | Legend · Drum charts · nedsi | awaiting the operator's review |
-| `legend.description` | What each note head on the drum charts means. | awaiting the operator's review |
-| `legend.heading` | Legend | awaiting the operator's review |
-| `legend.lead` | What each note head on the charts means. | awaiting the operator's review |
-| `legend.page_alt` | The legend of the drum charts, page {n} of {total} | awaiting the operator's review |
-| Landing page, overview item | Drum charts: the songs I play, to read in the browser or download as PDF. | awaiting the operator's review |
-| Landing page, "Drum charts" card | See the charts | awaiting the operator's review |
-| Privacy page, cookie table, "Sent to" | `nedsi.io` and its subdomains: this blog, the homelab dashboard, the tech radar and the drum charts | awaiting the operator's review |
+| `NAV`, every public page | Charts | Partitions |
+| `home.title` | Drum charts · nedsi | Partitions de batterie · nedsi |
+| `home.description` | nedsi's drum charts, to read in the browser or download as PDF. | Les partitions de batterie de nedsi, à lire dans le navigateur ou à télécharger en PDF. |
+| `home.heading` | Drum charts | Partitions de batterie |
+| `home.lead` | The songs I play, charted by section. | Les morceaux que je joue, découpés par section. |
+| `home.intro` | Each chart follows the structure of the song rather than every note: one staff per section, repeat counts above, and a line of text where a part comes back. A chart fits on two A4 pages, side by side on a music stand; a long song takes three. The note heads are explained in the {legend}. | Chaque partition suit la structure du morceau plutôt que chaque note : une portée par section, le nombre de répétitions au-dessus, et une ligne de texte quand une partie revient. Une partition tient sur deux pages A4, côte à côte sur un pupitre ; un long morceau en prend trois. Les têtes de notes sont expliquées dans la {legend}. |
+| `home.legend_link` | legend | légende |
+| `home.songs` | Songs | Morceaux |
+| `home.col_song`, `home.col_artist`, `home.col_pages`, `home.col_pdf` | Song, Artist, Pages, PDF | Morceau, Artiste, Pages, PDF |
+| `home.pdf` | PDF | PDF |
+| `home.pdf_label` | Download the PDF of {title} | Télécharger le PDF de {title} |
+| `home.updated.one`, `home.updated.other` | 1 song, from the release {release} of {date}. / {count} songs, from the release {release} of {date}. | 1 morceau, de la *release* {release} du {date}. / {count} morceaux, de la *release* {release} du {date}. |
+| `home.credits` | The charts are my transcriptions of the drum parts; the songs belong to their authors. The source is on {github}. | Les partitions sont mes transcriptions des parties de batterie ; les morceaux appartiennent à leurs auteurs. Le code source est sur {github}. |
+| `home.github_link` | GitHub | GitHub |
+| `song.title` | {title}, {artist} · Drum charts · nedsi | {title}, {artist} · Partitions de batterie · nedsi |
+| `song.description` | Drum chart of {title} by {artist}, to read in the browser or download as PDF. | Partition de batterie de {title} par {artist}, à lire dans le navigateur ou à télécharger en PDF. |
+| `song.lead` | {artist} · {pages} | {artist} · {pages} |
+| `pages.one`, `pages.other` | 1 page, {n} pages | 1 page, {n} pages |
+| `song.download` | Download the PDF | Télécharger le PDF |
+| `song.all` | All charts | Toutes les partitions |
+| `song.legend` | Legend | Légende |
+| `song.page_alt` | {title} by {artist}, page {n} of {total} | {title} par {artist}, page {n} sur {total} |
+| `legend.title` | Legend · Drum charts · nedsi | Légende · Partitions de batterie · nedsi |
+| `legend.description` | What each note head on the drum charts means. | Ce que signifie chaque tête de note sur les partitions de batterie. |
+| `legend.heading` | Legend | Légende |
+| `legend.lead` | What each note head on the charts means. | Ce que signifie chaque tête de note sur les partitions. |
+| `legend.page_alt` | The legend of the drum charts, page {n} of {total} | La légende des partitions de batterie, page {n} sur {total} |
+| Landing page, overview item | Drum charts: the songs I play, to read in the browser or download as PDF. | Partitions de batterie : les morceaux que je joue, à lire dans le navigateur ou à télécharger en PDF. |
+| Landing page, "Drum charts" card | See the charts | Voir les partitions |
+| Privacy page, cookie table, "Sent to" | `nedsi.io` and its subdomains: this blog, the homelab dashboard, the tech radar and the drum charts | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab, le tech radar et les partitions de batterie |
 
+The page carries no licence; it stays in the drum-charts repository.
 The footer's "Privacy" and the preferences' strings are the existing
 ones of site-theme-language. Dates print as `26 November 2026` (en-GB).
 Song titles and artists come from the manifest, untranslated.
