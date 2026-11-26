@@ -39,9 +39,9 @@ distlib==0.4.3 \
 filelock==4.3.1 \
     --hash=sha256:79e43df8e9fe509cd83a3899a7c186c8077cbbe4d200a1ed3705c2f3bb6bc487 \
     --hash=sha256:4c5ee627c401f1863ac6a0de9a14a28d3bb5f8c730b45e2fd6e5dbc79cf34b9e
-platformdirs==4.13.0 \
-    --hash=sha256:1aa0b0d3f224c1f07c295121e312a5a24a180d6ae5a8425ea1784b3e3863e9c0 \
-    --hash=sha256:3dbcf4cd708f21cf876c4eaa90e58412bc4f033d87143f41b1493ff77c25b7e1
+platformdirs==4.13.7 \
+    --hash=sha256:47664602fbecad0a6efa561fb690d20dbc26875fe8aedf65ba362935df619bbb \
+    --hash=sha256:f7f351c027d6632c30471124e1fdb6ac0fef9ccc5cbac1b34cb333431b1fc3e1
 python-discovery==1.6.2 \
     --hash=sha256:cd1738ca1d37c86ef9d0b654dd46fcee1e41c97c6add12575e8501ced39afdb4 \
     --hash=sha256:f0c697f95a3aaec4174a6e5e58f5885e25768684bafc76f1afde384709ebdcf2
