@@ -740,6 +740,47 @@ def test_cilium_explicit_xds(tmp_path):
     assert fails(policy(tmp_path / "good", files=good)) == []
 
 
+def nas_nfs(**spec):
+    base = {"description": "x",
+            "endpointSelector": {"matchExpressions": [{"key": "app.kubernetes.io/name", "operator": "NotIn",
+                                                       "values": ["prometheus-blackbox-exporter"]}]},
+            "enableDefaultDeny": {"ingress": False, "egress": False},
+            "egress": [{"toCIDR": ["192.168.1.228/32"],
+                        "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"},
+                                               {"port": "2049", "protocol": "UDP"}]}]}]}
+    base.update(spec)
+    return {"apiVersion": "cilium.io/v2", "kind": "CiliumClusterwideNetworkPolicy",
+            "metadata": {"name": "deny-pod-nfs-to-nas"}, "spec": {k: v for k, v in base.items() if v is not None}}
+
+
+NETPOL = {"infrastructure/network-policies/kustomization.yaml": "resources: []\n"}
+NAS_NFS_DIFFERS = ("FAIL nas-nfs-deny: network-policies: CiliumClusterwideNetworkPolicy deny-pod-nfs-to-nas differs "
+                   "from NAS_NFS_SPEC in scripts/ci/repo_policy.py; change both together (#1774)")
+
+
+@pytest.mark.parametrize("docs,want", [
+    ([nas_nfs()], []),
+    ([nas_nfs(description="other")], []),
+    ([], ["FAIL nas-nfs-deny: CiliumClusterwideNetworkPolicy deny-pod-nfs-to-nas is rendered 0 time(s), want 1 "
+          "(infrastructure/network-policies/96-nas-nfs.yaml, #1774)"]),
+    ([nas_nfs(endpointSelector={"matchExpressions": [{"key": "io.kubernetes.pod.namespace", "operator": "NotIn",
+                                                      "values": ["democratic-csi"]}]})], [NAS_NFS_DIFFERS]),
+    ([nas_nfs(enableDefaultDeny={"ingress": False, "egress": True})], [NAS_NFS_DIFFERS]),
+    ([nas_nfs(egress=[{"toCIDR": ["192.168.1.228/32"],
+                       "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"}]}]}])], [NAS_NFS_DIFFERS]),
+    ([nas_nfs(egress=None, egressDeny=nas_nfs()["spec"]["egress"])], [NAS_NFS_DIFFERS]),
+])
+def test_nas_nfs_deny(tmp_path, docs, want):
+    r = policy(tmp_path, files=NETPOL, renders=[("network-policies", "2", "infrastructure", "argo", docs)])
+    assert fails(r) == want
+    assert "nas-nfs-deny" in r.stdout
+
+
+def test_nas_nfs_deny_inactive_without_network_policies(tmp_path):
+    r = policy(tmp_path)
+    assert "nas-nfs-deny" not in r.stdout
+
+
 PROBE = ("apiVersion: monitoring.coreos.com/v1\nkind: Probe\nmetadata: {{name: {name}}}\n"
          "spec:\n  module: {module}\n  targets:\n    staticConfig:\n      labels: {{probe: {probe}}}\n"
          "      static: [https://x.lilalala.com/]\n")

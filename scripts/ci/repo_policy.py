@@ -82,6 +82,11 @@ objects and rule ids only; values are never printed.
   cilium-explicit-xds   infrastructure/cilium/values.yaml sets envoy.xdsMode: a
                         chart default change cannot leave the agent and Envoy on
                         different xDS modes (postmortem 2026-10-23)
+  nas-nfs-deny          once infrastructure/network-policies/ exists: exactly one
+                        rendered CiliumClusterwideNetworkPolicy
+                        deny-pod-nfs-to-nas, whose spec (but the description) is
+                        NAS_NFS_SPEC: every pod but blackbox-exporter, NAS 2049
+                        TCP and UDP, under NAS_NFS_RULE (NFS2ROOT, #1774)
   appproject-kinds      every object rendered by an Application of a rendered
                         AppProject is permitted by that project, as Argo CD
                         checks it at sync: a cluster-scoped kind is in
@@ -235,6 +240,19 @@ IPV4 = re.compile(r"(?<![0-9.])(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 DEFAULT_TARGETS = re.compile(r"--default-targets=(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 AWS_BACKUP_TF = "bootstrap/aws-backup/main.tf"
 CILIUM_VALUES = "infrastructure/cilium/values.yaml"
+NETPOL_KUSTOMIZATION = "infrastructure/network-policies/kustomization.yaml"
+NAS_NFS_POLICY = "deny-pod-nfs-to-nas"
+# `egress` while in audit (an allow rule, drops nothing); `egressDeny` once
+# enforced. Changed only together with infrastructure/network-policies/96-nas-nfs.yaml.
+NAS_NFS_RULE = "egress"
+NAS_NFS_SPEC = {
+    "endpointSelector": {"matchExpressions": [{"key": "app.kubernetes.io/name", "operator": "NotIn",
+                                               "values": ["prometheus-blackbox-exporter"]}]},
+    "enableDefaultDeny": {"ingress": False, "egress": False},
+    NAS_NFS_RULE: [{"toCIDR": ["192.168.1.228/32"],
+                    "toPorts": [{"ports": [{"port": "2049", "protocol": "TCP"},
+                                           {"port": "2049", "protocol": "UDP"}]}]}],
+}
 BLACKBOX_VALUES = "platform/blackbox-exporter/values.yaml"
 BLACKBOX_PROBES = "platform/blackbox-exporter/probes"
 # What the backup bucket policy must deny to everyone (docs/backups.md#immutable-versions).
@@ -955,6 +973,23 @@ class Policy:
         if not envoy or not re.search(r"^  xdsMode: \S+", envoy.group(1), re.M):
             self.fail(rule, f"{CILIUM_VALUES}: set envoy.xdsMode explicitly (the chart default changed in 1.20.4)")
 
+    def rule_nas_nfs_deny(self) -> None:
+        rule = "nas-nfs-deny"
+        if not (self.root / NETPOL_KUSTOMIZATION).is_file():
+            return
+        self.on(rule)
+        found = [(e["app"], d) for e in self.entries(new_layout_only=True) for d in self.docs_of(e)
+                 if d.get("kind") == "CiliumClusterwideNetworkPolicy" and self.name_of(d) == NAS_NFS_POLICY]
+        if len(found) != 1:
+            self.fail(rule, f"CiliumClusterwideNetworkPolicy {NAS_NFS_POLICY} is rendered {len(found)} time(s), "
+                            "want 1 (infrastructure/network-policies/96-nas-nfs.yaml, #1774)")
+            return
+        app, doc = found[0]
+        spec = {k: v for k, v in (doc.get("spec") or {}).items() if k != "description"}
+        if spec != NAS_NFS_SPEC:
+            self.fail(rule, f"{app}: CiliumClusterwideNetworkPolicy {NAS_NFS_POLICY} differs from NAS_NFS_SPEC in "
+                            "scripts/ci/repo_policy.py; change both together (#1774)")
+
     def rule_public_probe_codes(self) -> None:
         rule = "public-probe-codes"
         values, probes = self.root / BLACKBOX_VALUES, self.root / BLACKBOX_PROBES
@@ -1461,6 +1496,7 @@ class Policy:
                      self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
+                     self.rule_nas_nfs_deny,
                      self.rule_monitor_selected, self.rule_public_probe_codes, self.rule_appproject_kinds, self.rule_spec_lifecycle,
                      self.rule_pentest_roe, self.rule_pentest_runbooks, self.rule_pentest_reports,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
