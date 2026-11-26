@@ -36,7 +36,7 @@ def _norm(url: str) -> str:
 def _common(doc: dict, name: str) -> list[str]:
     fails = []
     meta = doc.get("metadata") or {}
-    if doc.get("kind") != "Application" or not str(doc.get("apiVersion", "")).startswith("argoproj.io/"):
+    if doc.get("kind") != "Application" or str(doc.get("apiVersion", "")).partition("/")[0] != "argoproj.io":
         fails.append("not an argoproj.io Application")
     if meta.get("name") != name:
         fails.append(f"metadata.name is {meta.get('name')!r}, expected {name!r}")

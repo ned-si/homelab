@@ -67,3 +67,9 @@ def test_cli_exit_codes():
     assert subprocess.run(cli + ["legacy-root", "--no-automated", str(APPS / "legacy-root-no-automated.yaml")],
                           capture_output=True).returncode == 0
     assert subprocess.run(cli + ["nope", "x"], capture_output=True).returncode == 64
+
+
+def test_other_api_group_is_not_an_application():
+    doc = load("root.yaml")
+    doc["apiVersion"] = "x.argoproj.io/v1alpha1"
+    assert "not an argoproj.io Application" in app_profiles.check_root(doc)

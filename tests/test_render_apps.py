@@ -1,6 +1,7 @@
 """scripts/ci/render_apps.py: every source shape and every scope item."""
 import json
 
+import render_apps
 from conftest import need_kubectl, read_render, run_render, write
 
 LEGACY_HELM_APP = """\
@@ -271,3 +272,9 @@ def test_refuses_to_clear_a_foreign_directory(tmp_path, fake_helm):
     r = run_render(root, out)
     assert r.returncode != 0
     assert (out / "precious").exists()
+
+
+def test_is_application_matches_the_api_group_exactly():
+    assert render_apps.is_application({"apiVersion": "argoproj.io/v1alpha1", "kind": "Application"})
+    assert not render_apps.is_application({"apiVersion": "x.argoproj.io/v1alpha1", "kind": "Application"})
+    assert not render_apps.is_application({"apiVersion": "argoproj.io.evil/v1", "kind": "Application"})
