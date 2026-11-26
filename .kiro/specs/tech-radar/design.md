@@ -85,9 +85,18 @@ Zalando's look, without its JavaScript:
   left, Tools and languages top right, Platform bottom left,
   Infrastructure bottom right. Two axis lines, the four ring circles,
   ring names along the horizontal axis (a deliberate change from
-  Zalando's vertical labels, readable on a phone), quadrant names as
-  the legend headings (the corners of a phone-width SVG are too small
-  for text).
+  Zalando's vertical labels, readable on a phone), quadrant names at
+  the corners and as the legend headings.
+- Quadrant names around the chart (amendment 2026-11-26): four
+  `<p class="quadrant quadrant-<id>">` in the `<figure>`, HTML rather
+  than SVG text so they keep the page's font size on a phone (SVG text
+  scales down with the chart). The figure is a two-column grid: the
+  top names before the SVG, the bottom ones after it, the right-hand
+  ones right-aligned. Below `48rem` they sit above and below the
+  chart; from `48rem` the SVG spans all three rows and the names sit
+  inside the square's corners, which the outer ring leaves empty at
+  that width. Colour `--fg`; the SVG, its blips, labels and links are
+  unchanged.
 - Placement (`place.go`): for each quadrant and ring, the entries in
   legend order; each blip (radius 8) gets candidate points from a
   PRNG seeded with the FNV-1a hash of `quadrant/ring/name`, uniform in

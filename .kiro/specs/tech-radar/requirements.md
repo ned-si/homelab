@@ -80,8 +80,10 @@ is built with and why, on any screen.
 
 1. THE page SHALL show the four quadrants and the four rings with their
    names, one blip per entry inside its quadrant and ring, numbered:
-   rings Adopt to Hold from the centre, quadrant names as the legend
-   headings, ring names along the horizontal axis (a deliberate change
+   rings Adopt to Hold from the centre, quadrant names at the chart's
+   corners, outside the outer ring, and as the legend headings
+   (operator, 2026-11-26: "the legend of the quadrants around the
+   diagram"), ring names along the horizontal axis (a deliberate change
    from Zalando's vertical labels, readable on a phone), a circle for
    an unchanged entry, a triangle up or down for `moved`, a star for
    `new`.
@@ -198,6 +200,11 @@ standard as the dashboard's Go code.
    a `<title>` (number, name, quadrant, ring, reason) and an `href` to
    exactly one legend item's `id`; the live page serves them with the
    CSP and headers of criterion 1 unchanged. [2.4, 2.8]
+10. The chart's `<figure>` holds the four quadrant names, Techniques
+    and Tools and languages before the SVG, Platform and Infrastructure
+    after it (golden page); at 1920x1080 and 390x844, in both palettes,
+    each name sits at its corner of the chart without covering a ring
+    or a blip, and the live page shows them. [2.1]
 6. `dig +short techradar.nedsi.io` returns the WAN address;
    `scripts/published-hostnames.sh` prints `techradar.nedsi.io` and
    `scripts/pentest-scope-check.sh` passes;
