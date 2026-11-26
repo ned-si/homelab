@@ -344,9 +344,25 @@ func TestValidateRefuses(t *testing.T) {
 		{"scorecard after generated_at", func(d map[string]any) {
 			obj(d, "supply_chain", "scorecard")["as_of"] = "2026-11-20T17:01:00+01:00"
 		}, false},
-		{"four checks", func(d map[string]any) {
+		// Version 9: every check, in name order.
+		{"version 8", func(d map[string]any) { d["schema_version"] = 8 }, false},
+		{"the lowest checks of version 8", func(d map[string]any) {
 			sc := obj(d, "supply_chain", "scorecard")
-			sc["lowest"] = append(sc["lowest"].([]any), map[string]any{"name": "SAST", "score": 9, "reason": "r"})
+			sc["lowest"] = sc["checks"]
+			delete(sc, "checks")
+		}, false},
+		{"a check twice", func(d map[string]any) {
+			sc := obj(d, "supply_chain", "scorecard")
+			sc["checks"] = append(sc["checks"].([]any), scorecardCheck(d, len(sc["checks"].([]any))-1))
+		}, false},
+		{"21 checks", func(d map[string]any) {
+			sc := obj(d, "supply_chain", "scorecard")
+			for len(sc["checks"].([]any)) < 21 {
+				sc["checks"] = append(sc["checks"].([]any), map[string]any{"name": "Webhooks", "score": 10, "reason": "r"})
+			}
+		}, false},
+		{"a score of -1", func(d map[string]any) {
+			scorecardCheck(d, 0)["score"] = -1
 		}, false},
 		{"a check not compiled", func(d map[string]any) {
 			scorecardCheck(d, 0)["name"] = "Made-Up"
@@ -357,8 +373,9 @@ func TestValidateRefuses(t *testing.T) {
 		{"a reason over 160 characters", func(d map[string]any) {
 			scorecardCheck(d, 0)["reason"] = strings.Repeat("a", 161)
 		}, false},
-		{"checks not lowest first", func(d map[string]any) {
-			scorecardCheck(d, 0)["score"] = 5
+		{"checks not in name order", func(d map[string]any) {
+			c := obj(d, "supply_chain", "scorecard")["checks"].([]any)
+			c[0], c[1] = c[1], c[0]
 		}, false},
 		{"extra key in a check", func(d map[string]any) {
 			scorecardCheck(d, 0)["details"] = []any{"Warn: no approvals"}
@@ -413,7 +430,7 @@ func TestValidateNullProjectFigures(t *testing.T) {
 }
 
 func scorecardCheck(doc map[string]any, i int) map[string]any {
-	return obj(doc, "supply_chain", "scorecard")["lowest"].([]any)[i].(map[string]any)
+	return obj(doc, "supply_chain", "scorecard")["checks"].([]any)[i].(map[string]any)
 }
 
 // Before the first fetch the Scorecard result is empty, and the snapshot
@@ -421,12 +438,12 @@ func scorecardCheck(doc map[string]any, i int) map[string]any {
 func TestValidateNoScorecardYet(t *testing.T) {
 	s, err := Validate(mutate(t, func(d map[string]any) {
 		sc := obj(d, "supply_chain", "scorecard")
-		sc["as_of"], sc["score"], sc["date"], sc["lowest"] = nil, nil, nil, []any{}
+		sc["as_of"], sc["score"], sc["date"], sc["checks"] = nil, nil, nil, []any{}
 	}))
 	if err != nil {
 		t.Fatalf("Validate() = %v", err)
 	}
-	if sc := s.SupplyChain.Scorecard; sc.Score != nil || len(sc.Lowest) != 0 {
+	if sc := s.SupplyChain.Scorecard; sc.Score != nil || len(sc.Checks) != 0 {
 		t.Errorf("scorecard = %+v, want empty", sc)
 	}
 }

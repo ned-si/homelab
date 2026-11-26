@@ -8,7 +8,7 @@
 <meta name="author" content="nedsi">
 <link rel="canonical" href="https://homelab.nedsi.io/">
 <link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/index.xml" title="nedsi">
-<link rel="stylesheet" href="/assets/dashboard.9a100fcb.css" integrity="sha256-mhAPy6LgRp7XZdVxsTuNMjEBt0oqd6Scjd83seJqAnA=">
+<link rel="stylesheet" href="/assets/dashboard.64dd430c.css" integrity="sha256-ZN1DDImyxNsokGWDQBpcgK&#43;mWpa2yv3A7nQ/2tReGhM=">
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
@@ -416,12 +416,34 @@
 </div>
 <p class="meta">As of <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time>.</p>
 <h3>OpenSSF Scorecard</h3>
-<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and the three lowest checks, with Scorecard's own reason. Every check is in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and every check in alphabetical order, with Scorecard's own reason; a check that does not apply to the repository says so. The details are in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">Score</p>
 <p class="tile-value ok">7.5<span class="unit">/ 10</span> <span class="status ok">OK</span></p>
 <p class="tile-detail">Scorecard run of 20 November 2026, 15:06</p>
+</div>
+</div>
+<div class="tiles checks">
+<div class="tile">
+<p class="tile-label">Binary-Artifacts</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">no binaries found in the repo</p>
+</div>
+<div class="tile">
+<p class="tile-label">Branch-Protection</p>
+<p class="tile-value">4<span class="unit">/ 10</span></p>
+<p class="tile-detail">branch protection is not maximal on development and all release branches</p>
+</div>
+<div class="tile">
+<p class="tile-label">CI-Tests</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">30 out of 30 merged PRs checked by a CI test -- score normalized to 10</p>
+</div>
+<div class="tile">
+<p class="tile-label">CII-Best-Practices</p>
+<p class="tile-value">2<span class="unit">/ 10</span></p>
+<p class="tile-detail">badge detected: InProgress</p>
 </div>
 <div class="tile">
 <p class="tile-label">Code-Review</p>
@@ -432,6 +454,61 @@
 <p class="tile-label">Contributors</p>
 <p class="tile-value">0<span class="unit">/ 10</span></p>
 <p class="tile-detail">project has 0 contributing companies or organizations -- score normalized to 0</p>
+</div>
+<div class="tile">
+<p class="tile-label">Dangerous-Workflow</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">no dangerous workflow patterns detected</p>
+</div>
+<div class="tile">
+<p class="tile-label">Dependency-Update-Tool</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">update tool detected</p>
+</div>
+<div class="tile">
+<p class="tile-label">Fuzzing</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">project is fuzzed</p>
+</div>
+<div class="tile">
+<p class="tile-label">License</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">license file detected</p>
+</div>
+<div class="tile">
+<p class="tile-label">Maintained</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">30 commit(s) and 29 issue activity found in the last 90 days -- score normalized to 10</p>
+</div>
+<div class="tile">
+<p class="tile-label">Packaging</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">packaging workflow detected</p>
+</div>
+<div class="tile">
+<p class="tile-label">Pinned-Dependencies</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">all dependencies are pinned</p>
+</div>
+<div class="tile">
+<p class="tile-label">SAST</p>
+<p class="tile-value">9<span class="unit">/ 10</span></p>
+<p class="tile-detail">SAST tool detected but not run on all commits</p>
+</div>
+<div class="tile">
+<p class="tile-label">Security-Policy</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">security policy file detected</p>
+</div>
+<div class="tile">
+<p class="tile-label">Signed-Releases</p>
+<p class="tile-value none"><span class="status none">Not applicable</span></p>
+<p class="tile-detail">no releases found</p>
+</div>
+<div class="tile">
+<p class="tile-label">Token-Permissions</p>
+<p class="tile-value">10<span class="unit">/ 10</span></p>
+<p class="tile-detail">GitHub workflow tokens follow principle of least privilege</p>
 </div>
 <div class="tile">
 <p class="tile-label">Vulnerabilities</p>

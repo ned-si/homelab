@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 8
+const Version = 9
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -261,19 +261,20 @@ type Image struct {
 
 // Scorecard is the repository's latest OpenSSF Scorecard result as the
 // collector last fetched it: as_of, score and date all nil, and no check,
-// before the first fetch.
+// before the first fetch. Checks are in name order.
 type Scorecard struct {
 	AsOf   *string          `json:"as_of"`
 	Score  *float64         `json:"score"`
 	Date   *string          `json:"date"`
-	Lowest []ScorecardCheck `json:"lowest"`
+	Checks []ScorecardCheck `json:"checks"`
 }
 
 // ScorecardCheck is one Scorecard check: a name from the compiled list, its
-// score out of 10 and Scorecard's reason.
+// score out of 10, nil when Scorecard could not apply it (-1), and
+// Scorecard's reason.
 type ScorecardCheck struct {
 	Name   string `json:"name"`
-	Score  int    `json:"score"`
+	Score  *int   `json:"score"`
 	Reason string `json:"reason"`
 }
 
@@ -470,19 +471,19 @@ func checkDays(days []string, today time.Time) []error {
 func (sc *Scorecard) check() []error {
 	var errs []error
 	fetched := sc.AsOf != nil
-	if (sc.Score != nil) != fetched || (sc.Date != nil) != fetched || (!fetched && len(sc.Lowest) > 0) {
+	if (sc.Score != nil) != fetched || (sc.Date != nil) != fetched || (!fetched && len(sc.Checks) > 0) {
 		errs = append(errs, errors.New("supply_chain.scorecard: as_of, score, date and the checks come together"))
 	}
-	for i, c := range sc.Lowest {
+	for i, c := range sc.Checks {
 		if !ScorecardCheckShown(c.Name) {
-			errs = append(errs, fmt.Errorf("supply_chain.scorecard.lowest[%d]: %q is not a compiled Scorecard check", i, c.Name))
+			errs = append(errs, fmt.Errorf("supply_chain.scorecard.checks[%d]: %q is not a compiled Scorecard check", i, c.Name))
 		}
 		if !PlainReason(c.Reason) {
-			errs = append(errs, fmt.Errorf("supply_chain.scorecard.lowest[%d] %s: the reason is not plain text of at most %d characters",
+			errs = append(errs, fmt.Errorf("supply_chain.scorecard.checks[%d] %s: the reason is not plain text of at most %d characters",
 				i, c.Name, MaxReason))
 		}
-		if i > 0 && c.Score < sc.Lowest[i-1].Score {
-			errs = append(errs, fmt.Errorf("supply_chain.scorecard.lowest[%d] %s: lower than the check before it", i, c.Name))
+		if i > 0 && c.Name <= sc.Checks[i-1].Name {
+			errs = append(errs, fmt.Errorf("supply_chain.scorecard.checks[%d] %s: not after %s in name order", i, c.Name, sc.Checks[i-1].Name))
 		}
 	}
 	return errs

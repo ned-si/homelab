@@ -1,5 +1,5 @@
 {
-  "schema_version": 8,
+  "schema_version": 9,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "availability": {
     "as_of": "2026-11-20T17:00:00+01:00",
@@ -87,9 +87,24 @@
       "as_of": "2026-11-20T16:30:00+01:00",
       "score": 7.5,
       "date": "2026-11-20T15:06:49+01:00",
-      "lowest": [
+      "checks": [
+        {"name": "Binary-Artifacts", "score": 10, "reason": "no binaries found in the repo"},
+        {"name": "Branch-Protection", "score": 4, "reason": "branch protection is not maximal on development and all release branches"},
+        {"name": "CI-Tests", "score": 10, "reason": "30 out of 30 merged PRs checked by a CI test -- score normalized to 10"},
+        {"name": "CII-Best-Practices", "score": 2, "reason": "badge detected: InProgress"},
         {"name": "Code-Review", "score": 0, "reason": "Found 0/28 approved changesets -- score normalized to 0"},
         {"name": "Contributors", "score": 0, "reason": "project has 0 contributing companies or organizations -- score normalized to 0"},
+        {"name": "Dangerous-Workflow", "score": 10, "reason": "no dangerous workflow patterns detected"},
+        {"name": "Dependency-Update-Tool", "score": 10, "reason": "update tool detected"},
+        {"name": "Fuzzing", "score": 10, "reason": "project is fuzzed"},
+        {"name": "License", "score": 10, "reason": "license file detected"},
+        {"name": "Maintained", "score": 10, "reason": "30 commit(s) and 29 issue activity found in the last 90 days -- score normalized to 10"},
+        {"name": "Packaging", "score": 10, "reason": "packaging workflow detected"},
+        {"name": "Pinned-Dependencies", "score": 10, "reason": "all dependencies are pinned"},
+        {"name": "SAST", "score": 9, "reason": "SAST tool detected but not run on all commits"},
+        {"name": "Security-Policy", "score": 10, "reason": "security policy file detected"},
+        {"name": "Signed-Releases", "score": null, "reason": "no releases found"},
+        {"name": "Token-Permissions", "score": 10, "reason": "GitHub workflow tokens follow principle of least privilege"},
         {"name": "Vulnerabilities", "score": 0, "reason": "29 existing vulnerabilities detected"}
       ]
     }
