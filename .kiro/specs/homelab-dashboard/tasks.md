@@ -494,6 +494,7 @@ deploy and a live check.
       criterion 25; live, after the digest bump, every check's value and
       class match the API's score, and the notes show on `/` and `/fr/`.
       [13.5]
-      #1789
+      #1789, English only: the operator's French for the four notes and
+      the sentence (approved 2026-11-26) lands with #1763 when it rebases.
 
 The last task ticked sets `status: done`, `closed:`, and closes #1775.
