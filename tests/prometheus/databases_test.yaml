@@ -1023,3 +1023,331 @@ tests:
         exp_samples:
           - labels: 'cluster:cnpg_restore_duration:median_seconds'
             value: 150
+  # The other engines, all healthy: 9 SQLite apps, 9 fresh, 4 restore-tested
+  # and passed; 3 Valkey and Redis, 1 ClickHouse. Not counted: an unlisted
+  # container, a Redis exporter. An old Valkey pod not ready next to the new
+  # one counts once and stays up. Every aggregate without a label.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_info{namespace="paperless", pod="paperless-0", container="paperless", image_spec="example/paperless:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="paperless", pod="paperless-0", container="paperless"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="paperless", target="paperless-backup"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="books", pod="audiobookshelf-0", container="audiobookshelf", image_spec="example/audiobookshelf:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="books", pod="audiobookshelf-0", container="audiobookshelf"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="books", target="books-config-backup-audiobookshelf"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="books", pod="calibre-web-0", container="calibre-web", image_spec="example/calibre-web:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="books", pod="calibre-web-0", container="calibre-web"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="books", target="books-config-backup-calibre-web"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="monitoring", pod="grafana-0", container="grafana", image_spec="example/grafana:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="monitoring", pod="grafana-0", container="grafana"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="monitoring", target="grafana-backup"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="signoz", pod="signoz-0", container="signoz", image_spec="example/signoz:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="signoz", pod="signoz-0", container="signoz"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="signoz", target="signoz-backup"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="theater", pod="jellyfin-0", container="jellyfin", image_spec="example/jellyfin:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="theater", pod="jellyfin-0", container="jellyfin"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="theater", target="theater-config-backup-jellyfin"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="theater", pod="plex-0", container="plex", image_spec="example/plex:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="theater", pod="plex-0", container="plex"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="theater", target="theater-config-backup-plex"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="theater", pod="bazarr-0", container="bazarr", image_spec="example/bazarr:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="theater", pod="bazarr-0", container="bazarr"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="theater", target="theater-config-backup-bazarr"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="theater", pod="lazylibrarian-0", container="lazylibrarian", image_spec="example/lazylibrarian:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="theater", pod="lazylibrarian-0", container="lazylibrarian"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="theater", target="theater-config-backup-lazylibrarian"}'
+        values: '1x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="paperless-db"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="paperless-db"}'
+        values: '600x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="audiobookshelf"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="audiobookshelf"}'
+        values: '600x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="calibre-web"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="calibre-web"}'
+        values: '600x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="grafana-db"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="grafana-db"}'
+        values: '600x30'
+      - series: 'kube_pod_container_info{namespace="immich", pod="valkey-new", container="valkey", image_spec="valkey/valkey:9.2-alpine@sha256:abc"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="immich", pod="valkey-new", container="valkey"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="immich", pod="valkey-old", container="valkey", image_spec="valkey/valkey:9.2-alpine@sha256:abc"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="immich", pod="valkey-old", container="valkey"}'
+        values: '0x30'
+      - series: 'kube_pod_container_info{namespace="paperless", pod="valkey-0", container="valkey", image_spec="valkey/valkey:9.2-alpine@sha256:abc"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="paperless", pod="valkey-0", container="valkey"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="argo", pod="redis-0", container="redis", image_spec="ecr-public.aws.com/docker/library/redis:8.6.4-alpine"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="argo", pod="redis-0", container="redis"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="signoz", pod="chi-0", container="clickhouse", image_spec="clickhouse/clickhouse-server:26.11@sha256:abc"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="signoz", pod="chi-0", container="clickhouse"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="books", pod="other-0", container="other", image_spec="example/other:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="books", pod="other-0", container="other"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="monitoring", pod="exporter-0", container="exporter", image_spec="oliver006/redis_exporter:v1.80.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="monitoring", pod="exporter-0", container="exporter"}'
+        values: '1x30'
+    promql_expr_test:
+      - expr: cluster:sqlite_databases:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 9
+      - expr: cluster:sqlite_databases_up:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases_up:count'
+            value: 9
+      - expr: cluster:sqlite_backup_fresh:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:sqlite_backup_fresh:count'
+            value: 9
+      - expr: cluster:sqlite_restore_passed:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_passed:count'
+            value: 4
+      - expr: cluster:sqlite_restore_failed:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_failed:count'
+            value: 0
+      - expr: cluster:valkey_redis_instances:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:valkey_redis_instances:count'
+            value: 3
+      - expr: cluster:valkey_redis_instances_up:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:valkey_redis_instances_up:count'
+            value: 3
+      - expr: cluster:clickhouse_instances:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:clickhouse_instances:count'
+            value: 1
+      - expr: cluster:clickhouse_instances_up:count
+        eval_time: 20m
+        exp_samples:
+          - labels: 'cluster:clickhouse_instances_up:count'
+            value: 1
+  # grafana is not ready from minute 5: up until 10 minutes later, then down
+  # and still counted. jellyfin's ready series has a 5-minute gap: up throughout.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_info{namespace="paperless", pod="paperless-0", container="paperless", image_spec="example/paperless:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="paperless", pod="paperless-0", container="paperless"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="monitoring", pod="grafana-0", container="grafana", image_spec="example/grafana:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="monitoring", pod="grafana-0", container="grafana"}'
+        values: '1x4 0x25'
+      - series: 'kube_pod_container_info{namespace="theater", pod="jellyfin-0", container="jellyfin", image_spec="example/jellyfin:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="theater", pod="jellyfin-0", container="jellyfin"}'
+        values: '1x9 _x5 1x15'
+    promql_expr_test:
+      - expr: cluster:sqlite_databases:count
+        eval_time: 13m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 3
+      - expr: cluster:sqlite_databases_up:count
+        eval_time: 13m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases_up:count'
+            value: 3
+      - expr: cluster:sqlite_databases:count
+        eval_time: 16m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 3
+      - expr: cluster:sqlite_databases_up:count
+        eval_time: 16m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases_up:count'
+            value: 2
+      - expr: cluster:sqlite_databases:count
+        eval_time: 25m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 3
+      - expr: cluster:sqlite_databases_up:count
+        eval_time: 25m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases_up:count'
+            value: 2
+  # paperless's CronJob is stale (fresh 2 of 3); its restore test passed.
+  # grafana's latest test ran after its last pass, and audiobookshelf has a
+  # run and no pass: failed 2.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_info{namespace="paperless", pod="paperless-0", container="paperless", image_spec="example/paperless:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="paperless", pod="paperless-0", container="paperless"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="books", pod="audiobookshelf-0", container="audiobookshelf", image_spec="example/audiobookshelf:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="books", pod="audiobookshelf-0", container="audiobookshelf"}'
+        values: '1x30'
+      - series: 'kube_pod_container_info{namespace="monitoring", pod="grafana-0", container="grafana", image_spec="example/grafana:1.0"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_ready{namespace="monitoring", pod="grafana-0", container="grafana"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="paperless", target="paperless-backup"}'
+        values: '0x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="books", target="books-config-backup-audiobookshelf"}'
+        values: '1x30'
+      - series: 'slo:backup_fresh{kind="restic", namespace="monitoring", target="grafana-backup"}'
+        values: '1x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="paperless-db"}'
+        values: '600x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="paperless-db"}'
+        values: '600x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="grafana-db"}'
+        values: '1200x30'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="grafana-db"}'
+        values: '600x30'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="audiobookshelf"}'
+        values: '600x30'
+    promql_expr_test:
+      - expr: cluster:sqlite_databases:count
+        eval_time: 25m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 3
+      - expr: cluster:sqlite_backup_fresh:count
+        eval_time: 25m
+        exp_samples:
+          - labels: 'cluster:sqlite_backup_fresh:count'
+            value: 2
+      - expr: cluster:sqlite_restore_passed:count
+        eval_time: 25m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_passed:count'
+            value: 1
+      - expr: cluster:sqlite_restore_failed:count
+        eval_time: 25m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_failed:count'
+            value: 2
+  # paperless passes at minute 5 and the Pushgateway keeps serving it: passed
+  # until the pass is 8 days old, then neither passed nor failed. Every 5
+  # minutes: promtool loads at most 10,000 samples per query.
+  - interval: 5m
+    input_series:
+      - series: 'kube_pod_container_info{namespace="paperless", pod="paperless-0", container="paperless", image_spec="example/paperless:1.0"}'
+        values: '1x2310'
+      - series: 'kube_pod_container_status_ready{namespace="paperless", pod="paperless-0", container="paperless"}'
+        values: '1x2310'
+      - series: 'backup_verify_last_run_timestamp_seconds{pod="pushgateway-a", check="restic", target="paperless-db"}'
+        values: '300x2310'
+      - series: 'backup_verify_last_success_timestamp_seconds{pod="pushgateway-a", check="restic", target="paperless-db"}'
+        values: '300x2310'
+    promql_expr_test:
+      - expr: cluster:sqlite_restore_passed:count
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_passed:count'
+            value: 1
+      - expr: cluster:sqlite_restore_failed:count
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_failed:count'
+            value: 0
+      - expr: cluster:sqlite_restore_passed:count
+        eval_time: 11520m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_passed:count'
+            value: 1
+      - expr: cluster:sqlite_restore_failed:count
+        eval_time: 11520m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_failed:count'
+            value: 0
+      - expr: cluster:sqlite_restore_passed:count
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_passed:count'
+            value: 0
+      - expr: cluster:sqlite_restore_failed:count
+        eval_time: 11526m
+        exp_samples:
+          - labels: 'cluster:sqlite_restore_failed:count'
+            value: 0
+  # grafana's pod goes away after minute 60: down, and still counted for the
+  # rolling 24 h, then gone.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_info{namespace="paperless", pod="paperless-0", container="paperless", image_spec="example/paperless:1.0"}'
+        values: '1x1560'
+      - series: 'kube_pod_container_status_ready{namespace="paperless", pod="paperless-0", container="paperless"}'
+        values: '1x1560'
+      - series: 'kube_pod_container_info{namespace="monitoring", pod="grafana-0", container="grafana", image_spec="example/grafana:1.0"}'
+        values: '1x60'
+      - series: 'kube_pod_container_status_ready{namespace="monitoring", pod="grafana-0", container="grafana"}'
+        values: '1x60'
+    promql_expr_test:
+      - expr: cluster:sqlite_databases:count
+        eval_time: 1490m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 2
+      - expr: cluster:sqlite_databases_up:count
+        eval_time: 1490m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases_up:count'
+            value: 1
+      - expr: cluster:sqlite_databases:count
+        eval_time: 1520m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases:count'
+            value: 1
+      - expr: cluster:sqlite_databases_up:count
+        eval_time: 1520m
+        exp_samples:
+          - labels: 'cluster:sqlite_databases_up:count'
+            value: 1

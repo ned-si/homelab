@@ -91,6 +91,106 @@ spec:
       record: cluster:cnpg_base_backup_age:max_seconds
     - expr: min(cnpg_cluster:recovery_window:seconds)
       record: cluster:cnpg_recovery_window:min_seconds
+  - interval: 1m
+    name: homelab.databases.engines
+    rules:
+    - expr: vector(1)
+      labels:
+        container: paperless
+        cronjob: paperless-backup
+        namespace: paperless
+        restore_target: paperless-db
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: audiobookshelf
+        cronjob: books-config-backup-audiobookshelf
+        namespace: books
+        restore_target: audiobookshelf
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: calibre-web
+        cronjob: books-config-backup-calibre-web
+        namespace: books
+        restore_target: calibre-web
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: grafana
+        cronjob: grafana-backup
+        namespace: monitoring
+        restore_target: grafana-db
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: signoz
+        cronjob: signoz-backup
+        namespace: signoz
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: jellyfin
+        cronjob: theater-config-backup-jellyfin
+        namespace: theater
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: plex
+        cronjob: theater-config-backup-plex
+        namespace: theater
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: bazarr
+        cronjob: theater-config-backup-bazarr
+        namespace: theater
+      record: db_sqlite:app:info
+    - expr: vector(1)
+      labels:
+        container: lazylibrarian
+        cronjob: theater-config-backup-lazylibrarian
+        namespace: theater
+      record: db_sqlite:app:info
+    - expr: |
+        label_replace(
+          group by (namespace, container) (kube_pod_container_info)
+          and on (namespace, container) db_sqlite:app:info,
+          "engine", "sqlite", "", "")
+        or label_replace(
+          group by (namespace, container) (kube_pod_container_info{image_spec=~"(.+/)?(valkey|redis)[:@].+"}),
+          "engine", "valkey_redis", "", "")
+        or label_replace(
+          group by (namespace, container) (kube_pod_container_info{image_spec=~"(.+/)?clickhouse-server[:@].+"}),
+          "engine", "clickhouse", "", "")
+      record: db_engine:present
+    - expr: group by (engine, namespace, container) (max_over_time(db_engine:present[24h]))
+      record: db_engine:seen_24h
+    - expr: |
+        db_engine:seen_24h * on (namespace, container) group_left ()
+          max by (namespace, container) (max_over_time(kube_pod_container_status_ready[10m]))
+        or on (engine, namespace, container) (db_engine:seen_24h * 0)
+      record: db_engine:up
+    - expr: |
+        label_replace(db_sqlite:app:info, "target", "$1", "cronjob", "(.+)")
+          * on (namespace, target) group_left () slo:backup_fresh{kind="restic"}
+      record: db_sqlite:backup_fresh
+    - expr: count(db_engine:seen_24h{engine="sqlite"}) or vector(0)
+      record: cluster:sqlite_databases:count
+    - expr: sum(db_engine:up{engine="sqlite"}) or vector(0)
+      record: cluster:sqlite_databases_up:count
+    - expr: |
+        sum(db_sqlite:backup_fresh and on (namespace, container) db_engine:seen_24h{engine="sqlite"})
+        or vector(0)
+      record: cluster:sqlite_backup_fresh:count
+    - expr: count(db_engine:seen_24h{engine="valkey_redis"}) or vector(0)
+      record: cluster:valkey_redis_instances:count
+    - expr: sum(db_engine:up{engine="valkey_redis"}) or vector(0)
+      record: cluster:valkey_redis_instances_up:count
+    - expr: count(db_engine:seen_24h{engine="clickhouse"}) or vector(0)
+      record: cluster:clickhouse_instances:count
+    - expr: sum(db_engine:up{engine="clickhouse"}) or vector(0)
+      record: cluster:clickhouse_instances_up:count
   - interval: 2m
     name: homelab.databases.restore
     rules:
@@ -140,3 +240,29 @@ spec:
           and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
           and on (cluster) cnpg_cluster:seen_24h)
       record: cluster:cnpg_restore_duration:median_seconds
+    - expr: |
+        label_replace(db_sqlite:app:info{restore_target!=""}, "target", "$1", "restore_target", "(.+)")
+          * on (target) group_left ()
+        max by (target) (max_over_time(backup_verify_last_run_timestamp_seconds{check="restic"}[8d]))
+      record: db_sqlite:restore_last_run:timestamp
+    - expr: |
+        label_replace(db_sqlite:app:info{restore_target!=""}, "target", "$1", "restore_target", "(.+)")
+          * on (target) group_left ()
+        max by (target) (max_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[8d]))
+      record: db_sqlite:restore_last_success:timestamp
+    - expr: |
+        count(
+          (db_sqlite:restore_last_success:timestamp >= on (namespace, container) db_sqlite:restore_last_run:timestamp)
+          and on (namespace, container) (time() - db_sqlite:restore_last_success:timestamp < 8 * 86400)
+          and on (namespace, container) db_engine:seen_24h{engine="sqlite"}
+        ) or vector(0)
+      record: cluster:sqlite_restore_passed:count
+    - expr: |
+        count(
+          (
+            (db_sqlite:restore_last_run:timestamp > on (namespace, container) db_sqlite:restore_last_success:timestamp)
+            or (db_sqlite:restore_last_run:timestamp unless on (namespace, container) db_sqlite:restore_last_success:timestamp)
+          )
+          and on (namespace, container) db_engine:seen_24h{engine="sqlite"}
+        ) or vector(0)
+      record: cluster:sqlite_restore_failed:count

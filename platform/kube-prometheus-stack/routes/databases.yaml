@@ -2,7 +2,8 @@
 # keyed by namespace and cluster (the restore tests by cluster), then
 # label-free aggregates, the only series the dashboard reads, so no name
 # leaves Prometheus. No alerts: the CNPG and backup-verify alerts page.
-# .kiro/specs/homelab-dashboard/design.md, "Recording rules (task 25)".
+# .kiro/specs/homelab-dashboard/design.md, "Recording rules (task 25)";
+# the other engines: .kiro/specs/dashboard-database-engines/design.md.
 # Tests: tests/prometheus/databases_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -98,6 +99,85 @@ spec:
         - record: cluster:cnpg_recovery_window:min_seconds
           expr: min(cnpg_cluster:recovery_window:seconds)
 
+    # The other engines, by engine, namespace and container
+    # (.kiro/specs/dashboard-database-engines/design.md). Nothing finds an
+    # embedded SQLite file from outside its pod, so the SQLite apps are
+    # listed: the container that owns the file, its restic CronJob and, where
+    # the weekly restore test requires the file, its target.
+    - name: homelab.databases.engines
+      interval: 1m
+      rules:
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: paperless, container: paperless, cronjob: paperless-backup, restore_target: paperless-db}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: books, container: audiobookshelf, cronjob: books-config-backup-audiobookshelf, restore_target: audiobookshelf}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: books, container: calibre-web, cronjob: books-config-backup-calibre-web, restore_target: calibre-web}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: monitoring, container: grafana, cronjob: grafana-backup, restore_target: grafana-db}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: signoz, container: signoz, cronjob: signoz-backup}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: theater, container: jellyfin, cronjob: theater-config-backup-jellyfin}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: theater, container: plex, cronjob: theater-config-backup-plex}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: theater, container: bazarr, cronjob: theater-config-backup-bazarr}
+        - record: db_sqlite:app:info
+          expr: vector(1)
+          labels: {namespace: theater, container: lazylibrarian, cronjob: theater-config-backup-lazylibrarian}
+        # 1 per instance now: SQLite by the list, the servers by their image.
+        - record: db_engine:present
+          expr: |
+            label_replace(
+              group by (namespace, container) (kube_pod_container_info)
+              and on (namespace, container) db_sqlite:app:info,
+              "engine", "sqlite", "", "")
+            or label_replace(
+              group by (namespace, container) (kube_pod_container_info{image_spec=~"(.+/)?(valkey|redis)[:@].+"}),
+              "engine", "valkey_redis", "", "")
+            or label_replace(
+              group by (namespace, container) (kube_pod_container_info{image_spec=~"(.+/)?clickhouse-server[:@].+"}),
+              "engine", "clickhouse", "", "")
+        # The denominator: an instance that goes away still counts for 24 h.
+        # Reads the 13 series above, not every container of the cluster.
+        - record: db_engine:seen_24h
+          expr: group by (engine, namespace, container) (max_over_time(db_engine:present[24h]))
+        # Down after 10 minutes not ready, as cnpg_cluster:up.
+        - record: db_engine:up
+          expr: |
+            db_engine:seen_24h * on (namespace, container) group_left ()
+              max by (namespace, container) (max_over_time(kube_pod_container_status_ready[10m]))
+            or on (engine, namespace, container) (db_engine:seen_24h * 0)
+        - record: db_sqlite:backup_fresh
+          expr: |
+            label_replace(db_sqlite:app:info, "target", "$1", "cronjob", "(.+)")
+              * on (namespace, target) group_left () slo:backup_fresh{kind="restic"}
+        - record: cluster:sqlite_databases:count
+          expr: count(db_engine:seen_24h{engine="sqlite"}) or vector(0)
+        - record: cluster:sqlite_databases_up:count
+          expr: sum(db_engine:up{engine="sqlite"}) or vector(0)
+        - record: cluster:sqlite_backup_fresh:count
+          expr: |
+            sum(db_sqlite:backup_fresh and on (namespace, container) db_engine:seen_24h{engine="sqlite"})
+            or vector(0)
+        - record: cluster:valkey_redis_instances:count
+          expr: count(db_engine:seen_24h{engine="valkey_redis"}) or vector(0)
+        - record: cluster:valkey_redis_instances_up:count
+          expr: sum(db_engine:up{engine="valkey_redis"}) or vector(0)
+        - record: cluster:clickhouse_instances:count
+          expr: count(db_engine:seen_24h{engine="clickhouse"}) or vector(0)
+        - record: cluster:clickhouse_instances_up:count
+          expr: sum(db_engine:up{engine="clickhouse"}) or vector(0)
+
     # Weekly results over the rolling 8 days of history (a new Pushgateway
     # pod starts empty). Every 2 minutes: the 8-day subqueries are the
     # heaviest rules here and the results change once a week.
@@ -156,3 +236,31 @@ spec:
             quantile(0.5, cnpg_cluster:restore_duration:seconds
               and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
               and on (cluster) cnpg_cluster:seen_24h)
+        # The SQLite apps whose database file the weekly restic test
+        # requires, with the same pass and fail rules as above.
+        - record: db_sqlite:restore_last_run:timestamp
+          expr: |
+            label_replace(db_sqlite:app:info{restore_target!=""}, "target", "$1", "restore_target", "(.+)")
+              * on (target) group_left ()
+            max by (target) (max_over_time(backup_verify_last_run_timestamp_seconds{check="restic"}[8d]))
+        - record: db_sqlite:restore_last_success:timestamp
+          expr: |
+            label_replace(db_sqlite:app:info{restore_target!=""}, "target", "$1", "restore_target", "(.+)")
+              * on (target) group_left ()
+            max by (target) (max_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[8d]))
+        - record: cluster:sqlite_restore_passed:count
+          expr: |
+            count(
+              (db_sqlite:restore_last_success:timestamp >= on (namespace, container) db_sqlite:restore_last_run:timestamp)
+              and on (namespace, container) (time() - db_sqlite:restore_last_success:timestamp < 8 * 86400)
+              and on (namespace, container) db_engine:seen_24h{engine="sqlite"}
+            ) or vector(0)
+        - record: cluster:sqlite_restore_failed:count
+          expr: |
+            count(
+              (
+                (db_sqlite:restore_last_run:timestamp > on (namespace, container) db_sqlite:restore_last_success:timestamp)
+                or (db_sqlite:restore_last_run:timestamp unless on (namespace, container) db_sqlite:restore_last_success:timestamp)
+              )
+              and on (namespace, container) db_engine:seen_24h{engine="sqlite"}
+            ) or vector(0)
