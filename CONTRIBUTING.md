@@ -14,8 +14,8 @@ operator. Issues and pull requests are welcome.
 
 1. Open a pull request against `main`. `main` is production: merging deploys.
 2. One topic per pull request. Unrelated changes get their own branch.
-3. The required `ci` check is the only gate. A pull request merges when `ci`
-   is green, as a squash merge.
+3. The required `ci` check is the only gate. The maintainer merges a pull
+   request once `ci` is green, as a squash merge.
 
 ## Requirements
 
