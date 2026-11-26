@@ -19,7 +19,10 @@ kube-state-metrics for every engine.
 
 Left out of SQLite: Syncthing's index database (rebuilt by a rescan and
 excluded from its backup) and the hidden apps' `logs.db` (disposable,
-excluded). Consistency of the live copies is #746's subject.
+excluded). Consistency of the live copies is #746's subject. Plex's
+nightly job ships Plex's own database backups, taken every three days,
+so its database can be up to 3 days old while the SQLite backups tile
+counts it fresh within 26 h.
 
 ## Inventory
 
