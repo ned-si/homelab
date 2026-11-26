@@ -885,6 +885,9 @@ deletes one when its manifest leaves git.
   50 GiB). Logs and traces are disposable by decision: they expire after 15 and 7
   days anyway, and a rebuild starts empty. Only SigNoz's metadata is backed up
   (`signoz/metadata`).
+- **Valkey and Redis** (the Immich and Paperless queues, the Argo CD cache).
+  In memory, with no volume: a restart empties them and their apps rebuild
+  the queues and caches.
 - **etcd on a schedule.** Take a snapshot by hand before every Kubernetes upgrade
   or risky change: `task talos:etcd-snapshot`
   ([talos-cheatsheet.md](talos-cheatsheet.md#etcd-snapshots)).
@@ -1043,6 +1046,17 @@ public dashboard's "Databases and backups" tiles read only these
 aggregates ([homelab-dashboard.md](homelab-dashboard.md#cards)); the
 per-database `cnpg_cluster:*` rules behind them are in Grafana for a
 lookup. They raise no alert: the alerts above already do.
+
+The same PrometheusRule counts the other engines, seen in the rolling 24 h
+and up in the last 10 minutes: `cluster:sqlite_databases:count` and
+`_up:count`, `cluster:valkey_redis_instances:count` and `_up:count`,
+`cluster:clickhouse_instances:count` and `_up:count`. For the SQLite apps,
+listed in `db_sqlite:app:info` with their restic CronJob and restore
+target, it also counts `cluster:sqlite_backup_fresh:count` (from
+`slo:backup_fresh`), `cluster:sqlite_restore_passed:count` and
+`_failed:count` (from `check="restic"`, only the apps whose database file
+is a required file in `restic-targets.txt`). A new app that keeps its
+state in SQLite needs a line in that list.
 
 ```sh
 kubectl -n backup-verify get cronjobs,jobs
