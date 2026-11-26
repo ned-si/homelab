@@ -452,7 +452,7 @@ deploy first.
       values of the design's table recomputed from the raw series at
       the same instant. [14.2, 14.3, 14.6]
       #1764
-- [ ] 26. Databases and backups group (**visible**), as in
+- [x] 26. Databases and backups group (**visible**), as in
       [design.md, Collector and page](design.md#collector-and-page-task-26):
       snapshot version 10 (`cluster.databases`, numbers only) in
       `snapshot.go`, `snapshot.schema.json` and `Validate`;
@@ -468,5 +468,6 @@ deploy first.
       Grafana at the same minute and no hidden name in
       `snapshot.json` or the page. Starts after task 27 is merged
       (snapshot version 9). [2.7, 3.12, 3.14, 14.1-14.6]
+      #1766
 
 The last task ticked sets `status: done`, `closed:`, and closes #1739.
