@@ -1,0 +1,41 @@
+/* The drum charts' components; the container and the nav come from
+   layout.css, the colours from the palette, served as /theme.css
+   (theme-dark.css or theme-light.css). The sheets stay white paper in both
+   palettes: the page images carry their own white background. */
+
+body { color: var(--fg); background: var(--bg); }
+
+a { color: var(--link); }
+
+h1 { margin: 0; font-size: 2.5rem; }
+h2 { margin: 2.5rem 0 0.5rem; font-size: 1.375rem; }
+
+.lead { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.25rem; }
+main > p { max-width: 44rem; }
+.updated, .credits { color: var(--muted); font-size: 0.9375rem; }
+
+.songs { width: 100%; border-collapse: collapse; }
+.songs th { text-align: left; }
+.songs th, .songs td {
+  padding: 0.4rem 0.75rem 0.4rem 0;
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: break-word;
+  vertical-align: top;
+}
+.songs .num { text-align: right; }
+
+.button {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--link);
+  border-radius: 0.3rem;
+  text-decoration: none;
+}
+
+/* One sheet per row; from 60rem two side by side, as on a music stand, and
+   a third wraps to the left. */
+.sheets { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1.5rem; }
+.sheets img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+@media (min-width: 60rem) {
+  .sheets { grid-template-columns: 1fr 1fr; }
+}

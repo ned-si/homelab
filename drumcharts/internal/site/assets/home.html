@@ -1,0 +1,19 @@
+{{template "head" .}}
+<main>
+<h1>{{.Heading}}</h1>
+<p class="lead">{{.Lead}}</p>
+<p>{{.Intro}}</p>
+<h2 id="songs">{{.Songs}}</h2>
+<table class="songs" aria-labelledby="songs">
+<thead><tr><th scope="col">{{.ColSong}}</th><th scope="col">{{.ColArtist}}</th><th scope="col" class="num">{{.ColPages}}</th><th scope="col">{{.ColPDF}}</th></tr></thead>
+<tbody>
+{{- range .Rows}}
+<tr><td><a href="/{{.Slug}}/">{{.Title}}</a></td><td>{{.Artist}}</td><td class="num">{{.Pages}}</td>
+<td><a href="/pdf/{{.Slug}}.pdf" download aria-label="{{.PDFLabel}}">{{$.PDF}}</a></td></tr>
+{{- end}}
+</tbody>
+</table>
+<p class="updated">{{.Updated}}</p>
+<p class="credits">{{.Credits}}</p>
+</main>
+{{template "foot" .}}
