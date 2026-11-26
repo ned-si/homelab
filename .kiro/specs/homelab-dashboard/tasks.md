@@ -427,3 +427,4 @@ backups amendment (#1739).
       `docs/homelab-dashboard.md`. Check: acceptance criterion 25;
       live, the panel lists the API's checks with their scores.
       [13.5, 13.6]
+      #1757
