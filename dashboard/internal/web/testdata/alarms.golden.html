@@ -421,7 +421,7 @@
 </div>
 </div>
 <h3>Databases and backups</h3>
-<p class="meta">Each database is its own CloudNativePG cluster. Every change is archived to S3 within 5 minutes and every night adds a base backup, so a database can be restored to any moment of its recovery window. Every week each one is restored into a new cluster and its tables and rows are compared with the source.</p>
+<p class="meta">Each PostgreSQL database is its own CloudNativePG cluster. Every change is archived to S3 within 5 minutes and every night adds a base backup, so a database can be restored to any moment of its recovery window. Every week each one is restored into a new cluster and its tables and rows are compared with the source.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">PostgreSQL</p>
@@ -466,6 +466,43 @@
 <div class="tile-body">
 <p class="tile-value bad">98.50<span class="unit">%</span> <span class="status bad">Missed</span></p>
 <p class="tile-detail">Lowest database, rolling 30 days, target 99.00%</p>
+</div>
+</div>
+</div>
+<p class="meta">The apps that keep their database in SQLite, a file in the app's volume, are copied to S3 every night with restic. Most copies are taken while the app runs, and the weekly restore test checks the database files it covers. Valkey, Redis and ClickHouse hold queues, caches and telemetry that are rebuilt or expire, so they are not backed up.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">SQLite</p>
+<div class="tile-body">
+<p class="tile-value ok">9<span class="unit">apps</span> <span class="status ok">Up</span></p>
+<p class="tile-detail">Seen in the rolling 24 h</p>
+<p class="tile-detail">9 up</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">SQLite backups</p>
+<div class="tile-body">
+<p class="tile-value ok">9<span class="unit">of 9</span> <span class="status ok">Fresh</span></p>
+<p class="tile-detail">Nightly to S3, each in the rolling 26 h</p>
+<p class="tile-detail">4 passed the weekly restore test, rolling 8 days</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Valkey and Redis</p>
+<div class="tile-body">
+<p class="tile-value ok">3<span class="unit">instances</span> <span class="status ok">Up</span></p>
+<p class="tile-detail">Seen in the rolling 24 h</p>
+<p class="tile-detail">3 up</p>
+<p class="tile-detail">In memory, not backed up</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">ClickHouse</p>
+<div class="tile-body">
+<p class="tile-value ok">1<span class="unit">instance</span> <span class="status ok">Up</span></p>
+<p class="tile-detail">Seen in the rolling 24 h</p>
+<p class="tile-detail">1 up</p>
+<p class="tile-detail">Logs and traces expire, not backed up</p>
 </div>
 </div>
 </div>

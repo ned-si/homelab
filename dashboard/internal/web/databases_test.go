@@ -41,6 +41,11 @@ func TestDatabaseRules(t *testing.T) {
 		{"freshness, 99%", r(freshnessStatus(new(99.0))), r(statusOK, "Met")},
 		{"freshness, under 99%", r(freshnessStatus(new(98.999))), r(statusBad, "Missed")},
 		{"freshness, no series", r(freshnessStatus(nil)), r(statusNone, noData)},
+		{"sqlite backups, all fresh", r(sqliteBackupStatus(9, 0, 9)), r(statusOK, "Fresh")},
+		{"sqlite backups, one stale", r(sqliteBackupStatus(8, 0, 9)), r(statusBad, "Stale")},
+		{"sqlite backups, stale before failed", r(sqliteBackupStatus(8, 1, 9)), r(statusBad, "Stale")},
+		{"sqlite backups, one failed", r(sqliteBackupStatus(9, 1, 9)), r(statusBad, "Failed")},
+		{"sqlite backups, none", r(sqliteBackupStatus(0, 0, 0)), r(statusNone, noData)},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("%s: %v, want %v", tc.name, tc.got, tc.want)
@@ -93,6 +98,33 @@ func TestDatabaseTiles(t *testing.T) {
 	}
 }
 
+// dashboard-database-engines Requirement 2: four tiles, no data for an
+// engine with no count, singular units.
+func TestEngineTiles(t *testing.T) {
+	none := []tile{noDataTile("SQLite"), noDataTile("SQLite backups"), noDataTile("Valkey and Redis"), noDataTile("ClickHouse")}
+	if diff := cmp.Diff(none, engineTiles(snapshot.Databases{})); diff != "" {
+		t.Errorf("engineTiles(count 0) mismatch (-want +got):\n%s", diff)
+	}
+	got := engineTiles(snapshot.Databases{SQLiteCount: 9, SQLiteUp: 8, SQLiteBackupFresh: 9, SQLiteRestorePassed: 4,
+		ValkeyRedisCount: 3, ValkeyRedisUp: 3, ClickHouseCount: 1, ClickHouseUp: 1})
+	want := []tile{
+		{Label: "SQLite", Value: one("9", "apps"), Status: statusBad, Word: "Down",
+			Details: []string{"Seen in the rolling 24 h", "8 up"}},
+		{Label: "SQLite backups", Value: one("9", "of 9"), Status: statusOK, Word: "Fresh",
+			Details: []string{"Nightly to S3, each in the rolling 26 h", "4 passed the weekly restore test, rolling 8 days"}},
+		{Label: "Valkey and Redis", Value: one("3", "instances"), Status: statusOK, Word: "Up",
+			Details: []string{"Seen in the rolling 24 h", "3 up", "In memory, not backed up"}},
+		{Label: "ClickHouse", Value: one("1", "instance"), Status: statusOK, Word: "Up",
+			Details: []string{"Seen in the rolling 24 h", "1 up", "Logs and traces expire, not backed up"}},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("engineTiles mismatch (-want +got):\n%s", diff)
+	}
+	if got := engineTiles(snapshot.Databases{SQLiteCount: 1, SQLiteUp: 1, SQLiteBackupFresh: 1})[0].Value; !cmp.Equal(got, one("1", "app")) {
+		t.Errorf("one SQLite app = %v, want 1 app", got)
+	}
+}
+
 // Requirement 14.2: the group names no database, cluster, namespace, pod
 // or app, on any golden page.
 func TestDatabasesNameNothing(t *testing.T) {
@@ -105,7 +137,8 @@ func TestDatabasesNameNothing(t *testing.T) {
 		}
 		group := strings.ToLower(body[start : start+end])
 		for _, leak := range []string{"immich", "keycloak", "mealie", "home-assistant", "theater", "sonarr", "radarr",
-			"prowlarr", "lidarr", "bazarr", "qbittorrent", "-db", "postgresql-", "namespace", "pod", "s3://", "bucket"} {
+			"prowlarr", "lidarr", "bazarr", "qbittorrent", "paperless", "audiobookshelf", "calibre", "grafana",
+			"signoz", "jellyfin", "plex", "valkey-", "argocd", "-db", "postgresql-", "namespace", "pod", "s3://", "bucket"} {
 			if strings.Contains(group, leak) {
 				t.Errorf("%s: the databases group contains %q", name, leak)
 			}

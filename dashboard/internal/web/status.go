@@ -399,6 +399,22 @@ func restoreStatus(passed, failed, count int) (status, string) {
 	}
 }
 
+// sqliteBackupStatus is "Stale" when an SQLite app has no successful
+// backup in 26 h (BackupNotFresh), otherwise "Failed" when a restore test
+// failed (BackupVerifyFailed). No warning band: a stale backup already pages.
+func sqliteBackupStatus(fresh, failed, count int) (status, string) {
+	switch {
+	case count == 0:
+		return statusNone, noData
+	case fresh < count:
+		return statusBad, "Stale"
+	case failed > 0:
+		return statusBad, "Failed"
+	default:
+		return statusOK, "Fresh"
+	}
+}
+
 // freshnessTarget is the objective of the backup-freshness SLO, in percent.
 const freshnessTarget = 99
 

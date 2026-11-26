@@ -24,6 +24,15 @@ var (
 		{"databases.base_fresh", `cluster:cnpg_base_backup_fresh:count`, func(d *snapshot.Databases, n int) { d.BaseFresh = n }},
 		{"databases.restore_passed", `cluster:cnpg_restore_passed:count`, func(d *snapshot.Databases, n int) { d.RestorePassed = n }},
 		{"databases.restore_failed", `cluster:cnpg_restore_failed:count`, func(d *snapshot.Databases, n int) { d.RestoreFailed = n }},
+		{"databases.sqlite_count", `cluster:sqlite_databases:count`, func(d *snapshot.Databases, n int) { d.SQLiteCount = n }},
+		{"databases.sqlite_up", `cluster:sqlite_databases_up:count`, func(d *snapshot.Databases, n int) { d.SQLiteUp = n }},
+		{"databases.sqlite_backup_fresh", `cluster:sqlite_backup_fresh:count`, func(d *snapshot.Databases, n int) { d.SQLiteBackupFresh = n }},
+		{"databases.sqlite_restore_passed", `cluster:sqlite_restore_passed:count`, func(d *snapshot.Databases, n int) { d.SQLiteRestorePassed = n }},
+		{"databases.sqlite_restore_failed", `cluster:sqlite_restore_failed:count`, func(d *snapshot.Databases, n int) { d.SQLiteRestoreFailed = n }},
+		{"databases.valkey_redis_count", `cluster:valkey_redis_instances:count`, func(d *snapshot.Databases, n int) { d.ValkeyRedisCount = n }},
+		{"databases.valkey_redis_up", `cluster:valkey_redis_instances_up:count`, func(d *snapshot.Databases, n int) { d.ValkeyRedisUp = n }},
+		{"databases.clickhouse_count", `cluster:clickhouse_instances:count`, func(d *snapshot.Databases, n int) { d.ClickHouseCount = n }},
+		{"databases.clickhouse_up", `cluster:clickhouse_instances_up:count`, func(d *snapshot.Databases, n int) { d.ClickHouseUp = n }},
 	}
 	databaseFigures = []struct {
 		figure, expr string
@@ -87,4 +96,10 @@ func clampDatabases(d *snapshot.Databases) {
 	d.WALBehind = min(d.WALBehind, d.Count-d.WALArchiving)
 	d.RestorePassed = min(d.RestorePassed, d.Count)
 	d.RestoreFailed = min(d.RestoreFailed, d.Count-d.RestorePassed)
+	d.SQLiteUp = min(d.SQLiteUp, d.SQLiteCount)
+	d.SQLiteBackupFresh = min(d.SQLiteBackupFresh, d.SQLiteCount)
+	d.SQLiteRestorePassed = min(d.SQLiteRestorePassed, d.SQLiteCount)
+	d.SQLiteRestoreFailed = min(d.SQLiteRestoreFailed, d.SQLiteCount-d.SQLiteRestorePassed)
+	d.ValkeyRedisUp = min(d.ValkeyRedisUp, d.ValkeyRedisCount)
+	d.ClickHouseUp = min(d.ClickHouseUp, d.ClickHouseCount)
 }

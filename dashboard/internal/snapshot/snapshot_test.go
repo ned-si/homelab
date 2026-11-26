@@ -393,6 +393,13 @@ func TestValidateRefuses(t *testing.T) {
 		{"base_fresh above count", func(d map[string]any) { obj(d, "cluster", "databases")["base_fresh"] = 9 }, false},
 		{"wal counts above count", func(d map[string]any) { obj(d, "cluster", "databases")["wal_behind"] = 1 }, false},
 		{"restore counts above count", func(d map[string]any) { obj(d, "cluster", "databases")["restore_failed"] = 1 }, false},
+		{"version 10", func(d map[string]any) { d["schema_version"] = 10 }, false},
+		{"no sqlite_count", func(d map[string]any) { delete(obj(d, "cluster", "databases"), "sqlite_count") }, false},
+		{"sqlite_up above sqlite_count", func(d map[string]any) { obj(d, "cluster", "databases")["sqlite_up"] = 10 }, false},
+		{"sqlite_backup_fresh above sqlite_count", func(d map[string]any) { obj(d, "cluster", "databases")["sqlite_backup_fresh"] = 10 }, false},
+		{"sqlite restore counts above sqlite_count", func(d map[string]any) { obj(d, "cluster", "databases")["sqlite_restore_failed"] = 6 }, false},
+		{"valkey_redis_up above count", func(d map[string]any) { obj(d, "cluster", "databases")["valkey_redis_up"] = 4 }, false},
+		{"clickhouse_up above count", func(d map[string]any) { obj(d, "cluster", "databases")["clickhouse_up"] = 2 }, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
