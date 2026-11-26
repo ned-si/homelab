@@ -39,7 +39,7 @@ spec:
           value: "1000"
         - name: UMASK
           value: "002"
-        image: ghcr.io/hotio/qbittorrent:release-5.3.1@sha256:b363a320af241b74cdd15c0e6d966a258e8710fbf6ebfa02ad18e6e5c19fee5e
+        image: ghcr.io/hotio/qbittorrent:release-5.3.1@sha256:084d2389d3db3d045ad057580db5564f682e965d12349d48b7a81ee23eec8564
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 5
