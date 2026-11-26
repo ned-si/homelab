@@ -5,7 +5,7 @@ One PR per task, in order. PR bodies carry
 site-theme-language task 5 (the French dashboard, #1763) has merged: both
 change the same template lines and the catalogue.
 
-- [ ] 1. Recording rules (**live**, not visible): the group
+- [x] 1. Recording rules (**live**, not visible): the group
       `homelab.databases.engines` and the four restore rules of
       [design, Recording rules](design.md#recording-rules-task-1) in
       `platform/kube-prometheus-stack/routes/databases.yaml`, `task
@@ -13,7 +13,7 @@ change the same template lines and the catalogue.
       `tests/prometheus/databases_test.yaml`; `docs/backups.md`
       (Reading the results, What is not backed up). Branch
       `feat/database-engine-rules`. Check: acceptance criteria 1 and 2.
-      [1.1-1.5]
+      [1.1-1.5] (#1773)
 - [ ] 2. Snapshot, collector and tiles (visible after task 3): snapshot
       version plus one with the nine keys of
       [design, The snapshot](design.md#the-snapshot-task-2), schema,
