@@ -103,11 +103,12 @@ its task 6.
       docs alone how a new chart reaches the site and how to see that the
       site is current; links resolve. [6.5]
       #1875.
-- [ ] 9. Link the site from drum-charts (**ned-si/drum-charts**): keep
+- [x] 9. Link the site from drum-charts (**ned-si/drum-charts**): keep
       the Songs table and the Next section as they are, and add one line
       under the Songs heading: `Read or download every chart at
       [charts.nedsi.io](https://charts.nedsi.io/).` Its merge is the
       end-to-end test. Check: the Songs table still has one row per file
       in `songs/`; acceptance criterion 12. [2.1, 2.3]
+      ned-si/drum-charts#15.
 
 The last task ticked sets `status: done`, `closed:`, and closes #1761.
