@@ -59,7 +59,7 @@ its task 6.
       acceptance criteria 4-7; the real render read at 390 and 1920 px
       in both themes, locally. [2.1, 2.2, 2.4, 3, 4.1, 4.4, 4.5, 8]
       #1791.
-- [ ] 4. The site image carries the charts (**ned-si/homelab**, not
+- [x] 4. The site image carries the charts (**ned-si/homelab**, not
       served): `site-publish.yaml` (paths, Go with `GOTOOLCHAIN: local`,
       cosign, verify, render), `site/Dockerfile`, `.gitignore`, the
       image smoke test's file check. Then the `homelab-site` digest pull
@@ -67,7 +67,7 @@ its task 6.
       green; the deployed digest's `/usr/share/nginx/charts/` holds
       `index.html` and one directory per song (`docker create` and
       `docker cp` of that digest); the website PostSync smoke passes.
-      [2.3]
+      [2.3] #1820.
 - [ ] 5. Serving at `charts.nedsi.io` (**ned-si/homelab**, live).
       Operator first: no unowned `charts` record in the `nedsi.io` zone.
       The certificate, the two listeners, the HTTPRoute hostnames, the
