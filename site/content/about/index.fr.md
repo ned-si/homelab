@@ -64,8 +64,8 @@ bout en bout. Audits Kubernetes, automatisation et DevSecOps.
 - 2023 : CISSP
 - 2022 : HashiCorp Certified Vault Operations Professional, HashiCorp
   Certified Terraform Associate, AWS Certified Solutions Architect
-  Associate, Google Cloud Associate Cloud Engineer, Microsoft Certified
-  Azure Administrator Associate
+  Associate (SAA), Google Cloud Associate Cloud Engineer (ACE), Microsoft
+  Certified Azure Administrator Associate (AZ-104)
 - 2021 : Certified Kubernetes Application Developer (CKAD), Certified
   Kubernetes Security Specialist (CKS)
 - 2020 : Certified Kubernetes Administrator (CKA), Elastic Certified
