@@ -38,9 +38,9 @@ jq -r '.assets[] | select(.name | endswith(".pdf")) | "\(.name | rtrimstr(".pdf"
 grep -q '^legend ' "$tmp/pdfs" || die "$tag has no legend.pdf"
 
 curl -fsS -m 10 "$site/" -o "$tmp/index.html" || die "$site/ does not answer 200"
-# Song slugs follow drum-charts' <artist>-<title>, so /legend/ and /fr/ drop out.
-grep -oE 'href="/[a-z0-9]+(-[a-z0-9]+)+/"' "$tmp/index.html" \
-  | sed -E 's|href="/(.*)/"|\1|' | sort -u >"$tmp/linked"
+# Any link matching the slug rule is a song, except the legend and the language root.
+{ grep -oE 'href="/[a-z0-9]+(-[a-z0-9]+)*/"' "$tmp/index.html" || true; } \
+  | sed -E 's|href="/(.*)/"|\1|' | grep -vxE 'legend|fr' | sort -u >"$tmp/linked" || true
 grep -v '^legend ' "$tmp/pdfs" | cut -d' ' -f1 >"$tmp/want"
 if ! diff -u "$tmp/want" "$tmp/linked" >"$tmp/diff"; then
   die "the song pages linked from $site/ are not the PDFs of $tag minus legend.pdf:
@@ -54,11 +54,11 @@ check_chart() {
   curl -fsS -m 10 "$site/pdf/$slug.pdf" -o "$pdf" || die "$site/pdf/$slug.pdf does not answer 200"
   got="sha256:$(shasum -a 256 "$pdf" | cut -d' ' -f1)"
   [ "$got" = "$digest" ] || die "$site/pdf/$slug.pdf has $got, the asset of $tag $digest"
-  pages=$(pdfinfo "$pdf" | sed -n 's/^Pages: *//p')
+  pages=$(pdfinfo "$pdf" 2>/dev/null | sed -n 's/^Pages: *//p' || true)
   [ -n "$pages" ] || die "$site/pdf/$slug.pdf: no page count"
 
   curl -fsS -m 10 "$site$page" -o "$tmp/page.html" || die "$site$page does not answer 200"
-  grep -oE '<img [^>]*src="[^"]*"' "$tmp/page.html" | sed -E 's|.*src="([^"]*)"|\1|' >"$tmp/imgs"
+  { grep -oE '<img [^>]*src="[^"]*"' "$tmp/page.html" || true; } | sed -E 's|.*src="([^"]*)"|\1|' >"$tmp/imgs"
   : >"$tmp/want-imgs"
   for i in $(seq 1 "$pages"); do
     echo "/pages/$slug-$i.svg" >>"$tmp/want-imgs"
