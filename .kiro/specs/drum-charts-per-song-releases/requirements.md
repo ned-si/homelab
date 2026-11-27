@@ -207,8 +207,9 @@ per-song releases with no manual step.
    (it changes `build.yaml`) and the site data holds 14 songs and the
    legend. [2.1, 2.3]
 3. After task 1 merges, the `main` run publishes exactly 15 song
-   releases, one per chart, with the tags `scripts/release-plan.py`
-   prints locally on that commit; each holds exactly its assets and is
+   releases, one per chart, with the tags in the `plan.json` that
+   `python3 scripts/release-plan.py build/plan.json` writes locally on
+   that commit (`jq -r '.charts[].tag' build/plan.json`); each holds exactly its assets and is
    not a draft; one of them is Latest. The legacy releases saved before
    task 1's merge still exist with the same asset names and digests, and
    no other `charts-*` release exists. `:main`'s
@@ -284,6 +285,7 @@ records the current behaviour:
 | Requirement 1.6 | Runs not for the head of `main` publish nothing (1.4); `:main` moves only when the files change (3.3) |
 | Requirement 3.6, "the date of the release they come from" | The date of the newest chart version (7.2) |
 | Acceptance criteria 2 and 15 | Criteria 4 and 8 of this spec |
+| Acceptance criterion 3, "every MP3 of the release" | Every MP3 of each chart's current release ([The live check](design.md#the-live-check) step 3) |
 | Design: Manifest, Workflow, Validation (`release`, `commit`), Edge cases on reruns and two releases a day | [design.md](design.md) of this spec |
 | Design, Strings, `home.updated.one` and `home.updated.other` | This spec's [Strings](design.md#strings): no `{release}`; the French as the operator corrects it |
 | Design, Strings (a new key) | `song.version`, this spec's [Strings](design.md#strings) |

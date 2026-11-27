@@ -296,10 +296,21 @@ build/site-data`.
    against `SOUNDFONT_SHA256`), FFmpeg and the LilyPond image; `make
    -j"$(nproc)" $targets LILYPOND=...` (the targets are `build/<slug>.pdf`
    and `build/<slug>.mp3`, `build/legend.pdf`); the silence check over
-   `build/*.mp3` and the page-count check over `build/*.pdf`, as today
-   (they now see the built charts only); upload `build/*.pdf`,
-   `build/*.mp3` and `build/plan.json` as `drum-charts-<sha>`, kept 7
-   days.
+   the MP3s the plan built, not a glob, so a legend-only build checks
+   none and passes:
+
+   ```bash
+   set -euo pipefail
+   for f in $(jq -r '.charts[] | select(.build) | .assets[] | select(endswith(".mp3")) | "build/" + .' build/plan.json); do
+     max=$(ffmpeg -nostdin -i "$f" -af volumedetect -f null - 2>&1 | sed -n 's/.*max_volume: \(-\{0,1\}[0-9.]*\) dB/\1/p')
+     echo "$f max_volume ${max} dB"
+     awk -v m="$max" 'BEGIN { exit !(m != "" && m > -40) }'
+   done
+   ```
+
+   and the page-count check over `build/*.pdf`, as today (it now sees
+   the built charts only); upload `build/*.pdf`, `build/*.mp3` and
+   `build/plan.json` as `drum-charts-<sha>`, kept 7 days.
 6. Fetch the other charts' PDFs, after the upload so the artifact holds
    only built files:
 
@@ -333,11 +344,13 @@ group: release, cancel-in-progress: false }` as today.
    run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
    while IFS=$'\t' read -r tag commit assets <&3; do
      files=(); for a in $assets; do files+=("charts/$a"); done
-     if gh release view "$tag" > /dev/null 2>&1; then
+     if out=$(gh release view "$tag" --json isDraft 2>&1); then
        gh release upload "$tag" "${files[@]}" --clobber
-     else
+     elif [[ $out == *"release not found"* ]]; then
        gh release create "$tag" "${files[@]}" --draft --target "$commit" \
          --title "$tag" --notes "Chart of $commit, built by $run."
+     else
+       echo "$out" >&2; exit 1
      fi
      gh release edit "$tag" --draft=false --latest
    done 3< <(jq -r '.charts[] | select(.build) | [.tag, .commit, (.assets | join(" "))] | @tsv' charts/plan.json)
@@ -345,7 +358,10 @@ group: release, cancel-in-progress: false }` as today.
 
    An existing release is a draft left by a failed run, or one this
    run's plan saw as incomplete; `--clobber` makes it hold this build's
-   files, which the `site-data` job checks. The notes name the version
+   files, which the `site-data` job checks. Only "release not found"
+   creates a release: any other `gh release view` error fails the step,
+   so a transient error cannot leave a second draft with the same tag.
+   The notes name the version
    commit and the run that built the files (in the first run, most
    charts' version commit is `fe3a366` but the build is task 1's run).
    They name no slug, so the release search for one slug finds no other
@@ -376,20 +392,27 @@ github.ref == 'refs/heads/main' && needs.charts.result == 'success' &&
 
 ### README
 
-- The intro: every change to a song publishes a release of that song.
+- The intro: every change to a song publishes a release of that song;
+  it links `https://github.com/ned-si/drum-charts/releases`, not
+  `releases/latest`.
+- Layout: rows `scripts/release-plan.py` (the plan: version tags and
+  what to build) and `tests/` (unit tests of both scripts).
 - Songs table: columns Title, Artist, Chart, PDF, Releases. PDF links
   `https://charts.nedsi.io/pdf/<slug>.pdf`; Releases links
   `https://github.com/ned-si/drum-charts/releases?q=<slug>&expanded=true`
   (tested while writing this design: the search matches tag names and
   notes, not asset names, and `q=2026-11-25` lists exactly the 5
-  releases of that day). The line above the table says the Releases
-  link lists every version of the song, newest first, with its PDF and
-  MP3.
+  releases of that day). Under the Songs heading, keep drum-charts-site
+  task 9's charts.nedsi.io line, and replace the "latest release"
+  sentence with one saying the Releases link lists every version of the
+  song, newest first, with its PDF and MP3.
 - Naming: the slug `charts` is refused.
 - Notation: "The legend PDF (`legend.pdf` in each release)" becomes "in
   the legend's releases (`legend-<date>-<sha>`)".
 - CI: the plan, what publishes a release (the inputs table), the tag,
   Latest, the legacy releases, when the data image is published.
+- Build locally: `make site-data` needs every song committed (its
+  version tag comes from git); `make pdf` does not.
 
 ### Tests
 
@@ -474,10 +497,12 @@ the keys it is given, so that French would print `{release}` literally,
 and `TestCatalogue` compares only key sets.
 
 If the `fr` catalogue exists when task 2 starts (drum-charts-site task 7
-merged), task 2 adds the French as the operator corrects it, and
-`TestCatalogue` keeps both languages' keys equal. If it does not, task 2
-comments on #1761 with the three keys, their English and the proposed
-French above, so drum-charts-site task 7 takes them from this spec and
+merged), task 2 posts the three keys with the proposed French on its
+pull request and waits for the operator's correction before merging,
+the only wait in this spec; `TestCatalogue` keeps both languages' keys
+equal. If it does not, task 2 comments the three keys, their English and
+the proposed French above on the issue that carries drum-charts-site
+task 7 (#1761, or its `blocked` issue if task 7 was deferred), so drum-charts-site task 7 takes them from this spec and
 not from its own Strings table; its `TestCatalogue` fails until
 `song.version` has French.
 
@@ -552,6 +577,7 @@ output and exit codes; its source of truth changes:
 | Plan and `songs/` mismatch, slug `charts` | `tests/test_site_data.py`, unit |
 | Only changed charts built; downloads; full validation | Branch runs of task 1 (all built) and task 3's PR A (none) and PR B (one) |
 | Releases, Latest, legacy untouched, data image only on change, the `site-data` head check | The `main` runs of tasks 1 and 3 and the reruns of criterion 4 |
+| The legend-only build (the silence check over no MP3) | Read in review |
 | The `release` job's head check | Read in review; live only on a race ([Edge cases](#edge-cases)) |
 | Render determinism on the runner | The render case of `tests/test_site_data.py` on task 1's branch |
 | Schema 2 rules, strings, golden pages | `go test ./...` in `drumcharts/` |
@@ -562,13 +588,19 @@ output and exit codes; its source of truth changes:
 - A `lib/` change: all 15 charts are built and published in one run;
   Latest is the last in plan order.
 - A `legend.ly` change: the legend's release only; the songs keep
-  theirs.
+  theirs. It builds no MP3; the silence check loops over the plan's MP3
+  assets, so it checks none and passes.
 - Two songs in one pull request: two releases.
 - A comment-only or `% chart: long` edit of a `.ly`: a release with the
   same engraving; accepted (path rule).
 - Two merges minutes apart: the first run finds `main` moved and
   publishes nothing; the second run's plan includes the first merge's
   version commit for its song, so it publishes both.
+- A release published by an older run while this run built the same
+  chart: this run's `--clobber` replaces its assets with this build's,
+  which the site data holds. For those seconds the public release is
+  missing an asset; accepted, since it needs a merge during another
+  run's `release` job.
 - A run fails after some releases: the next run of the head (a rerun or
   the next push) publishes the missing ones; drafts are reused.
 - The `site-data` job fails after the releases: the site keeps the
@@ -636,3 +668,12 @@ First review, 12 findings, all addressed:
 | 10 | README MP3 links | Decided defaults row |
 | 11 | Release notes | `Chart of <commit>, built by <run URL>.` |
 | 12 | Render determinism on the runner | Unit test rendering the committed legend PDF twice, criterion 1 |
+
+Second review, 1 MEDIUM and 8 NITs, all addressed: the silence check
+loops over the plan's MP3s (a legend-only build passes); `gh release
+view` tells "not found" from other errors, and the clobber of a
+just-published release is an edge case; the README list covers Layout,
+the intro link, task 9's line and Build locally; task 2's French path
+names the wait and the issue; criterion 3 reads the tags from
+`plan.json`; task 3 explains PR B's comment; Supersedes gains
+drum-charts-site criterion 3, and task 2 greps `docs/` and `README.md`.

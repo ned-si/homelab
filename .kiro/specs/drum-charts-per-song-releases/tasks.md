@@ -37,12 +37,16 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       to the digest of `:main` at the pull request's last rebase
       (`docker buildx imagetools inspect ghcr.io/ned-si/drum-charts:main`),
       `scripts/charts-check.sh`, `docs/drum-charts.md` ([design, This
-      repository's changes](design.md#this-repositorys-changes)). The
-      French of the new strings as the operator corrects it, if the `fr`
-      catalogue exists by then; if drum-charts-site task 7 has not
-      merged, a comment on #1761 with the three keys, their English and
-      the proposed French ([design, Strings](design.md#strings)), so
-      task 7 takes them from this spec. No change to the Renovate rule, `site-publish.yaml`,
+      repository's changes](design.md#this-repositorys-changes)). If the
+      `fr` catalogue exists, post the three keys with the proposed
+      French on the pull request and wait for the operator's correction
+      before merging; this is the only wait in this spec. If it does
+      not, comment them, with their English, on the issue that carries
+      drum-charts-site task 7 (#1761, or its `blocked` issue if task 7
+      was deferred) ([design, Strings](design.md#strings)), so task 7
+      takes them from this spec. Run `git grep -n -E 'latest
+      release|charts-<|release tag' docs/ README.md` and update each
+      hit about the charts site. No change to the Renovate rule, `site-publish.yaml`,
       `scripts/ci/drumcharts-data.sh` or the website manifests. Check:
       `ci` green with the `drumcharts` job on the new pin; criterion 7;
       `site-publish` green; the `homelab-site` digest PR merges by
@@ -55,7 +59,12 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       `\header` block of `songs/fountains-of-wayne-stacys-mom.ly` (its
       only change to a release input) and sets Next back to "none" in
       the README. Merge
-      PR A, wait for its `main` run, then PR B. Check: criterion 5 for
+      PR A, wait for its `main` run, then PR B. A comment is a change
+      to a release input (Requirement 1.1): the song is rebuilt and its
+      PDF gets a new digest, which is what criteria 6 and 8 observe,
+      while the engraving the operator plays from stays the same. If the
+      operator has a real pending edit for one song when task 3 starts,
+      use that edit instead. Check: criterion 5 for
       PR A; criteria 6, 8, 9 and 10 for PR B; after PR B's `main` run,
       criterion 4 (b) (rerun PR A's `main` run). [1, 2, 3, 4, 7]
 - [ ] 4. Close-out (**ned-si/homelab**): tick the tasks with their PRs
