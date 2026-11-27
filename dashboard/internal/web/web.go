@@ -98,7 +98,7 @@ func New(o Options) (*Server, error) {
 	s.start = s.now()
 	s.SetKeys(o.Keys)
 	var err error
-	if s.page, err = template.ParseFS(templateFS, "templates/page.html", "templates/layout.html"); err != nil {
+	if s.page, err = template.New("page.html").Funcs(template.FuncMap{"em": em}).ParseFS(templateFS, "templates/page.html", "templates/layout.html"); err != nil {
 		return nil, fmt.Errorf("page template: %w", err)
 	}
 	if s.notFound, err = template.ParseFS(templateFS, "templates/notfound.html", "templates/layout.html"); err != nil {

@@ -2,12 +2,26 @@ package web
 
 import (
 	"fmt"
+	"html"
+	"html/template"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
+
+// emphasis is *text*: an English expression in the French text, set in
+// italics (the operator's rule, 2026-11-26). A mark inside a word or
+// before a dot, as in *.lilalala.com, is not one.
+var emphasis = regexp.MustCompile(`(^|[^\pL\pN*])\*([^\s*.][^*]*[^\s*]|[^\s*.])\*`)
+
+// em escapes s, then sets each *text* in <em>; the templates print the
+// catalogue's running text through it.
+func em(s string) template.HTML {
+	return template.HTML(emphasis.ReplaceAllString(html.EscapeString(s), "${1}<em>${2}</em>")) //nolint:gosec // G203: escaped first, only <em> is added.
+}
 
 // site is the page's origin, for the canonical and hreflang links.
 const site = "https://homelab.nedsi.io"
@@ -434,7 +448,7 @@ var catalogues = map[string]catalogue{
 		"nav.home":      "Accueil",
 		"nav.blog":      "Blog",
 		"nav.homelab":   "Homelab",
-		"nav.techradar": "Radar techno",
+		"nav.techradar": "Tech radar",
 		"nav.about":     "À propos",
 
 		"theme.light":       "Thème clair",
@@ -453,7 +467,7 @@ var catalogues = map[string]catalogue{
 		"notfound.blog":      "blog",
 		"notfound.after":     " liste tous les articles.",
 
-		"intro":              "Un homelab sur-conçu, en chiffres.",
+		"intro":              "Un homelab surconçu, en chiffres.",
 		"intro.sla":          "SLA\u00a0: 99,50\u202f% de disponibilité sur 30 jours glissants, par app.",
 		"updated.before":     "Mis à jour le ",
 		"updated.after":      " (heure de Zurich).",
@@ -476,7 +490,7 @@ var catalogues = map[string]catalogue{
 		"cluster.state":   "État",
 
 		"project":               "Projet, 30 jours glissants",
-		"project.intro":         "Chaque pull request mergée dans main est un déploiement.",
+		"project.intro":         "Chaque *pull request* mergée dans main est un déploiement.",
 		"dora":                  "Métriques DORA",
 		"dora.what.link":        "DORA",
 		"dora.what.after":       ", pour DevOps Research and Assessment, est le programme de recherche derrière les rapports State of DevOps. Il résume la livraison logicielle en quatre métriques\u00a0: à quelle fréquence les changements arrivent en production (fréquence de déploiement), combien de temps un changement met pour y arriver (délai de livraison des changements), à quelle fréquence un changement casse quelque chose (taux d’échec des changements) et à quelle vitesse tout revient à la normale quand ça arrive (temps de rétablissement).",
@@ -484,18 +498,18 @@ var catalogues = map[string]catalogue{
 		"dora.bands.link":       "rapport DORA 2023",
 		"dora.bands.after":      ". Bien sûr, ces métriques ont été pensées pour des équipes, pas pour une personne et quelques agents, mais elles font quand même un bon étalon.",
 		"dora.overall":          "Le niveau global est la plus basse des quatre catégories, pour qu’une métrique faible ne soit jamais noyée dans une moyenne.",
-		"dora.rework.before":    "Le taux de reprise compte les déploiements imprévus\u00a0: rollbacks, fix forwards et merges ",
+		"dora.rework.before":    "Le taux de reprise compte les déploiements imprévus\u00a0: *rollbacks*, *fix forwards* et *merges* ",
 		"dora.rework.after":     " faits pendant un incident ou dans les 24 heures qui suivent, sur l’ensemble des déploiements. Le taux de reprise, cinquième métrique de DORA depuis 2024, n’a pas de catégorie ici\u00a0: les groupes de 2023 dont viennent ces catégories sont plus anciens.",
 		"delivery":              "Renovate et CI",
-		"runs":                  "Derniers runs de CI sur main",
+		"runs":                  "Derniers *runs* de CI sur main",
 		"supply":                "Chaîne d’approvisionnement",
 		"slsa":                  "Provenance SLSA",
-		"slsa.before":           "Les deux images que je construis ici, ce tableau de bord et le site, sont construites sur des runners hébergés par GitHub, et GitHub signe une provenance pour chacune\u00a0: cela donne le ",
+		"slsa.before":           "Les deux images que je construis ici, ce tableau de bord et le site, sont construites sur des *runners* hébergés par GitHub, et GitHub signe une provenance pour chacune\u00a0: cela donne le ",
 		"slsa.link":             "SLSA Build level 2",
-		"slsa.after":            ". Kyverno vérifie les deux sur chaque Pod qui les fait tourner. Le niveau 3 demande de déplacer le build dans un workflow réutilisable, ce sera pour plus tard.",
+		"slsa.after":            ". Kyverno vérifie les deux sur chaque Pod qui les fait tourner. Le niveau 3 demande de déplacer le *build* dans un *workflow* réutilisable, ce sera pour plus tard.",
 		"scorecard":             "OpenSSF Scorecard",
 		"scorecard.link":        "OpenSSF Scorecard",
-		"scorecard.middle":      " note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque merge dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais)\u202f; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous\u202f; une note sous un contrôle dit pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le ",
+		"scorecard.middle":      " note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque *merge* dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais)\u202f; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous\u202f; une note sous un contrôle dit pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le ",
 		"scorecard.report":      "rapport complet",
 		"scorecard.after":       ".",
 		"security":              "Sécurité",
@@ -583,7 +597,7 @@ var catalogues = map[string]catalogue{
 		"db.sqlite-backups.detail":     "Chaque nuit vers S3, chacune dans les 26 h glissantes",
 		"db.sqlite-backups.restore":    "%s ont réussi le test de restauration hebdomadaire, 8 jours glissants",
 		"db.valkey.note":               "En mémoire, pas sauvegardé",
-		"db.clickhouse.note":           "Les logs et les traces expirent, pas sauvegardé",
+		"db.clickhouse.note":           "Les *logs* et les traces expirent, pas sauvegardé",
 		"unit.app":                     "app",
 		"unit.database":                "base",
 		"unit.databases":               "bases",
@@ -598,10 +612,10 @@ var catalogues = map[string]catalogue{
 		"status.failed":                "Échec",
 		"status.passed":                "Réussis",
 		"status.overdue":               "En retard",
-		"check.note.branch-protection": "Voulu\u00a0: main n’accepte que des pull requests aux commits signés et à la CI verte, sans approbation, pour que Renovate et les agents mergent sans attendre personne.",
-		"check.note.code-review":       "Voulu\u00a0: je gère ça seul et ce sont des agents qui ouvrent les pull requests, donc personne d’autre ne les approuve. La CI verte est le seul contrôle.",
+		"check.note.branch-protection": "Voulu\u00a0: main n’accepte que des *pull requests* aux commits signés et à la CI verte, sans approbation, pour que Renovate et les agents mergent sans attendre personne.",
+		"check.note.code-review":       "Voulu\u00a0: je gère ça seul et ce sont des agents qui ouvrent les *pull requests*, donc personne d’autre ne les approuve. La CI verte est le seul contrôle.",
 		"check.note.contributors":      "Voulu\u00a0: un opérateur et quelques agents, sans entreprise ni organisation derrière le dépôt.",
-		"check.note.signed-releases":   "Les images sont signées avec cosign et portent une provenance SLSA Build L2. Pas de releases GitHub, c’est voulu\u00a0: ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.",
+		"check.note.signed-releases":   "Les images sont signées avec cosign et portent une provenance SLSA Build L2. Pas de *releases* GitHub, c’est voulu\u00a0: ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.",
 		"use.cpu":                      "CPU",
 		"use.memory":                   "Mémoire",
 		"use.disk":                     "Disque",
@@ -614,7 +628,7 @@ var catalogues = map[string]catalogue{
 		"use.unhealthy":                "Dégradé",
 		"use.load":                     "Charge par cœur",
 		"use.device-errors":            "Erreurs de disque",
-		"use.scrub-errors":             "Erreurs de scrub",
+		"use.scrub-errors":             "Erreurs de *scrub*",
 		"red.requests":                 "Requêtes",
 		"red.5xx":                      "Réponses 5xx",
 		"red.p95":                      "Durée p95",
@@ -641,7 +655,7 @@ var catalogues = map[string]catalogue{
 		"dora.level":          "Niveau global",
 		"dora.rework":         "Taux de reprise",
 		"dora.rework.detail":  "%s sur %s déploiements",
-		"delivery.ci":         "Run de CI médian",
+		"delivery.ci":         "*Run* de CI médian",
 		"delivery.renovate":   "Ouvertes par Renovate",
 
 		"signal.share":        "%s, %s de %s %s",
@@ -653,7 +667,7 @@ var catalogues = map[string]catalogue{
 		"noun.sign-ins":       "connexions",
 
 		"image.level":     "Build L%s",
-		"image.builder":   "Runner hébergé par GitHub, %s sur main",
+		"image.builder":   "*Runner* hébergé par GitHub, %s sur main",
 		"scorecard.score": "Score",
 		"scorecard.run":   "Analyse Scorecard du %s",
 
@@ -681,11 +695,11 @@ var catalogues = map[string]catalogue{
 		"app.homelab":       "Tableau de bord du homelab",
 
 		"signal.gateway_unknown":      "Hôte ou chemin inconnu",
-		"signal.gateway_unknown.note": "Y compris notre propre scan de sécurité hebdomadaire.",
+		"signal.gateway_unknown.note": "Y compris notre propre *scan* de sécurité hebdomadaire.",
 		"signal.gateway_refused":      "Refusées par une app",
-		"signal.gateway_refused.note": "Y compris notre propre scan de sécurité hebdomadaire.",
+		"signal.gateway_refused.note": "Y compris notre propre *scan* de sécurité hebdomadaire.",
 		"signal.gateway_method":       "Méthode non autorisée (405)",
-		"signal.gateway_method.note":  "Y compris notre propre scan de sécurité hebdomadaire.",
+		"signal.gateway_method.note":  "Y compris notre propre *scan* de sécurité hebdomadaire.",
 		"signal.signin_failed":        "Connexions échouées",
 		"signal.blocked":              "Déploiements bloqués par une règle",
 		"signal.ingress_world":        "Paquets entrants d’internet rejetés",

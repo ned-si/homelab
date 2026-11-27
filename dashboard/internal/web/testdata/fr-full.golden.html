@@ -20,7 +20,7 @@
 <a href="https://nedsi.io/fr/">Accueil</a>
 <a href="https://blog.nedsi.io/fr/">Blog</a>
 <a href="/fr/" aria-current="page">Homelab</a>
-<a href="https://techradar.nedsi.io/fr/">Radar techno</a>
+<a href="https://techradar.nedsi.io/fr/">Tech radar</a>
 <a href="https://blog.nedsi.io/fr/about/">À propos</a>
 </nav>
 <p class="prefs">
@@ -33,7 +33,7 @@
 
 <header class="page">
 <h1>Homelab</h1>
-<p class="intro">Un homelab sur-conçu, en chiffres.</p>
+<p class="intro">Un homelab surconçu, en chiffres.</p>
 <p class="meta">SLA : 99,50 % de disponibilité sur 30 jours glissants, par app.</p>
 <p class="meta">Mis à jour le <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time> (heure de Zurich).</p>
 </header>
@@ -353,7 +353,7 @@
 </div>
 </div>
 <div class="tile">
-<p class="tile-label">Erreurs de scrub</p>
+<p class="tile-label">Erreurs de <em>scrub</em></p>
 <div class="tile-body">
 <p class="tile-value ok">0 <span class="status ok">OK</span></p>
 </div>
@@ -507,7 +507,7 @@
 <p class="tile-value ok">1<span class="unit"> instance</span> <span class="status ok">En service</span></p>
 <p class="tile-detail">Vues sur les 24 h glissantes</p>
 <p class="tile-detail">1 en service</p>
-<p class="tile-detail">Les logs et les traces expirent, pas sauvegardé</p>
+<p class="tile-detail">Les <em>logs</em> et les traces expirent, pas sauvegardé</p>
 </div>
 </div>
 </div>
@@ -515,7 +515,7 @@
 </section>
 <section class="panel stats" aria-labelledby="project">
 <h2 id="project">Projet, 30 jours glissants</h2>
-<p class="meta">Chaque pull request mergée dans main est un déploiement.</p>
+<p class="meta">Chaque <em>pull request</em> mergée dans main est un déploiement.</p>
 <h3>Métriques DORA</h3>
 <p class="meta"><a href="https://dora.dev/">DORA</a>, pour DevOps Research and Assessment, est le programme de recherche derrière les rapports State of DevOps. Il résume la livraison logicielle en quatre métriques : à quelle fréquence les changements arrivent en production (fréquence de déploiement), combien de temps un changement met pour y arriver (délai de livraison des changements), à quelle fréquence un changement casse quelque chose (taux d’échec des changements) et à quelle vitesse tout revient à la normale quand ça arrive (temps de rétablissement).</p>
 <p class="meta">Chaque métrique tombe dans l’une de quatre catégories, Élite, Élevé, Moyen ou Faible, tirées des groupes de performance du <a href="https://dora.dev/research/2023/dora-report/">rapport DORA 2023</a>. Bien sûr, ces métriques ont été pensées pour des équipes, pas pour une personne et quelques agents, mais elles font quand même un bon étalon.</p>
@@ -565,7 +565,7 @@
 </div>
 </div>
 </div>
-<p class="meta">Le taux de reprise compte les déploiements imprévus : rollbacks, fix forwards et merges <code>fix</code> faits pendant un incident ou dans les 24 heures qui suivent, sur l’ensemble des déploiements. Le taux de reprise, cinquième métrique de DORA depuis 2024, n’a pas de catégorie ici : les groupes de 2023 dont viennent ces catégories sont plus anciens.</p>
+<p class="meta">Le taux de reprise compte les déploiements imprévus : <em>rollbacks</em>, <em>fix forwards</em> et <em>merges</em> <code>fix</code> faits pendant un incident ou dans les 24 heures qui suivent, sur l’ensemble des déploiements. Le taux de reprise, cinquième métrique de DORA depuis 2024, n’a pas de catégorie ici : les groupes de 2023 dont viennent ces catégories sont plus anciens.</p>
 <h3>Renovate et CI</h3>
 <div class="tiles">
 <div class="tile">
@@ -576,13 +576,13 @@
 </div>
 </div>
 <div class="tile">
-<p class="tile-label">Run de CI médian</p>
+<p class="tile-label"><em>Run</em> de CI médian</p>
 <div class="tile-body">
 <p class="tile-value">5<span class="unit"> min</span> 05<span class="unit"> s</span></p>
 </div>
 </div>
 </div>
-<h3>Derniers runs de CI sur main</h3>
+<h3>Derniers <em>runs</em> de CI sur main</h3>
 <ul class="runs">
 <li><span class="status ok">Réussi</span> <a href="https://github.com/ned-si/homelab/pull/1602">#1602</a> <code>6d0407e</code> <time datetime="2026-11-20T16:40:12&#43;01:00">20 nov. 16:40</time>, 4<span class="unit"> min</span> 58<span class="unit"> s</span></li>
 <li><span class="status bad">Échec</span> <a href="https://github.com/ned-si/homelab/pull/1601">#1601</a> <code>a433737</code> <time datetime="2026-11-20T16:02:40&#43;01:00">20 nov. 16:02</time>, 5<span class="unit"> min</span> 41<span class="unit"> s</span></li>
@@ -595,26 +595,26 @@
 <section class="panel stats" aria-labelledby="supply-chain">
 <h2 id="supply-chain">Chaîne d’approvisionnement</h2>
 <h3>Provenance SLSA</h3>
-<p class="meta">Les deux images que je construis ici, ce tableau de bord et le site, sont construites sur des runners hébergés par GitHub, et GitHub signe une provenance pour chacune : cela donne le <a href="https://slsa.dev/spec/v1.0/levels">SLSA Build level 2</a>. Kyverno vérifie les deux sur chaque Pod qui les fait tourner. Le niveau 3 demande de déplacer le build dans un workflow réutilisable, ce sera pour plus tard.</p>
+<p class="meta">Les deux images que je construis ici, ce tableau de bord et le site, sont construites sur des <em>runners</em> hébergés par GitHub, et GitHub signe une provenance pour chacune : cela donne le <a href="https://slsa.dev/spec/v1.0/levels">SLSA Build level 2</a>. Kyverno vérifie les deux sur chaque Pod qui les fait tourner. Le niveau 3 demande de déplacer le <em>build</em> dans un <em>workflow</em> réutilisable, ce sera pour plus tard.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">homelab-dashboard</p>
 <div class="tile-body">
 <p class="tile-value ok">Build L2 <span class="status ok">Vérifiée</span></p>
-<p class="tile-detail">Runner hébergé par GitHub, dashboard-publish.yaml sur main</p>
+<p class="tile-detail"><em>Runner</em> hébergé par GitHub, dashboard-publish.yaml sur main</p>
 </div>
 </div>
 <div class="tile">
 <p class="tile-label">homelab-site</p>
 <div class="tile-body">
 <p class="tile-value ok">Build L2 <span class="status ok">Vérifiée</span></p>
-<p class="tile-detail">Runner hébergé par GitHub, site-publish.yaml sur main</p>
+<p class="tile-detail"><em>Runner</em> hébergé par GitHub, site-publish.yaml sur main</p>
 </div>
 </div>
 </div>
 <p class="meta">État au <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time>.</p>
 <h3>OpenSSF Scorecard</h3>
-<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque merge dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais) ; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous ; une note sous un contrôle dit pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">rapport complet</a>.</p>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque <em>merge</em> dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais) ; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous ; une note sous un contrôle dit pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">rapport complet</a>.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">Score</p>
@@ -637,7 +637,7 @@
 <div class="tile-body">
 <p class="tile-value warn">4<span class="unit"> / 10</span> <span class="status warn">Attention</span></p>
 <p class="tile-detail" lang="en-GB">branch protection is not maximal on development and all release branches</p>
-<p class="tile-detail">Voulu : main n’accepte que des pull requests aux commits signés et à la CI verte, sans approbation, pour que Renovate et les agents mergent sans attendre personne.</p>
+<p class="tile-detail">Voulu : main n’accepte que des <em>pull requests</em> aux commits signés et à la CI verte, sans approbation, pour que Renovate et les agents mergent sans attendre personne.</p>
 </div>
 </div>
 <div class="tile">
@@ -659,7 +659,7 @@
 <div class="tile-body">
 <p class="tile-value bad">0<span class="unit"> / 10</span> <span class="status bad">Critique</span></p>
 <p class="tile-detail" lang="en-GB">Found 0/28 approved changesets -- score normalized to 0</p>
-<p class="tile-detail">Voulu : je gère ça seul et ce sont des agents qui ouvrent les pull requests, donc personne d’autre ne les approuve. La CI verte est le seul contrôle.</p>
+<p class="tile-detail">Voulu : je gère ça seul et ce sont des agents qui ouvrent les <em>pull requests</em>, donc personne d’autre ne les approuve. La CI verte est le seul contrôle.</p>
 </div>
 </div>
 <div class="tile">
@@ -738,7 +738,7 @@
 <div class="tile-body">
 <p class="tile-value none"><span class="status none">Non applicable</span></p>
 <p class="tile-detail" lang="en-GB">no releases found</p>
-<p class="tile-detail">Les images sont signées avec cosign et portent une provenance SLSA Build L2. Pas de releases GitHub, c’est voulu : ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.</p>
+<p class="tile-detail">Les images sont signées avec cosign et portent une provenance SLSA Build L2. Pas de <em>releases</em> GitHub, c’est voulu : ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.</p>
 </div>
 </div>
 <div class="tile">
@@ -770,7 +770,7 @@
 <p class="tile-detail">7 jours glissants : 26 391 (6,12 %)</p>
 <p class="tile-detail">760 autres, auxquelles la Gateway a répondu elle-même, ne peuvent pas être attribuées.</p>
 <div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 1 103"><g><rect class="spark" x="1.0" y="6.8" width="8.0" height="33.2"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 916</title></rect><rect class="spark" x="11.0" y="6.8" width="8.0" height="33.2"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 916</title></rect><rect class="spark" x="21.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 916</title></rect><rect class="spark" x="31.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 916</title></rect><rect class="spark" x="41.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 916</title></rect><rect class="spark" x="51.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 916</title></rect><rect class="spark" x="61.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 916</title></rect><rect class="spark" x="71.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 916</title></rect><rect class="spark" x="81.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 916</title></rect><rect class="spark" x="91.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 916</title></rect><rect class="spark" x="101.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 916</title></rect><rect class="spark" x="111.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 916</title></rect><rect class="spark" x="121.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 916</title></rect><rect class="spark" x="131.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 916</title></rect><rect class="spark" x="141.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 916</title></rect><rect class="spark" x="151.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 916</title></rect><rect class="spark" x="161.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 916</title></rect><rect class="spark" x="171.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 916</title></rect><rect class="spark" x="181.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 916</title></rect><rect class="spark" x="191.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 916</title></rect><rect class="spark" x="201.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 916</title></rect><rect class="spark" x="211.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 916</title></rect><rect class="spark" x="221.0" y="6.8" width="8.0" height="33.2"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 916</title></rect><rect class="spark" x="231.0" y="6.8" width="8.0" height="33.2"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 916</title></rect><rect class="spark" x="241.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 1 103</title></rect><rect class="spark" x="251.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 1 103</title></rect><rect class="spark" x="261.0" y="0.0" width="8.0" height="40.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 1 103</title></rect><rect class="spark" x="271.0" y="0.0" width="8.0" height="40.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 1 103</title></rect></g></svg></div>
-<p class="tile-detail">Y compris notre propre scan de sécurité hebdomadaire.</p>
+<p class="tile-detail">Y compris notre propre <em>scan</em> de sécurité hebdomadaire.</p>
 </div>
 </div>
 <div class="tile">
@@ -781,7 +781,7 @@
 <p class="tile-detail">Dont 12 réponses 403</p>
 <p class="tile-detail">7 jours glissants : 661 (0,15 %)</p>
 <div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 28"><g><rect class="spark" x="1.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 28</title></rect><rect class="spark" x="11.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 28</title></rect><rect class="spark" x="21.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 28</title></rect><rect class="spark" x="31.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 28</title></rect><rect class="spark" x="41.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 28</title></rect><rect class="spark" x="51.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 28</title></rect><rect class="spark" x="61.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 28</title></rect><rect class="spark" x="71.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 28</title></rect><rect class="spark" x="81.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 28</title></rect><rect class="spark" x="91.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 28</title></rect><rect class="spark" x="101.0" y="0.0" width="8.0" height="40.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 28</title></rect><rect class="spark" x="111.0" y="0.0" width="8.0" height="40.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 28</title></rect><rect class="spark" x="121.0" y="0.0" width="8.0" height="40.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 28</title></rect><rect class="spark" x="131.0" y="1.4" width="8.0" height="38.6"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 27</title></rect><rect class="spark" x="141.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 27</title></rect><rect class="spark" x="151.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 27</title></rect><rect class="spark" x="161.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 27</title></rect><rect class="spark" x="171.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 27</title></rect><rect class="spark" x="181.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 27</title></rect><rect class="spark" x="191.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 27</title></rect><rect class="spark" x="201.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 27</title></rect><rect class="spark" x="211.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 27</title></rect><rect class="spark" x="221.0" y="1.4" width="8.0" height="38.6"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 27</title></rect><rect class="spark" x="231.0" y="1.4" width="8.0" height="38.6"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 27</title></rect><rect class="spark" x="241.0" y="25.7" width="8.0" height="14.3"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 10</title></rect><rect class="spark" x="251.0" y="25.7" width="8.0" height="14.3"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 10</title></rect><rect class="spark" x="261.0" y="25.7" width="8.0" height="14.3"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 10</title></rect><rect class="spark" x="271.0" y="25.7" width="8.0" height="14.3"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 10</title></rect></g></svg></div>
-<p class="tile-detail">Y compris notre propre scan de sécurité hebdomadaire.</p>
+<p class="tile-detail">Y compris notre propre <em>scan</em> de sécurité hebdomadaire.</p>
 </div>
 </div>
 <div class="tile">
@@ -791,7 +791,7 @@
 <p class="tile-detail">24 h glissantes, 0,05 % de 62 940 requêtes</p>
 <p class="tile-detail">7 jours glissants : 114 (0,03 %)</p>
 <div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 8"><g><rect class="spark" x="1.0" y="20.0" width="8.0" height="20.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 4</title></rect><rect class="spark" x="11.0" y="20.0" width="8.0" height="20.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 4</title></rect><rect class="spark" x="21.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 4</title></rect><rect class="spark" x="31.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 4</title></rect><rect class="spark" x="41.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 4</title></rect><rect class="spark" x="51.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 4</title></rect><rect class="spark" x="61.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 4</title></rect><rect class="spark" x="71.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 4</title></rect><rect class="spark" x="81.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 4</title></rect><rect class="spark" x="91.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 4</title></rect><rect class="spark" x="101.0" y="20.0" width="8.0" height="20.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 4</title></rect><rect class="spark" x="111.0" y="20.0" width="8.0" height="20.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 4</title></rect><rect class="spark" x="121.0" y="20.0" width="8.0" height="20.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 4</title></rect><rect class="spark" x="131.0" y="25.0" width="8.0" height="15.0"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 3</title></rect><rect class="spark" x="141.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 3</title></rect><rect class="spark" x="151.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 3</title></rect><rect class="spark" x="161.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 3</title></rect><rect class="spark" x="171.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 3</title></rect><rect class="spark" x="181.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 3</title></rect><rect class="spark" x="191.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 3</title></rect><rect class="spark" x="201.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 3</title></rect><rect class="spark" x="211.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 3</title></rect><rect class="spark" x="221.0" y="25.0" width="8.0" height="15.0"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 3</title></rect><rect class="spark" x="231.0" y="25.0" width="8.0" height="15.0"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 3</title></rect><rect class="spark" x="241.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 8</title></rect><rect class="spark" x="251.0" y="5.0" width="8.0" height="35.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 7</title></rect><rect class="spark" x="261.0" y="5.0" width="8.0" height="35.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 7</title></rect><rect class="spark" x="271.0" y="5.0" width="8.0" height="35.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 7</title></rect></g></svg></div>
-<p class="tile-detail">Y compris notre propre scan de sécurité hebdomadaire.</p>
+<p class="tile-detail">Y compris notre propre <em>scan</em> de sécurité hebdomadaire.</p>
 </div>
 </div>
 <div class="tile">

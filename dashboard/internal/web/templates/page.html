@@ -1,20 +1,20 @@
 {{define "value"}}{{range $i, $p := .}}{{if $i}} {{end}}{{$p.Num}}{{with $p.Unit}}<span class="unit">{{.}}</span>{{end}}{{end}}{{end}}
 {{- define "tile"}}
 <div class="tile{{if .Accent}} accent {{.Status}}{{end}}">
-<p class="tile-label">{{.Label}}</p>
+<p class="tile-label">{{em .Label}}</p>
 <div class="tile-body">
 <p class="tile-value{{if and .Status (not .Accent)}} {{.Status}}{{end}}">{{template "value" .Value}}{{with .Word}}{{if $.Value}} {{end}}<span class="status {{$.Status}}">{{.}}</span>{{end}}</p>
 {{- with .Meter}}
 <div class="meter">{{.}}</div>
 {{- end}}
 {{- range .Details}}
-<p class="tile-detail"{{with $.DetailLang}} lang="{{.}}"{{end}}>{{.}}</p>
+<p class="tile-detail"{{with $.DetailLang}} lang="{{.}}"{{end}}>{{em .}}</p>
 {{- end}}
 {{- with .Spark}}
 <div class="spark">{{.}}</div>
 {{- end}}
 {{- with .Note}}
-<p class="tile-detail">{{.}}</p>
+<p class="tile-detail">{{em .}}</p>
 {{- end}}
 </div>
 </div>
@@ -89,11 +89,11 @@
 {{- range .State}}{{template "tile" .}}{{end}}
 </div>
 <h3>{{index $.T "databases"}}</h3>
-<p class="meta">{{index $.T "databases.intro"}}</p>
+<p class="meta">{{em (index $.T "databases.intro")}}</p>
 <div class="tiles">
 {{- range .Databases}}{{template "tile" .}}{{end}}
 </div>
-<p class="meta">{{index $.T "databases.engines"}}</p>
+<p class="meta">{{em (index $.T "databases.engines")}}</p>
 <div class="tiles">
 {{- range .Engines}}{{template "tile" .}}{{end}}
 </div>
@@ -101,7 +101,7 @@
 </section>
 <section class="panel stats" aria-labelledby="project">
 <h2 id="project">{{index $.T "project"}}</h2>
-<p class="meta">{{index $.T "project.intro"}}</p>
+<p class="meta">{{em (index $.T "project.intro")}}</p>
 <h3>{{index $.T "dora"}}</h3>
 <p class="meta"><a href="https://dora.dev/">{{index $.T "dora.what.link"}}</a>{{index $.T "dora.what.after"}}</p>
 <p class="meta">{{index $.T "dora.bands.before"}}<a href="https://dora.dev/research/2023/dora-report/">{{index $.T "dora.bands.link"}}</a>{{index $.T "dora.bands.after"}}</p>
@@ -112,12 +112,12 @@
 <div class="tiles bands">
 {{- range .DORA}}{{template "tile" .}}{{end}}
 </div>
-<p class="meta">{{index $.T "dora.rework.before"}}<code>fix</code>{{index $.T "dora.rework.after"}}</p>
+<p class="meta">{{em (index $.T "dora.rework.before")}}<code>fix</code>{{index $.T "dora.rework.after"}}</p>
 <h3>{{index $.T "delivery"}}</h3>
 <div class="tiles">
 {{- range .Delivery}}{{template "tile" .}}{{end}}
 </div>
-<h3>{{index $.T "runs"}}</h3>
+<h3>{{em (index $.T "runs")}}</h3>
 <ul class="runs">
 {{- range .Runs}}
 <li><span class="status {{.Status}}">{{.Word}}</span> {{with .PR}}<a href="https://github.com/ned-si/homelab/pull/{{.}}">#{{.}}</a> {{end}}<code>{{.Commit}}</code> <time datetime="{{.Started.Datetime}}">{{.Started.Text}}</time>, {{template "value" .Duration}}</li>
@@ -128,13 +128,13 @@
 <section class="panel stats" aria-labelledby="supply-chain">
 <h2 id="supply-chain">{{index $.T "supply"}}</h2>
 <h3>{{index $.T "slsa"}}</h3>
-<p class="meta">{{index $.T "slsa.before"}}<a href="https://slsa.dev/spec/v1.0/levels">{{index $.T "slsa.link"}}</a>{{index $.T "slsa.after"}}</p>
+<p class="meta">{{em (index $.T "slsa.before")}}<a href="https://slsa.dev/spec/v1.0/levels">{{index $.T "slsa.link"}}</a>{{em (index $.T "slsa.after")}}</p>
 <div class="tiles">
 {{- range .Images}}{{template "tile" .}}{{end}}
 </div>
 {{- template "asof" $.At .SupplyChain}}
 <h3>{{index $.T "scorecard"}}</h3>
-<p class="meta"><a href="https://scorecard.dev/">{{index $.T "scorecard.link"}}</a>{{index $.T "scorecard.middle"}}<a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">{{index $.T "scorecard.report"}}</a>{{index $.T "scorecard.after"}}</p>
+<p class="meta"><a href="https://scorecard.dev/">{{index $.T "scorecard.link"}}</a>{{em (index $.T "scorecard.middle")}}<a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">{{index $.T "scorecard.report"}}</a>{{index $.T "scorecard.after"}}</p>
 <div class="tiles">
 {{- range .Score}}{{template "tile" .}}{{end}}
 </div>
