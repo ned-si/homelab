@@ -204,7 +204,8 @@ fails, and the job fails if any check failed.
   vendored CRD schemas), the Kyverno policies and `repo-policy` (pinned
   actions, repository invariants, secrets, leak and placeholder checks,
   `deploy/` matches its sources, kube-linter).
-- `tests`: unit tests (pytest and bash) and the Vector config.
+- `tests`: unit tests (pytest and bash) with statement coverage
+  ([docs/testing.md](docs/testing.md#coverage)), and the Vector config.
 - `promtool` and `alertmanager`: Prometheus rule unit tests, Alertmanager
   routing tests.
 - `security`: `gitleaks` on the new commits, and the Trivy config scan.

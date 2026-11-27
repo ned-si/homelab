@@ -3,8 +3,9 @@
 # dashboard/ (.kiro/specs/homelab-dashboard/design.md, "CI on pull requests").
 #
 # go mod verify and tidy, golangci-lint (dashboard/.golangci.yaml), go vet,
-# govulncheck (a tool directive in go.mod), go test -race with the golden
-# files, go build, and the builder image's Go version against go.mod.
+# govulncheck (a tool directive in go.mod), go test -race with coverage and
+# the golden files, go build, and the builder image's Go version against
+# go.mod.
 #
 # Without --all it exits 0 when DASHBOARD_BASE..HEAD (default HEAD^1, main for
 # a pull request's merge commit) touches none of dashboard/, the two
@@ -44,7 +45,8 @@ step "go mod tidy" go mod tidy -diff
 step "golangci-lint" golangci-lint run ./...
 step "go vet" go vet ./...
 step "govulncheck" go tool govulncheck ./...
-step "go test" go test -race -count=1 ./...
+step "go test" go test -race -count=1 -coverpkg=./... -coverprofile="$work/cover.out" ./...
+step "coverage" "$root/scripts/ci/coverage-report.sh" go dashboard "$work/cover.out"
 step "go build" go build -o "$work/homelab-dashboard" ./cmd/homelab-dashboard
 
 echo "== builder image vs go.mod"

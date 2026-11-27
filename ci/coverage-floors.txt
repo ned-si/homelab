@@ -1,0 +1,7 @@
+# Statement-coverage floors read by scripts/ci/coverage-report.sh:
+# `<component> <floor>`, one per line. A component gets the floor 80 only once
+# it measures 80.0% or more; below that it has no line and its figure is only
+# reported (docs/testing.md, "Coverage").
+dashboard 80
+drumcharts 80
+python 80

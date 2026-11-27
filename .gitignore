@@ -84,6 +84,9 @@ terraform.rc
 # files is what created the first __pycache__ and it very nearly got committed.
 __pycache__/
 *.py[cod]
+# coverage.py data (.coveragerc).
+.coverage
+.coverage.*
 
 # Kiro: specs and steering are tracked; settings, hooks and skills stay local
 # (repo-policy rule kiro-tracked).

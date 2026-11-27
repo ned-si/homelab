@@ -1,6 +1,6 @@
 #!/bin/bash
 # setup-python-deps.sh [requirements file] -- CI Python tools from
-# ci/requirements-ci.txt (pytest, yamllint, pre-commit) or the file given
+# ci/requirements-ci.txt (pytest, coverage, yamllint, pre-commit) or the file given
 # (ci/requirements-fuzz.txt: Atheris).
 #
 # Every package, including transitive ones, is pinned by version and sha256;

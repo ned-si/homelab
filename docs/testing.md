@@ -70,8 +70,9 @@ their script runs, and the script fails when one is missing.
     `clusters/homelab/apps/` whose namespace is not in `APP_NAMESPACES`
     fails too.
 - `tests`:
-  - unit tests: `pytest tests` (render, repo policy, workflow entry points,
-    pre-commit parity, the `ci` job list) and `tests/run-bash-tests.sh`
+  - unit tests: `pytest tests` under coverage.py (render, repo policy,
+    workflow entry points, pre-commit parity, the `ci` job list; see
+    [Coverage](#coverage)) and `tests/run-bash-tests.sh`
     (`tests/bash/`, `tests/smoke/`: auto-rollback decisions, pins, merge
     script, PostSync hook script, Vector config check)
   - `scripts/ci/vector-validate.sh`: the Vector config. The chart is not
@@ -184,6 +185,32 @@ namespace in both lists (today `argo` and `kyverno`) are kept, and for them
 only the Pod Security Standards policies block. The log names both sets.
 Test: `tests/bash/test_kyverno_restricted.sh`.
 
+### Coverage
+
+Statement coverage of the first-party code, printed in the job log and the
+job summary:
+
+| Component | Job | Measured by |
+|---|---|---|
+| `dashboard`, `techradar`, `drumcharts` | the job of the same name, when its change filter runs it | `go test -coverpkg=./... -coverprofile` in the check script; a package without tests counts as 0% |
+| `python`: `scripts/`, `platform/`, `apps/` | `tests`, every run | pytest under coverage.py ([`.coveragerc`](../.coveragerc)), child Python processes included (a test that replaces the environment passes its `COVERAGE_*` variables on); a file no test runs counts as 0% |
+
+`scripts/ci/coverage-report.sh` turns a Go profile or the coverage.py JSON
+into covered and total statements and fails the job when the figure is
+below the component's floor in `ci/coverage-floors.txt`. A component gets
+the floor 80 once it measures 80.0% or more; below that its figure is only
+reported.
+
+Measured on 2026-11-27:
+
+| Component | Coverage | Statements | Floor |
+|---|---|---|---|
+| `dashboard` | 83.5% | 1864/2232 | 80 |
+| `techradar` | 76.0% | 222/292 | none |
+| `drumcharts` | 86.9% | 293/337 | 80 |
+| `python` | 83.0% | 4795/5780 | 80 |
+| combined | 83.0% | 7174/8641 | |
+
 ## 3. Pre-production (kind)
 
 The `preprod` job creates a kind cluster on the cluster's Kubernetes minor
@@ -259,6 +286,9 @@ gh run list --repo ned-si/homelab --workflow auto-rollback.yaml --limit 1
 - Smoke tests as PostSync hooks rather than an external prober: a failure
   fails the sync, so it lands in the existing rollback path with its guard
   rails, with no new moving part.
+- A coverage floor only where a component already measures 80%: it stops
+  a regression without tests written to move a number. No badge, which
+  would need a hosted endpoint; the job summary carries the figure.
 
 Rejected: a self-hosted runner in the cluster, because it would run code from
 pull requests next to production.
