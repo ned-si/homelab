@@ -1276,3 +1276,178 @@ def test_pod_hardening_app_namespace_must_be_listed(tmp_path):
         "scratch: namespace scratch is not in APP_NAMESPACES; add it"]
     ok = app.replace("namespace: scratch\n", "namespace: mealie\n")
     assert hardening(tmp_path / "b", [hardened()], files={"clusters/homelab/apps/scratch.yaml": ok}) == []
+
+
+# -- regression rules: each test reproduces the bug of the PR it names --------
+
+def rule_fails(r, rule):
+    return [f for f in fails(r) if f.startswith(f"FAIL {rule}:")]
+
+
+def route(name, ns, rules, section="https", hostnames=("app.example.org",)):
+    return {"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute",
+            "metadata": {"name": name, "namespace": ns},
+            "spec": {"parentRefs": [{"name": "shared", "sectionName": section}], "hostnames": list(hostnames),
+                     "rules": rules}}
+
+
+def test_rwo_rollout_202(tmp_path):
+    # #202: the *arr apps rolled with the default maxSurge; the new pod waited on the old one's RWO volume.
+    pvc = {"apiVersion": "v1", "kind": "PersistentVolumeClaim", "metadata": {"name": "sonarr-config", "namespace": "theater"},
+           "spec": {"accessModes": ["ReadWriteOnce"]}}
+    dep = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "sonarr", "namespace": "theater"},
+           "spec": {"template": {"spec": {"volumes": [{"name": "c", "persistentVolumeClaim": {"claimName": "sonarr-config"}}]}}}}
+    r = policy(tmp_path, renders=[("theater", "2+3", "apps", "theater", [pvc, dep])])
+    assert rule_fails(r, "rwo-rollout") == [
+        "FAIL rwo-rollout: theater: Deployment theater/sonarr mounts ReadWriteOnce PVC sonarr-config and rolls with "
+        "maxSurge 25%: the new pod cannot attach the volume (#202); use Recreate or maxSurge: 0"]
+    for strategy in ({"type": "Recreate"}, {"type": "RollingUpdate", "rollingUpdate": {"maxSurge": 0}}):
+        dep["spec"]["strategy"] = strategy
+        r = policy(tmp_path / strategy["type"], renders=[("theater", "2+3", "apps", "theater", [pvc, dep])])
+        assert rule_fails(r, "rwo-rollout") == []
+
+
+def test_container_env_unique_1371(tmp_path):
+    # #1371: NODE_EXTRA_CA_CERTS set by the chart and by our values; the Deployment failed to sync.
+    env = [{"name": "NODE_EXTRA_CA_CERTS", "value": "/a"}, {"name": "X", "value": "1"},
+           {"name": "NODE_EXTRA_CA_CERTS", "value": "/b"}]
+    dep = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "ctl", "namespace": "democratic-csi"},
+           "spec": {"template": {"spec": {"containers": [{"name": "csi-driver", "env": env}]}}}}
+    r = policy(tmp_path, renders=[("democratic-csi", "2+3", "infrastructure", "democratic-csi", [dep])])
+    assert rule_fails(r, "container-env-unique") == [
+        "FAIL container-env-unique: democratic-csi: Deployment democratic-csi/ctl container csi-driver sets env "
+        "NODE_EXTRA_CA_CERTS twice"]
+    env.pop()
+    r = policy(tmp_path / "b", renders=[("democratic-csi", "2+3", "infrastructure", "democratic-csi", [dep])])
+    assert rule_fails(r, "container-env-unique") == []
+
+
+def test_cookieless_backends_1176(tmp_path):
+    # #1176: the ~7 KB theater-sso cookies reached Plex, which answers 400 above ~5 KB of headers.
+    rule = {"backendRefs": [{"name": "plex", "port": 32400}], "filters": []}
+    r = policy(tmp_path, renders=[("theater", "2+3", "apps", "theater", [route("theater", "theater", [rule])])])
+    assert len(rule_fails(r, "cookieless-backends")) == 1
+    rule["filters"] = [{"type": "RequestHeaderModifier", "requestHeaderModifier": {"remove": ["Cookie"]}}]
+    r = policy(tmp_path / "b", renders=[("theater", "2+3", "apps", "theater", [route("theater", "theater", [rule])])])
+    assert rule_fails(r, "cookieless-backends") == []
+
+
+def test_cnpg_full_image_keycloak_db(tmp_path):
+    # Postmortem 2026-10-15 (#419): keycloak-db crash-looped on the minimal image, which lacks its locale.
+    cl = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "keycloak-db", "namespace": "keycloak"},
+          "spec": {"imageName": "ghcr.io/cloudnative-pg/postgresql:17.11-minimal-trixie@sha256:" + "a" * 64}}
+    r = policy(tmp_path, renders=[("keycloak", "2+3", "platform", "keycloak", [cl])])
+    assert len(rule_fails(r, "cnpg-full-image")) == 1
+    cl["spec"]["imageName"] = "ghcr.io/cloudnative-pg/postgresql:17.11@sha256:" + "a" * 64
+    r = policy(tmp_path / "b", renders=[("keycloak", "2+3", "platform", "keycloak", [cl])])
+    assert rule_fails(r, "cnpg-full-image") == []
+
+
+@pytest.mark.parametrize("value, bad", [
+    ("read-only CloudWatch, Cost Explorer and bucket listing for Grafana", True),  # #424
+    ("restic writer for ${each.value}/ (namespace ${each.key})", True),  # #1363
+    ("restic writer for ${each.value}/, namespace ${each.key}", True),  # #1364
+    ("restic writer for ${each.value}/ in namespace ${each.key}", False),
+])
+def test_aws_tag_values(tmp_path, value, bad):
+    tf = f'resource "aws_iam_user" "u" {{\n  name = "u"\n  tags = {{\n    Purpose = "{value}"\n    Managed = "opentofu"\n  }}\n}}\n'
+    r = policy(tmp_path, files={"bootstrap/aws-backup/main.tf": tf})
+    assert bool(rule_fails(r, "aws-tag-values")) is bad
+
+
+def test_sso_only_login(tmp_path):
+    # #348 Argo CD local admin, #1006 Dex, #1321 Grafana password form (pentest E2), #1181 the *arr own login.
+    argocd = "configs:\n  cm:\n    admin.enabled: true\ndex:\n  enabled: true\n"
+    kps = "grafana:\n  grafana.ini:\n    auth:\n      login_maximum_lifetime_duration: 24h\n"
+    dep = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "sonarr", "namespace": "theater"},
+           "spec": {"template": {"spec": {"containers": [{"name": "sonarr", "env": [{"name": "TZ", "value": "UTC"}]}]}}}}
+    files = {"bootstrap/argocd-values.yaml": argocd, "platform/kube-prometheus-stack/values.yaml": kps}
+    r = policy(tmp_path, files=files, renders=[("theater", "2+3", "apps", "theater", [dep])])
+    got = rule_fails(r, "sso-only-login")
+    assert [f for f in got if "(#348)" in f] and [f for f in got if "(#1006)" in f]
+    assert [f for f in got if "(#1321)" in f] and [f for f in got if "(#1181)" in f]
+    files = {"bootstrap/argocd-values.yaml": 'configs:\n  cm:\n    admin.enabled: "false"\ndex:\n  enabled: false\n',
+             "platform/kube-prometheus-stack/values.yaml": kps + "      disable_login_form: true\n"}
+    dep["spec"]["template"]["spec"]["containers"][0]["env"].append({"name": "SONARR__AUTH__METHOD", "value": "External"})
+    r = policy(tmp_path / "b", files=files, renders=[("theater", "2+3", "apps", "theater", [dep])])
+    assert rule_fails(r, "sso-only-login") == []
+
+
+def test_router_forwards_38(tmp_path):
+    # #38: LB-IPAM handed out pool addresses in order; the router forwards pointed at the wrong ones.
+    def svc(ns, name, ip):
+        ann = {"lbipam.cilium.io/ips": ip} if ip else {}
+        return {"apiVersion": "v1", "kind": "Service", "metadata": {"name": name, "namespace": ns, "annotations": ann},
+                "spec": {"type": "LoadBalancer"}}
+    docs = [svc("theater", "qbittorrent-seed", None), svc("syncthing", "syncthing-protocol", "192.168.1.201")]
+    r = policy(tmp_path, renders=[("all", "2+3", "apps", "theater", docs)])
+    assert rule_fails(r, "router-forwards") == [
+        "FAIL router-forwards: Service theater/qbittorrent-seed must be a LoadBalancer with lbipam.cilium.io/ips: "
+        "192.168.1.200, the address the router forwards to (#38)"]
+    docs[0] = svc("theater", "qbittorrent-seed", "192.168.1.200")
+    assert rule_fails(policy(tmp_path / "b", renders=[("all", "2+3", "apps", "theater", docs)]), "router-forwards") == []
+
+
+def test_route_match_unique_1088(tmp_path):
+    # #1088: a second /arr/bazarr rule straight to bazarr, shadowed by the theater-sso one; a reorder skips SSO.
+    m = [{"path": {"type": "PathPrefix", "value": "/arr/bazarr"}}]
+    sso = {"matches": m, "backendRefs": [{"name": "theater-sso"}]}
+    direct = {"matches": m, "backendRefs": [{"name": "bazarr"}]}
+    r = policy(tmp_path, renders=[("theater", "2+3", "apps", "theater", [route("theater", "theater", [sso, direct])])])
+    assert rule_fails(r, "route-match-unique") == [
+        "FAIL route-match-unique: theater: HTTPRoute theater/theater rule 1 repeats a match of theater: HTTPRoute "
+        "theater/theater rule 0 on app.example.org: one of them never serves, and a reorder can skip the SSO proxy "
+        "(#1088)"]
+    other = route("other", "theater", [direct], hostnames=("other.example.org",))
+    r = policy(tmp_path / "b", renders=[("theater", "2+3", "apps", "theater", [route("theater", "theater", [sso]), other])])
+    assert rule_fails(r, "route-match-unique") == []
+
+
+def test_sso_proxy_unverified_email(tmp_path):
+    # #606 (theater-sso) and #494 (headlamp-sso): callback 500, "email in id_token isn't verified".
+    cfg = "providers:\n  - id: keycloak\n    oidcConfig:\n      issuerURL: https://auth.example.org/realms/homelab\n"
+    cm = {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "theater-sso", "namespace": "theater"},
+          "data": {"oauth2-proxy.yaml": cfg}}
+    r = policy(tmp_path, renders=[("theater", "2+3", "apps", "theater", [cm])])
+    assert len(rule_fails(r, "sso-proxy-unverified-email")) == 1
+    cm["data"]["oauth2-proxy.yaml"] = cfg + "      insecureAllowUnverifiedEmail: true\n"
+    r = policy(tmp_path / "b", renders=[("theater", "2+3", "apps", "theater", [cm])])
+    assert rule_fails(r, "sso-proxy-unverified-email") == []
+
+
+def test_https_redirect_scheme_1337(tmp_path):
+    # #1337: the watch alias redirect set scheme: https; Cilium never matched it on the https listener (404).
+    redirect = {"filters": [{"type": "RequestRedirect", "requestRedirect": {"scheme": "https", "hostname": "x"}}]}
+    r = policy(tmp_path, renders=[("theater", "2+3", "apps", "theater", [route("watch", "theater", [redirect])])])
+    assert len(rule_fails(r, "https-redirect-scheme")) == 1
+    redirect["filters"][0]["requestRedirect"].pop("scheme")
+    r = policy(tmp_path / "b", renders=[("theater", "2+3", "apps", "theater", [route("watch", "theater", [redirect])])])
+    assert rule_fails(r, "https-redirect-scheme") == []
+    # The :80 listener's redirect to https is what scheme is for.
+    up = {"filters": [{"type": "RequestRedirect", "requestRedirect": {"scheme": "https"}}]}
+    r = policy(tmp_path / "c", renders=[("gw", "2+3", "infrastructure", "gateway", [route("r", "gateway", [up], "http")])])
+    assert rule_fails(r, "https-redirect-scheme") == []
+
+
+def test_tailscale_ingress_backend_1328(tmp_path):
+    # #1328: the Tailscale operator rejected keycloak-admin, whose backend `keycloak` is headless.
+    ing = {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "metadata": {"name": "keycloak-admin", "namespace": "keycloak"},
+           "spec": {"ingressClassName": "tailscale", "defaultBackend": {"service": {"name": "keycloak", "port": {"number": 8080}}}}}
+    headless = {"apiVersion": "v1", "kind": "Service", "metadata": {"name": "keycloak", "namespace": "keycloak"},
+                "spec": {"clusterIP": "None"}}
+    plain = {"apiVersion": "v1", "kind": "Service", "metadata": {"name": "keycloak-http", "namespace": "keycloak"},
+             "spec": {"type": "ClusterIP"}}
+    r = policy(tmp_path, renders=[("keycloak", "2+3", "platform", "keycloak", [ing, headless, plain])])
+    assert len(rule_fails(r, "tailscale-ingress-backend")) == 1
+    ing["spec"]["defaultBackend"]["service"]["name"] = "keycloak-http"
+    r = policy(tmp_path / "b", renders=[("keycloak", "2+3", "platform", "keycloak", [ing, headless, plain])])
+    assert rule_fails(r, "tailscale-ingress-backend") == []
+
+
+def test_bootstrap_tracks_main_113(tmp_path):
+    # #113: target_revision defaulted to the retired `deployed` tag; a bootstrap failed with revision not found.
+    tf = 'variable "target_revision" {\n  description = "x"\n  type        = string\n  default     = "deployed"\n}\n'
+    r = policy(tmp_path, files={"bootstrap/variables.tf": tf})
+    assert len(rule_fails(r, "bootstrap-tracks-main")) == 1
+    r = policy(tmp_path / "b", files={"bootstrap/variables.tf": tf.replace('"deployed"', '"main"')})
+    assert rule_fails(r, "bootstrap-tracks-main") == []
