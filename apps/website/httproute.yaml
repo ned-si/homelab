@@ -1,5 +1,5 @@
 # nedsi.io (landing page), blog.nedsi.io (the blog), techradar.nedsi.io (the
-# tech radar) and www.nedsi.io, all to
+# tech radar), charts.nedsi.io (the drum charts) and www.nedsi.io, all to
 # the one nginx, which picks the site by Host and answers the redirects
 # (nginx.conf). Headers of Requirement 3.2 on every HTTPS response. Phase 1
 # CSP: no script-src or connect-src, so both fall back to 'none' until the
@@ -34,11 +34,17 @@ spec:
       name: shared
       namespace: gateway
       sectionName: https-nedsi-techradar
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: https-nedsi-charts
   hostnames:
     - nedsi.io
     - www.nedsi.io
     - blog.nedsi.io
     - techradar.nedsi.io
+    - charts.nedsi.io
   rules:
     - matches:
         - path:
@@ -105,12 +111,18 @@ spec:
       name: shared
       namespace: gateway
       sectionName: http-nedsi-techradar
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: http-nedsi-charts
   hostnames:
     - nedsi.io
     - www.nedsi.io
     - blog.nedsi.io
     - homelab.nedsi.io
     - techradar.nedsi.io
+    - charts.nedsi.io
   rules:
     - matches:
         - path:

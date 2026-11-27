@@ -106,8 +106,8 @@ patches:
               if [ "$code" = 200 ]; then echo "ok   $code $url"; else echo "FAIL $code $url"; fail=1; fi
             done
 
-            # The first sync waits for the nedsi-io and techradar-nedsi-io
-            # certificates: up to 5 minutes each.
+            # The first sync waits for the nedsi-io, techradar-nedsi-io and
+            # charts-nedsi-io certificates: up to 5 minutes each.
             for try in $(seq 1 30); do
               req https://blog.nedsi.io/
               [ "$code" = 200 ] && break
@@ -131,6 +131,21 @@ patches:
             expect 405 http://website:8080/ -X POST -H "Host: techradar.nedsi.io"
             expect 301 http://techradar.nedsi.io/x
             location http://techradar.nedsi.io/x https://techradar.nedsi.io/x
+            for try in $(seq 1 30); do
+              req https://charts.nedsi.io/
+              [ "$code" = 200 ] && break
+              sleep 10
+            done
+            expect 200 https://charts.nedsi.io/
+            has_headers https://charts.nedsi.io/
+            expect 200 https://charts.nedsi.io/pdf/legend.pdf
+            printf '%s\n' "$resp" | grep -qi '^content-disposition: attachment$' \
+              || { echo "FAIL https://charts.nedsi.io/pdf/legend.pdf: no Content-Disposition: attachment"; fail=1; }
+            expect 200 https://charts.nedsi.io/pages/legend-1.svg
+            expect 404 http://website:8080/does-not-exist -H "Host: charts.nedsi.io"
+            expect 405 http://website:8080/ -X POST -H "Host: charts.nedsi.io"
+            expect 301 http://charts.nedsi.io/x
+            location http://charts.nedsi.io/x https://charts.nedsi.io/x
             expect 301 https://blog.nedsi.io/homelab/
             location https://blog.nedsi.io/homelab/ https://homelab.nedsi.io/
             expect 301 https://www.nedsi.io/
@@ -162,7 +177,7 @@ patches:
             }
             light="theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax"
             dark="theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax"
-            for site in https://nedsi.io https://blog.nedsi.io https://techradar.nedsi.io; do
+            for site in https://nedsi.io https://blog.nedsi.io https://techradar.nedsi.io https://charts.nedsi.io; do
               expect 200 "$site/theme.css"
               hdr "$site/theme.css" cache-control no-store
               hdr "$site/theme.css" vary Cookie

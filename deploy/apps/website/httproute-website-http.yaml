@@ -20,6 +20,7 @@ spec:
   - blog.nedsi.io
   - homelab.nedsi.io
   - techradar.nedsi.io
+  - charts.nedsi.io
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
@@ -46,6 +47,11 @@ spec:
     name: shared
     namespace: gateway
     sectionName: http-nedsi-techradar
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: http-nedsi-charts
   rules:
   - backendRefs:
     - group: ""

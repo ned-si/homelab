@@ -175,3 +175,30 @@ spec:
         kinds:
           - group: gateway.networking.k8s.io
             kind: HTTPRoute
+
+    # charts.nedsi.io, the drum charts (spec drum-charts-site), served by
+    # apps/website with its own certificate-charts-nedsi.yaml.
+    - name: http-nedsi-charts
+      protocol: HTTP
+      port: 80
+      hostname: charts.nedsi.io
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: https-nedsi-charts
+      protocol: HTTPS
+      port: 443
+      hostname: charts.nedsi.io
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: charts-nedsi-io-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
