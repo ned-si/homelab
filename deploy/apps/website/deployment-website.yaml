@@ -91,8 +91,8 @@ spec:
           name: website-nginx-k7kht42k2d
         name: nginx
       - configMap:
-          name: website-landing-24m28425m7
+          name: website-landing-ftk6k2d5h5
         name: landing
       - configMap:
-          name: website-techradar-b8dkdgm9gd
+          name: website-techradar-5h9827kbdf
         name: techradar

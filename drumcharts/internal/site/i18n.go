@@ -3,6 +3,7 @@ package site
 import (
 	"html/template"
 	"maps"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,7 +11,9 @@ import (
 )
 
 // catalogue holds every string the pages show, by language and key (design,
-// Strings). {name} is a placeholder filled by format.
+// Strings). {name} is a placeholder filled by fill. French follows
+// docs/website.md, Translation conventions: U+00A0 before a colon, U+202F
+// before a semicolon, *text* for an English expression.
 var catalogue = map[string]map[string]string{
 	"en": {
 		"home.title":         "Drum charts · nedsi",
@@ -55,6 +58,47 @@ var catalogue = map[string]map[string]string{
 		"prefs.dark_title":  "Dark theme",
 		"footer.privacy":    "Privacy",
 	},
+	"fr": { //nolint:gosec // G101: home.credits is the credits line, not a credential
+		"home.title":         "Partitions de batterie · nedsi",
+		"home.description":   "Les partitions de batterie de nedsi, à lire dans le navigateur ou à télécharger en PDF.",
+		"home.heading":       "Partitions de batterie",
+		"home.lead":          "Les morceaux que je joue, découpés par section.",
+		"home.intro":         "Chaque partition suit la structure du morceau plutôt que chaque note\u00a0: une portée par section, le nombre de répétitions au-dessus, et une ligne de texte quand une partie revient. Une partition tient sur deux pages A4, côte à côte sur un pupitre\u202f; un long morceau en prend trois. Les têtes de notes sont expliquées dans la {legend}.",
+		"home.legend_link":   "légende",
+		"home.songs":         "Morceaux",
+		"home.card_alt":      "Première page de {title} par {artist}",
+		"home.pdf":           "PDF",
+		"home.pdf_label":     "Télécharger le PDF de {title}",
+		"home.updated.one":   "1 morceau, de la *release* {release} du {date}.",
+		"home.updated.other": "{count} morceaux, de la *release* {release} du {date}.",
+		"home.credits":       "Les partitions sont mes transcriptions des parties de batterie\u202f; les morceaux appartiennent à leurs auteurs. Le code source est sur {github}.",
+		"home.github_link":   "GitHub",
+		"song.title":         "{title}, {artist} · Partitions de batterie · nedsi",
+		"song.description":   "Partition de batterie de {title} par {artist}, à lire dans le navigateur ou à télécharger en PDF.",
+		"song.lead":          "{artist} · {pages}",
+		"pages.one":          "1 page",
+		"pages.other":        "{n} pages",
+		"song.download":      "Télécharger le PDF",
+		"song.all":           "Toutes les partitions",
+		"song.legend":        "Légende",
+		"song.page_alt":      "{title} par {artist}, page {n} sur {total}",
+		"legend.title":       "Légende · Partitions de batterie · nedsi",
+		"legend.description": "Ce que signifie chaque tête de note sur les partitions de batterie.",
+		"legend.heading":     "Légende",
+		"legend.lead":        "Ce que signifie chaque tête de note sur les partitions.",
+		"legend.page_alt":    "La légende des partitions de batterie, page {n} sur {total}",
+		"nav.home":           "Accueil",
+		"nav.blog":           "Blog",
+		"nav.homelab":        "Homelab",
+		"nav.techradar":      "Tech radar",
+		"nav.charts":         "Partitions",
+		"nav.about":          "À propos",
+		"prefs.light":        "Thème clair",
+		"prefs.light_title":  "Thème clair, mémorisé dans un cookie",
+		"prefs.dark":         "Thème sombre",
+		"prefs.dark_title":   "Thème sombre",
+		"footer.privacy":     "Confidentialité",
+	},
 }
 
 // messages are one language of the catalogue.
@@ -69,14 +113,20 @@ func (m messages) text(key string, a args) string {
 	return fill(m[key], a)
 }
 
-// html escapes the message of key and fills its placeholders with markup:
-// each value is escaped text or built from escaped parts by the caller.
+// emphasis is *text*, an English expression in the French text, as in the
+// dashboard's catalogue (dashboard/internal/web/i18n.go).
+var emphasis = regexp.MustCompile(`(^|[^\pL\pN*])\*([^\s*.][^*]*[^\s*]|[^\s*.])\*`)
+
+// html escapes the message of key, sets each *text* in <em> and fills its
+// placeholders with markup: each value is escaped text or built from
+// escaped parts by the caller.
 func (m messages) html(key string, a map[string]template.HTML) template.HTML {
 	s := make(args, len(a))
 	for k, v := range a {
 		s[k] = string(v)
 	}
-	return template.HTML(fill(template.HTMLEscapeString(m[key]), s)) //nolint:gosec // G203: the message is escaped, the values are markup the caller built
+	msg := emphasis.ReplaceAllString(template.HTMLEscapeString(m[key]), "${1}<em>${2}</em>")
+	return template.HTML(fill(msg, s)) //nolint:gosec // G203: the message is escaped, only <em> is added, the values are markup the caller built
 }
 
 // pages is "1 page" or "<n> pages".
@@ -99,7 +149,13 @@ func fill(msg string, a args) string {
 	return strings.NewReplacer(pairs...).Replace(msg)
 }
 
-// formatDate writes d as en-GB does: 26 November 2026.
-func formatDate(d time.Time) string {
+var frMonths = [12]string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
+
+// formatDate writes d as en-GB or fr-CH does: 26 November 2026, 26 novembre
+// 2026.
+func formatDate(code string, d time.Time) string {
+	if code == "fr" {
+		return strconv.Itoa(d.Day()) + " " + frMonths[d.Month()-1] + " " + strconv.Itoa(d.Year())
+	}
 	return strconv.Itoa(d.Day()) + " " + d.Format("January 2006")
 }

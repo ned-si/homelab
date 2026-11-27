@@ -519,7 +519,7 @@ blog's feed in their language.
 | Blog | Blog | `https://blog.nedsi.io/fr/` |
 | Homelab | Homelab | `https://homelab.nedsi.io/fr/` from task 5, `https://homelab.nedsi.io/` before |
 | Tech radar | Tech radar | `https://techradar.nedsi.io/fr/` from task 6, `https://techradar.nedsi.io/` before |
-| Charts | Partitions | `https://charts.nedsi.io/fr/` from [drum-charts-site](../drum-charts-site/requirements.md#supersedes) task 7, `https://charts.nedsi.io/` before |
+| Charts | Partitions | `https://charts.nedsi.io/fr/` |
 | About | À propos | `https://blog.nedsi.io/fr/about/` |
 
 The order is that of `NAV` at the time, tech-radar task 3 included.
