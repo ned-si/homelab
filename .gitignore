@@ -26,6 +26,7 @@ secrets-to-encrypt.local.md
 
 # Hugo output and caches (site/).
 /site/public/
+/site/charts-public/
 /site/resources/
 /site/.hugo_build.lock
 

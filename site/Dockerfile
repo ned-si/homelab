@@ -4,4 +4,6 @@
 # nginx config is apps/website/nginx.conf, mounted by the Deployment.
 FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
 COPY public/ /usr/share/nginx/html/
+# The drum charts rendered by drumcharts/, not served yet.
+COPY charts-public/ /usr/share/nginx/charts/
 USER 101
