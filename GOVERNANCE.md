@@ -32,6 +32,8 @@ writes the reason there.
 | --- | --- | --- |
 | Maintainer | `@ned-si` | Priorities and roadmap; approves specs; merges; holds the credentials and keys (GitHub, the age key, the cloud and DNS accounts); handles security reports ([SECURITY.md](SECURITY.md)); enforces the [Code of Conduct](CODE_OF_CONDUCT.md) |
 | AI agents | Run by the maintainer | Work from the maintainer's briefs and specs; open pull requests; merge only through `scripts/pr-merge.sh`, only on a green `ci` |
+| Designated successor | A trusted person with write access, chosen by the maintainer | Takes over the project and its accounts if the maintainer cannot act ([Continuity](#continuity)); no maintainer duties until then |
+| Trusted collaborator | A trusted person with write access, chosen by the maintainer | Issues and pull requests like any contributor; no maintainer duties |
 | Renovate | The hosted Renovate app | Opens update pull requests; automerges on a green `ci` ([docs/dependencies.md](docs/dependencies.md)) |
 | Contributors | Anyone | Issues and pull requests under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) |
 
@@ -49,9 +51,11 @@ continue without the maintainer, someone else needs:
 - [docs/bootstrap.md](docs/bootstrap.md) and the backups
   ([docs/backups.md](docs/backups.md)) to rebuild from git.
 
-No successor arrangement is in place yet; setting one up is the
-maintainer's to do. Until then, the project stops if the maintainer cannot
-act.
+A designated successor, a trusted person with write access, can take over
+the project and its accounts within days: the GitHub account through
+GitHub's account successor feature, and the other accounts and the age key
+with the credentials the successor already holds for emergencies. The
+collaborator list is not public, so this document names no one.
 
 ## Why it is like this
 
