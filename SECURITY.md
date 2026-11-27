@@ -26,13 +26,26 @@ Things worth reporting:
 ## What to expect
 
 This is maintained by one person in their spare time, so responses are best
-effort:
-
-- acknowledgement within 7 days;
-- a leaked credential is revoked first, then fixed in the repository;
-- you are credited in the fix if you want to be.
-
+effort, following the steps in [Handling a report](#handling-a-report).
 There is no bug bounty.
+
+## Handling a report
+
+1. Acknowledge the report within 7 days.
+2. Reproduce it and rate its severity with a CVSS v4 base score.
+3. A leaked credential is revoked or rotated at its source first
+   ([docs/secrets.md](docs/secrets.md#rotating-a-credential)), then removed
+   from the repository.
+4. Fix it on `main` through a normal pull request merged by
+   `scripts/pr-merge.sh`, so `ci` runs on it. For a problem that is not
+   public yet, the fix is prepared in a GitHub private security advisory and
+   its temporary private fork, then pushed as that pull request when it is
+   ready.
+5. Publish the advisory once the fix is on `main`, crediting the reporter if
+   they want to be.
+
+What users of this repository can and cannot expect from its security:
+[docs/assurance-case.md](docs/assurance-case.md#security-requirements).
 
 ## Please do not
 

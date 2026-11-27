@@ -5,7 +5,9 @@ boundary, the threats that matter there (Spoofing, Tampering, Repudiation,
 Information disclosure, Denial of service, Elevation of privilege), the
 control in place, the residual risk and the planned change. Planned changes
 are tracked in [roadmap.md](roadmap.md). Review this page whenever an entry
-point, a credential or an admission path is added or removed.
+point, a credential or an admission path is added or removed. The argument
+that these controls meet the project's security requirements is in
+[assurance-case.md](assurance-case.md).
 
 ## Assets
 
@@ -122,14 +124,30 @@ remote players; without it, only the LAN reaches the server.
   gitleaks and the Trivy gate run in CI; GitHub secret scanning has push
   protection. The repo-policy parsers are fuzzed with Atheris on every change
   to them and nightly (workflow `fuzz`).
-- Residual: no app image is pinned by digest and no signature is verified, so
-  a re-pushed tag reaches the cluster on the next pull; automerge trusts CI to
-  catch a malicious update, which it does not look for.
-- SLSA: this repository builds no artifacts, so it applies SLSA as a consumer
-  only: verify upstream provenance and signatures where they are published.
-- Planned: digest pins through Renovate; signature verification in Kyverno
-  (Audit first) for publishers that sign; a weekly SBOM and CVE scan of the
-  running images; OpenSSF Scorecard and CodeQL.
+- Control (images): every image the repository names in its manifests and
+  Helm values is pinned by digest (`repo-policy` rule `image-digest`), so a
+  tag re-pushed upstream arrives as a Renovate pull request, not on the next
+  pull. Upstream charts are pinned by version. Three images are built here (site,
+  dashboard, Jamulus) at SLSA Build L2: GitHub-hosted builds with signed
+  provenance, signed keyless with cosign, their identities in
+  `ci/image-signers.yaml`. Kyverno `verify-own-images` checks the signature
+  and the provenance of every `ghcr.io/ned-si/*` image in the cluster. The
+  weekly `image-provenance` workflow lists which upstream images are signed
+  and by whom; trivy-operator rescans every running image daily
+  ([observability.md](observability.md)). OpenSSF Scorecard and CodeQL run
+  on `main` (workflows `scorecard` and `codeql`).
+- Residual: `verify-own-images` is in Audit, fail-open, so an unsigned image
+  is reported, not refused; most upstream images publish no signature, so
+  their digest proves only that the bytes did not change since Renovate saw
+  them; images that an upstream chart sets from its own defaults (Argo CD,
+  cert-manager, Grafana, Prometheus, external-dns, the CSI sidecars and
+  others, listed as "not checked" in `ci/image-signers.yaml`) carry only the
+  chart's tag, which `image-digest` cannot see, so a tag re-pushed upstream
+  reaches a node on its next pull; automerge trusts CI to catch a malicious update, which it does not
+  look for.
+- Planned: signature verification enforced for the own images, then for the
+  upstream publishers that sign (#725,
+  [image-provenance](../.kiro/specs/image-provenance/)).
 
 ### Argo CD repo-server and KSOPS
 

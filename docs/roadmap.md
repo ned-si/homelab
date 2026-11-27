@@ -7,6 +7,10 @@ is a change spec. Each item is its own pull request, or a spec of several,
 with its own diff, test and rollback
 ([decisions.md](decisions.md#adopt-at-parity-change-afterwards)).
 
+The horizon is the next 12 months, to 2027-11. What is being worked on now
+and what is next, item by item: the
+[board](https://github.com/users/ned-si/projects/1).
+
 ## Themes
 
 In priority order, top first. The operator set this order on 2026-11-03
@@ -105,3 +109,14 @@ Renovate automerges every other update on green CI
   [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md#updating-the-database-image).
 - `democraticcsi/democratic-csi` runs `latest` pinned by digest until it is
   pinned to a release tag (#747).
+
+## Not planned
+
+- The OpenSSF Best Practices Gold level: it needs a second maintainer
+  unassociated with the first and human review of changes, which contradict
+  "no human gates" ([GOVERNANCE.md](../GOVERNANCE.md#why-it-is-like-this)).
+- Numbered releases and semantic versioning: there is one installation,
+  delivered continuously from `main`.
+- Packaging for reuse: no Helm chart or installer for other clusters; the
+  repository is an example to copy from.
+- A service mesh ([decisions.md](decisions.md#no-service-mesh)).

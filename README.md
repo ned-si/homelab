@@ -78,6 +78,11 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
   [docs/techradar.md](docs/techradar.md).
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
 - Contributing, issues and pull requests: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Governance, conduct and security reports: [GOVERNANCE.md](GOVERNANCE.md),
+  [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [SECURITY.md](SECURITY.md).
+- What the security controls guarantee, and what they do not:
+  [docs/assurance-case.md](docs/assurance-case.md); how dependencies are
+  pinned and updated: [docs/dependencies.md](docs/dependencies.md).
 - Operating Talos nodes: [docs/talos-cheatsheet.md](docs/talos-cheatsheet.md).
 - App runbooks: [docs/runbooks/](docs/runbooks).
 - How this repo is built, with specs and AI agents:
@@ -165,6 +170,15 @@ Nodes use static addresses outside the DHCP pool. Pinned LoadBalancer IPs use
 the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 
 ## Repository layout
+
+The project is two repositories, both active:
+
+- [`ned-si/homelab`](https://github.com/ned-si/homelab), this one: the
+  cluster, its apps, the sites and their generators.
+- [`ned-si/drum-charts`](https://github.com/ned-si/drum-charts): the drum
+  chart sources. Its signed image `ghcr.io/ned-si/drum-charts`, pinned in
+  `drumcharts/source.yaml`, is the data `drumcharts/` renders for
+  `charts.nedsi.io`.
 
 | Path | Contents |
 | --- | --- |

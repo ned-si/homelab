@@ -1,7 +1,9 @@
 # Contributing
 
 This repository is the configuration of a personal homelab, run by one
-operator. Issues and pull requests are welcome.
+operator. Issues and pull requests are welcome. Participation follows the
+[Code of Conduct](CODE_OF_CONDUCT.md); how decisions are made and who does
+what: [GOVERNANCE.md](GOVERNANCE.md).
 
 ## Reporting
 
@@ -23,22 +25,57 @@ operator. Issues and pull requests are welcome.
 - Commit subjects and pull request titles follow Conventional Commits and
   stay under 70 characters, as checked by
   [scripts/ci/check-title.sh](scripts/ci/check-title.sh).
-- New functionality lands with its tests: pytest or bash tests in `tests/`,
-  Go tests next to the code in `dashboard/` and `techradar/`.
+- Major new functionality MUST add tests to the automated suite that CI
+  runs: pytest or bash tests in `tests/`, Go tests next to the code in
+  `dashboard/`, `techradar/` and `drumcharts/`. A bug fix adds a test that
+  fails without it where the code allows one.
+- A change updates the docs it makes stale, in the same pull request.
 - Style: the Google Go Style Guide as far as golangci-lint checks it
-  (`dashboard/.golangci.yaml`), shellcheck for shell, strict yamllint for
-  YAML.
+  (`dashboard/.golangci.yaml`), PEP 8 for Python, shellcheck for shell,
+  strict yamllint for YAML, `tofu fmt` for OpenTofu (HCL).
 - Never commit a secret. Secrets live only in SOPS-encrypted `*.sops.yaml`
   files ([docs/secrets.md](docs/secrets.md)).
 
-## Running the checks
+## Developer Certificate of Origin
+
+Contributions are accepted under the repository's [MIT licence](LICENSE).
+Opening a pull request certifies the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/):
+you wrote the change, or have the right to submit it under that licence.
+`git commit -s` adds the matching `Signed-off-by` line; no CI check
+enforces it.
+
+## Set up
+
+On macOS with Homebrew, from the repository root:
 
 ```sh
-pre-commit run --all-files       # every local hook: Passed or Skipped
-python3 -m pytest -q tests       # Python and bash tests: all passed
-(cd dashboard && go test ./...)  # ok for every package
-(cd techradar && go test ./...)
+brew install go-task                # provides `task`
+task tools                          # the CLI tools the hooks call: sops, kustomize, helm, ...
+python3 -m venv ~/.venvs/homelab    # outside the tree, which does not ignore a venv
+. ~/.venvs/homelab/bin/activate
+pip install --require-hashes -r ci/requirements-ci.txt
+pre-commit install                  # the pre-commit, commit-msg and pre-push hooks
 ```
 
-The four layers of checks, from local hooks to deploy-time smoke tests:
-[docs/testing.md](docs/testing.md).
+Expected: pip ends with `Successfully installed`, and `pre-commit install`
+prints one `pre-commit installed at .git/hooks/<type>` line per hook type
+(`default_install_hook_types` in `.pre-commit-config.yaml`). For the Go
+tests, install the Go release named on the `go` line of `dashboard/go.mod`.
+
+## Running the checks
+
+In a shell with the virtual environment active
+(`. ~/.venvs/homelab/bin/activate`):
+
+```sh
+pre-commit run --all-files          # every local hook: Passed or Skipped
+python3 -m pytest -q tests          # Python and bash tests: all passed
+(cd dashboard && go test ./...)     # ok for every package
+(cd techradar && go test ./...)
+(cd drumcharts && go test ./...)
+```
+
+`drumcharts/` skips its page image test unless `DRUMCHARTS_DATA` is set,
+as `scripts/ci/drumcharts-check.sh` does. The four layers of checks, from
+local hooks to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
