@@ -1,8 +1,9 @@
 #!/bin/bash
 # test_renovate_next.sh -- scripts/ci/renovate-next.sh against a fake `gh`:
 # the pull request list comes from $FAKE/prs.json (open `auto-rollback`
-# pull requests from $FAKE/rollback.json), `behind_by` from
-# $FAKE/behind/<sha>, and a PATCH writes its JSON input to $FAKE/patch-<n>.
+# pull requests from $FAKE/rollback.json, every author's from
+# $FAKE/all.json), `behind_by` from $FAKE/behind/<sha>, and a PATCH writes
+# its JSON input to $FAKE/patch-<n>.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,7 +22,8 @@ case "$1 $2" in
   "pr list")
     case "$*" in
       *"--label auto-rollback"*) jq -r "${@: -1}" "$FAKE/rollback.json" ;;
-      *) cat "$FAKE/prs.json" ;;
+      *"--author app/renovate"*) cat "$FAKE/prs.json" ;;
+      *) jq -r "${@: -1}" "$FAKE/all.json" ;;
     esac
     ;;
   "api repos/o/r/compare/"*) sha=${2##*...}; cat "$FAKE/behind/$sha" ;;
@@ -64,6 +66,19 @@ setup() { # <pr json>...
   rm -f "$FAKE"/patch-* "$FAKE"/merge-* "$FAKE"/comment-*
   jq -s . <<<"$*" >"$FAKE/prs.json"
   echo '[]' >"$FAKE/rollback.json"
+  echo '[]' >"$FAKE/all.json"
+}
+# agent <n> <sha> <login> <draft> <am:on|off> <checks-json>: an open pull
+# request as the all-authors list returns it.
+agent() {
+  local am=null
+  [ "$5" = on ] && am='{"enabledAt":"x"}'
+  jq -n --argjson n "$1" --arg s "$2" --arg l "$3" --argjson d "$4" --argjson a "$am" --argjson k "$6" \
+    '{number: $n, author: {login: $l}, isDraft: $d, autoMergeRequest: $a, headRefOid: $s, statusCheckRollup: $k}'
+}
+agents() { jq -s . <<<"$*" >"$FAKE/all.json"; } # <agent json>...
+cr() { # <workflow> <name> <status>: one check run
+  jq -n --arg w "$1" --arg n "$2" --arg s "$3" '{__typename: "CheckRun", workflowName: $w, name: $n, status: $s}'
 }
 behind() { echo "$2" >"$FAKE/behind/$1"; }
 run() { REPO=o/r GH="$tmp/gh" NOW="${NOW:-3 10}" "$NEXT" 2>&1; }
@@ -188,5 +203,42 @@ expect_eq "open revert: no auto-merge turned on" "no" "$([ -e "$FAKE/merge-12" ]
 setup "$(pr 11 2026-10-01 a1 SUCCESS)"
 echo '[{"number":990},{"number":991}]' >"$FAKE/rollback.json"
 expect_eq "two open reverts: both named" "held by open auto-rollback revert #990 #991; nothing rebased" "$(run)"
+
+# Another pull request in flight: auto-merge on, up to date, a `ci` workflow
+# check run unfinished (the aggregate `ci` job does not exist yet).
+behind d4 0
+behind e5 2
+lint_running="[$(cr ci lint IN_PROGRESS)]"
+any() { local f; for f in "$FAKE/$1"-*; do [ -e "$f" ] && { echo yes; return; }; done; echo no; } # <prefix>
+held="held by #20 (auto-merge on, up to date, ci running); nothing rebased"
+setup "$(young "$(pr 10 2026-09-30 a1 SUCCESS x x manual)" PENDING)" "$(pr 11 2026-10-01 a1 SUCCESS)"
+agents "$(agent 20 d4 nedsi false on "$lint_running")"
+expect_eq "in flight: held" "$held" "$(run)"
+rc=0
+run >/dev/null || rc=$?
+expect_eq "in flight: exits 0" 0 "$rc"
+expect_eq "in flight: no rebase requested" "no" "$(any patch)"
+expect_eq "in flight: no auto-merge turned on" "no" "$(any merge)"
+expect_eq "in flight: no comment" "no" "$(any comment)"
+
+not_held() { # <name> <agent json>
+  setup "$(pr 11 2026-10-01 a1 SUCCESS)"
+  agents "$2"
+  expect_eq "not held: $1" "#11: rebase requested" "$(run)"
+}
+not_held "every ci check run completed" \
+  "$(agent 20 d4 nedsi false on "[$(cr ci lint COMPLETED), $(cr ci ci COMPLETED)]")"
+not_held "behind main" "$(agent 20 e5 nedsi false on "$lint_running")"
+not_held "a draft" "$(agent 20 d4 nedsi true on "$lint_running")"
+not_held "auto-merge off" "$(agent 20 d4 nedsi false off "$lint_running")"
+not_held "a Renovate pull request" "$(agent 20 d4 app/renovate false on "$lint_running")"
+not_held "another workflow's check run" \
+  "$(agent 20 d4 nedsi false on "[$(cr scorecard analysis IN_PROGRESS), $(cr ci ci COMPLETED)]")"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS)"
+agents "$(agent 20 d4 nedsi false on "$lint_running")"
+echo '[{"number":990}]' >"$FAKE/rollback.json"
+expect_eq "open revert and in flight: the revert hold wins" \
+  "held by open auto-rollback revert #990; nothing rebased" "$(run)"
 
 finish
