@@ -24,6 +24,7 @@ contractual figure; a second number would only be a second thing to watch.
 | `watch` | Plex (`watch.lilalala.com/identity`) | 2 |
 | `homelab` | The public dashboard, `homelab.nedsi.io` | 2 |
 | `techradar` | The tech radar, `techradar.nedsi.io` | 2 |
+| `charts` | The drum charts, `charts.nedsi.io` | 2 |
 
 Argo CD and Grafana are tools for the operator and carry no SLO. The
 Observability figure of the homelab dashboard (`app="observability"`, the

@@ -100,6 +100,16 @@ jobs:
           [ "$(code)" = 200 ] || { echo "GET / is not 200"; rc=1; }
           [ "$(code -X POST)" = 405 ] || { echo "POST / is not 405"; rc=1; }
           [ "$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/no-such-page)" = 404 ] || { echo "a missing page is not 404"; rc=1; }
+          # The drum charts; the legend is in every release.
+          charts() { curl -s -m 5 -o /dev/null -D - -H 'Host: charts.nedsi.io' "$@" | tr -d '\r'; }
+          for p in / /legend/ /pdf/legend.pdf; do
+            charts "http://127.0.0.1:8080$p" | grep '^HTTP/1.1 200' >/dev/null || { echo "charts $p is not 200"; rc=1; }
+          done
+          charts http://127.0.0.1:8080/pdf/legend.pdf | grep -ix 'content-disposition: attachment' >/dev/null \
+            || { echo "charts legend.pdf has no Content-Disposition: attachment"; rc=1; }
+          charts -H 'Accept-Encoding: gzip' http://127.0.0.1:8080/pages/legend-1.svg | grep -ix 'content-encoding: gzip' >/dev/null \
+            || { echo "charts legend-1.svg is not gzip"; rc=1; }
+          charts -X POST http://127.0.0.1:8080/ | grep '^HTTP/1.1 405' >/dev/null || { echo "charts POST / is not 405"; rc=1; }
           docker logs site
           docker rm -f site >/dev/null
           exit "$rc"

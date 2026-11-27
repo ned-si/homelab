@@ -68,7 +68,7 @@ its task 6.
       `index.html` and one directory per song (`docker create` and
       `docker cp` of that digest); the website PostSync smoke passes.
       [2.3] #1820.
-- [ ] 5. Serving at `charts.nedsi.io` (**ned-si/homelab**, live).
+- [x] 5. Serving at `charts.nedsi.io` (**ned-si/homelab**, live).
       Operator first: no unowned `charts` record in the `nedsi.io` zone.
       The certificate, the two listeners, the HTTPRoute hostnames, the
       nginx server block and map entry, the probe and SLO rules with
@@ -78,6 +78,7 @@ its task 6.
       `scripts/charts-check.sh`, `task render`. Check:
       `site-serve-check.sh` green in the `site` job; acceptance
       criteria 1, 2, 3, 8 and 16 live. [3.4, 3.11, 4.2, 4.3, 5]
+      #1863.
 - [ ] 6. Links (**ned-si/homelab**, live): "Charts" in `NAV` and the
       navigation bars of the blog, the landing page, the dashboard, the
       tech radar and the charts site, with the golden pages, the golden

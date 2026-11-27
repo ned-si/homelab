@@ -1,7 +1,8 @@
 #!/bin/bash
-# site-serve-check.sh <public dir> -- serve the built blog, the landing page and
-# the tech radar with apps/website/nginx.conf on the image's nginx, as the
-# cluster mounts them, and check the host split, the 405, every redirect's
+# site-serve-check.sh <public dir> -- serve the built blog, the landing page,
+# the tech radar and the drum charts (the committed golden tree) with
+# apps/website/nginx.conf on the image's nginx, as the cluster mounts them,
+# and check the host split, the 405, every redirect's
 # Location (.kiro/specs/public-website/design.md#serving) and the theme
 # stylesheet and endpoint (.kiro/specs/site-theme-language/requirements.md,
 # Requirement 5.1).
@@ -25,6 +26,7 @@ docker run -d --name "$name" --read-only --tmpfs /tmp \
   -v "$root/apps/website/theme.conf:/etc/nginx-site/theme.conf:ro" \
   -v "$root/apps/website/landing:/usr/share/nginx/landing:ro" \
   -v "$root/apps/website/techradar:/usr/share/nginx/techradar:ro" \
+  -v "$root/drumcharts/internal/site/testdata/golden:/usr/share/nginx/charts:ro" \
   -v "$html:/usr/share/nginx/html:ro" \
   -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 \
   "$image" nginx -c /etc/nginx-site/nginx.conf -g 'daemon off;' >/dev/null
@@ -131,6 +133,18 @@ check 200 - 8080 techradar.nedsi.io /techradar.css
 check 404 - 8080 techradar.nedsi.io /does-not-exist
 check 405 - 8080 techradar.nedsi.io / -X POST
 check 301 https://techradar.nedsi.io/x 8081 techradar.nedsi.io /x
+# The drum charts (.kiro/specs/drum-charts-site/design.md#checks).
+for p in / /sum41-fat-lip/ /legend/ /charts.css; do
+  check 200 - 8080 charts.nedsi.io "$p"
+done
+header charts.nedsi.io /pdf/legend.pdf content-type application/pdf
+header charts.nedsi.io /pdf/legend.pdf content-disposition attachment
+header charts.nedsi.io /pages/legend-1.svg content-type image/svg+xml -H 'Accept-Encoding: gzip'
+header charts.nedsi.io /pages/legend-1.svg content-encoding gzip -H 'Accept-Encoding: gzip'
+header charts.nedsi.io /pages/legend-1.svg vary Accept-Encoding -H 'Accept-Encoding: gzip'
+check 404 - 8080 charts.nedsi.io /does-not-exist
+check 405 - 8080 charts.nedsi.io / -X POST
+check 301 https://charts.nedsi.io/x 8081 charts.nedsi.io /x
 # The landing page links to the blog.
 curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https://blog.nedsi.io/"' \
   || { echo "FAIL nedsi.io: no link to https://blog.nedsi.io/"; rc=1; }
@@ -138,6 +152,7 @@ curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https:/
 theme blog.nedsi.io
 theme nedsi.io
 theme techradar.nedsi.io
+theme charts.nedsi.io
 check 404 - 8080 blog.nedsi.io /fr/does-not-exist
 # Hugo minifies the blog: no quotes around attribute values.
 body blog.nedsi.io /fr/does-not-exist '<html lang=fr-CH>'

@@ -29,7 +29,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[5m]
             ))
         - record: slo:probe_error:ratio_rate30m
@@ -37,7 +37,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[30m]
             ))
         - record: slo:probe_error:ratio_rate1h
@@ -45,7 +45,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[1h]
             ))
         - record: slo:probe_error:ratio_rate2h
@@ -53,7 +53,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[2h]
             ))
         - record: slo:probe_error:ratio_rate6h
@@ -61,7 +61,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[6h]
             ))
 
@@ -76,7 +76,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[1d]
             ))
         - record: slo:probe_error:ratio_rate3d
@@ -84,7 +84,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[3d]
             ))
         - record: slo:probe_error:ratio_rate30d
@@ -92,7 +92,7 @@ spec:
             1 - avg by (app) (avg_over_time(
               probe_success{
                 job="blackbox-public",
-                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
               }[30d]
             ))
         - record: slo:availability:ratio_rate30d
@@ -111,7 +111,7 @@ spec:
                 count_over_time(
                   probe_success{
                     job="blackbox-public",
-                    app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|grafana|signoz"
+                    app=~"auth|cinema|theater|watch|media|archive|cook|syncthing|nedsi|blog|homelab|techradar|charts|grafana|signoz"
                   }[30d]
                 )
               ) / (30 * 2880),
@@ -194,6 +194,9 @@ spec:
         - record: slo:app:info
           expr: vector(1)
           labels: {app: techradar, namespace: website}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: charts, namespace: website}
 
     - name: homelab.slo.alerts
       rules:
@@ -467,6 +470,20 @@ spec:
               platform/blackbox-exporter/probes, or its `app` relabeling no
               longer matches.
         - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="charts"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: charts
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
           expr: absent(probe_success{job="blackbox-public", app="homelab"}) unless on() absent(probe_success{job="blackbox-public"})
           for: 15m
           labels:
@@ -524,6 +541,9 @@ spec:
         - record: slo:latency_threshold_seconds
           expr: vector(0.25)
           labels: {app: techradar}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: charts}
 
     # 1 per probe target when its last probe succeeded within the threshold,
     # else 0. Evaluated every 30s, the probe interval, so each probe counts

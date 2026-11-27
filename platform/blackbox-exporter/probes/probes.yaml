@@ -42,12 +42,14 @@ spec:
         - https://audiobooks.lilalala.com/healthcheck
         - https://ebooks.lilalala.com/login
         - https://home.lilalala.com/manifest.json
-        # The landing page, the blog, the dashboard and the tech radar: `app`
-        # is `nedsi`, `blog`, `homelab` and `techradar` from the relabeling.
+        # The landing page, the blog, the dashboard, the tech radar and the
+        # drum charts: `app` is `nedsi`, `blog`, `homelab`, `techradar` and
+        # `charts` from the relabeling.
         - https://nedsi.io/
         - https://blog.nedsi.io/
         - https://homelab.nedsi.io/
         - https://techradar.nedsi.io/
+        - https://charts.nedsi.io/
         # oauth2-proxy's own health endpoint: needs no session.
         - https://hubble.lilalala.com/ping
         - https://signoz.lilalala.com/ping
