@@ -7,7 +7,7 @@
 <ul class="cards" aria-labelledby="songs">
 {{- range .Cards}}
 <li>
-<a class="card" href="/{{.Slug}}/">
+<a class="card" href="{{$.Root}}{{.Slug}}/">
 <img src="/pages/{{.Thumb.Name}}" width="{{.Thumb.Width}}" height="{{.Thumb.Height}}" alt="{{.Thumb.Alt}}" loading="lazy">
 <span class="card-title">{{.Title}}</span>
 <span class="card-artist">{{.Artist}}</span>
