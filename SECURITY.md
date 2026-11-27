@@ -34,6 +34,20 @@ effort:
 
 There is no bug bounty.
 
+## Handling a report
+
+1. Acknowledge the report within 7 days.
+2. Reproduce it and rate its severity with a CVSS v4 base score.
+3. A leaked credential is revoked or rotated at its source first
+   ([docs/secrets.md](docs/secrets.md#rotating-a-credential)).
+4. Fix it on `main`. A problem that is not public yet is fixed in a GitHub
+   private security advisory and its temporary private fork, then merged.
+5. Publish the advisory once the fix is on `main`, crediting the reporter
+   unless they ask not to be named.
+
+What users of this repository can and cannot expect from its security:
+[docs/assurance-case.md](docs/assurance-case.md#security-requirements).
+
 ## Please do not
 
 - run active scans, fuzzing, brute-force or load tests against the live

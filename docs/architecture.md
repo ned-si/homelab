@@ -350,6 +350,27 @@ All are multi-arch, signed keyless with cosign by their own workflow on
 and reach the cluster by digest through a Renovate pull request. Go code
 follows the Google Go Style Guide, enforced by `dashboard/.golangci.yaml`.
 
+Anyone can verify the pinned images, with no key to fetch: the signature
+names the workflow that built the image, and the provenance its source
+commit. From the repository root, with cosign and `gh` on `PATH`:
+
+```sh
+for pair in homelab-site:site-publish homelab-dashboard:dashboard-publish homelab-jamulus:jamulus-publish; do
+  img=${pair%%:*} wf=${pair#*:}
+  ref=$(grep -rhoE "ghcr.io/ned-si/$img:main@sha256:[0-9a-f]{64}" apps | head -1)
+  cosign verify \
+    --certificate-identity "https://github.com/ned-si/homelab/.github/workflows/$wf.yaml@refs/heads/main" \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    "$ref" > /dev/null
+  gh attestation verify "oci://ghcr.io/ned-si/$img@${ref#*@}" --owner ned-si
+done
+```
+
+Expected: for each image, cosign prints `The cosign claims were validated`
+on stderr and `gh` exits 0, printing `Verification succeeded!` in a
+terminal. A signature by any
+other workflow fails.
+
 ## Site-specific values
 
 What changes if the house, the LAN or the NAS changes. Re-render after editing
