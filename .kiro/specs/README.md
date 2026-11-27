@@ -68,6 +68,7 @@ Change specs, active:
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
 | [drum-charts-per-song-releases](drum-charts-per-song-releases/) | 2026-11-27 | #1865 | task 1: per-song releases and the data image in drum-charts, after drum-charts-site task 9 |
+| [drum-charts-site](drum-charts-site/) | 2026-11-26 | #1761 | task 7: French |
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 4: the app accounts and deleting `family` and `media` (operator) |
 | [image-provenance](image-provenance/) | 2026-11-18 | #725 | task 1: the image inventory and its read-only workflow |
@@ -81,7 +82,6 @@ Change specs, done:
 | --- | --- | --- |
 | [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | 2026-11-02 |
 | [dashboard-database-engines](dashboard-database-engines/) | 2026-11-26 | 2026-11-26 |
-| [drum-charts-site](drum-charts-site/) | 2026-11-26 | 2026-11-27 |
 | [drum-charts-song-cards](drum-charts-song-cards/) | 2026-11-27 | 2026-11-27, French with drum-charts-site task 7 |
 | [homelab-dashboard](homelab-dashboard/) | 2026-11-20 | 2026-11-26 |
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |

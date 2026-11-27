@@ -155,8 +155,7 @@ their next image deploys.
 
 English stays at the existing URLs. French is the same path under
 `/fr/`: `https://blog.nedsi.io/fr/about/`, `https://nedsi.io/fr/`,
-`https://homelab.nedsi.io/fr/`, `https://techradar.nedsi.io/fr/`,
-`https://charts.nedsi.io/fr/`. The
+`https://homelab.nedsi.io/fr/`, `https://techradar.nedsi.io/fr/`. The
 language switch shows only the other language ("FR" on English pages,
 "EN" on French ones, named "Français" or "English" for screen readers)
 and links the same page in it, so the language needs no cookie and nothing redirects by
@@ -175,7 +174,6 @@ every rendered page.
 | `blog.nedsi.io` | `site/content/<page>.md`, `<bundle>/index.md` | `<page>.fr.md`, `<bundle>/index.fr.md` next to it | `site/i18n/en.yaml`, `fr.yaml` |
 | `homelab.nedsi.io` | `/` | `/fr/` | the catalogue in `dashboard/internal/web/i18n.go` ([homelab-dashboard.md](homelab-dashboard.md#languages)) |
 | `techradar.nedsi.io` | `index.html` | `index-fr.html` | the catalogue in `techradar/internal/radar/i18n.go`, `reason_fr` per entry ([techradar.md](techradar.md#add-or-move-an-entry)) |
-| `charts.nedsi.io` | `/`, `/<slug>/`, `/legend/` | the same under `/fr/`; the page images and PDFs are shared | the catalogue in `drumcharts/internal/site/i18n.go` ([drum-charts.md](drum-charts.md)) |
 
 ### Add a French page to the blog
 

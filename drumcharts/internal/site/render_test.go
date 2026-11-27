@@ -88,10 +88,7 @@ func TestGolden(t *testing.T) {
 		}
 	}
 	wantNames := []string{
-		"charts.css",
-		"fr/index.html", "fr/legend/index.html", "fr/soad-toxicity/index.html",
-		"fr/sum41-fat-lip/index.html", "fr/underschool-element-petit-tom/index.html",
-		"index.html", "layout.css", "legend/index.html",
+		"charts.css", "index.html", "layout.css", "legend/index.html",
 		"pages/legend-1.svg", "pages/legend-1.svg.gz",
 		"pages/soad-toxicity-1.svg", "pages/soad-toxicity-1.svg.gz",
 		"pages/sum41-fat-lip-1.svg", "pages/sum41-fat-lip-1.svg.gz",

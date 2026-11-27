@@ -74,10 +74,11 @@ cp -R "$charts/pages" "$www/pages"
 cp -R "$public/css" "$www/css"
 cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
 pages=(landing blog about privacy dashboard techradar charts charts-song)
-# The pages whose preferences match the landing page's.
-themed="landing blog about privacy article dashboard techradar charts charts-song landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr charts-fr charts-song-fr"
+# The pages whose preferences match the landing page's. The charts pages
+# have no language toggle yet, so only their nav and body are compared.
+themed="landing blog about privacy article dashboard techradar landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr"
 # One comparison per language; the first page of each is the reference.
-fr_pages=(landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr charts-fr charts-song-fr)
+fr_pages=(landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr)
 cp "$root/apps/website/techradar/index-fr.html" "$work/techradar-fr.html"
 cp "$root/apps/website/landing/index-fr.html" "$work/landing-fr.html"
 cp "$public/fr/index.html" "$work/blog-fr.html"
@@ -87,8 +88,6 @@ cp "$root/apps/website/landing/index.html" "$work/landing.html"
 cp "$root/apps/website/techradar/index.html" "$work/techradar.html"
 cp "$charts/index.html" "$work/charts.html"
 cp "$charts/sum41-fat-lip/index.html" "$work/charts-song.html"
-cp "$charts/fr/index.html" "$work/charts-fr.html"
-cp "$charts/fr/sum41-fat-lip/index.html" "$work/charts-song-fr.html"
 cp "$public/index.html" "$work/blog.html"
 cp "$public/about/index.html" "$work/about.html"
 cp "$public/privacy/index.html" "$work/privacy.html"
