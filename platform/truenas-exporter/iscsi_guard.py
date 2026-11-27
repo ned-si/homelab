@@ -15,6 +15,7 @@ Environment:
   TRUENAS_URL          base URL, e.g. https://192.168.1.228
   TRUENAS_CONFIG       democratic-csi driver config file; its
                        httpConnection.apiKey is the API key
+  TRUENAS_CA           PEM file of the CA that signed the NAS certificate
   ISCSI_AUTH_NETWORKS  the four node addresses, `/32` each, space-separated
 
 Exit: 0 done or nothing to do; 1 bad ISCSI_AUTH_NETWORKS (before any call),
@@ -98,12 +99,10 @@ def plan(targets: list, expected: list[str]) -> list[dict]:
 
 
 class Api:
-    def __init__(self, url: str, config: str) -> None:
+    def __init__(self, url: str, config: str, cafile: str | None = None) -> None:
         self.url, self.config = url.rstrip("/"), config
-        # The NAS serves its self-signed certificate, as for the exporter.
-        self.ctx = ssl.create_default_context()
-        self.ctx.check_hostname = False
-        self.ctx.verify_mode = ssl.CERT_NONE
+        # Verified against the NAS's own CA (TRUENAS_CA), as in the exporter.
+        self.ctx = ssl.create_default_context(cafile=cafile)
 
     def __call__(self, method: str, path: str, body=None):
         req = urllib.request.Request(
@@ -153,7 +152,7 @@ def run(env: dict, api) -> int:
 
 def main() -> int:
     env = dict(os.environ)
-    return run(env, Api(env.get("TRUENAS_URL", ""), env.get("TRUENAS_CONFIG", "")))
+    return run(env, Api(env.get("TRUENAS_URL", ""), env.get("TRUENAS_CONFIG", ""), env.get("TRUENAS_CA") or None))
 
 
 if __name__ == "__main__":

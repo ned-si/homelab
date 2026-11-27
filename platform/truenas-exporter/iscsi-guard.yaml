@@ -44,6 +44,8 @@ spec:
                   value: https://192.168.1.228
                 - name: TRUENAS_CONFIG
                   value: /secret/driver-config-file.yaml
+                - name: TRUENAS_CA
+                  value: /etc/nas-ca/nas-ca.crt
                 - name: ISCSI_AUTH_NETWORKS
                   valueFrom:
                     configMapKeyRef:
@@ -69,6 +71,9 @@ spec:
                 - name: driver-config
                   mountPath: /secret
                   readOnly: true
+                - name: nas-ca
+                  mountPath: /etc/nas-ca
+                  readOnly: true
           volumes:
             - name: script
               configMap:
@@ -79,6 +84,9 @@ spec:
                 items:
                   - key: driver-config-file.yaml
                     path: driver-config-file.yaml
+            - name: nas-ca
+              configMap:
+                name: nas-ca
 ---
 # Enforced from the start: the guard only talks to the TrueNAS API, by IP.
 apiVersion: cilium.io/v2

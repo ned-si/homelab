@@ -34,6 +34,8 @@ spec:
               value: https://192.168.1.228
             - name: TRUENAS_CONFIG
               value: /secret/driver-config-file.yaml
+            - name: TRUENAS_CA
+              value: /etc/nas-ca/nas-ca.crt
             - name: LISTEN_PORT
               value: "9814"
             - name: ISCSI_AUTH_NETWORKS
@@ -75,6 +77,9 @@ spec:
             - name: driver-config
               mountPath: /secret
               readOnly: true
+            - name: nas-ca
+              mountPath: /etc/nas-ca
+              readOnly: true
       volumes:
         - name: script
           configMap:
@@ -85,6 +90,9 @@ spec:
             items:
               - key: driver-config-file.yaml
                 path: driver-config-file.yaml
+        - name: nas-ca
+          configMap:
+            name: nas-ca
 ---
 apiVersion: v1
 kind: Service

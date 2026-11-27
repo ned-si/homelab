@@ -37,6 +37,8 @@ spec:
           value: https://192.168.1.228
         - name: TRUENAS_CONFIG
           value: /secret/driver-config-file.yaml
+        - name: TRUENAS_CA
+          value: /etc/nas-ca/nas-ca.crt
         - name: LISTEN_PORT
           value: "9814"
         - name: ISCSI_AUTH_NETWORKS
@@ -81,6 +83,9 @@ spec:
         - mountPath: /secret
           name: driver-config
           readOnly: true
+        - mountPath: /etc/nas-ca
+          name: nas-ca
+          readOnly: true
       enableServiceLinks: false
       securityContext:
         runAsGroup: 65534
@@ -90,7 +95,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: truenas-exporter-tchk247h52
+          name: truenas-exporter-575db5gtt5
         name: script
       - name: driver-config
         secret:
@@ -98,3 +103,6 @@ spec:
           - key: driver-config-file.yaml
             path: driver-config-file.yaml
           secretName: iscsi-democratic-csi-driver-config
+      - configMap:
+          name: nas-ca-ff9fmh25c4
+        name: nas-ca

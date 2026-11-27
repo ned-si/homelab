@@ -6,7 +6,8 @@
 # `homelab-nas-ca`, created 2026-11-12). The chart puts it in its ConfigMap and
 # points NODE_EXTRA_CA_CERTS at it, so the driver config verifies TLS
 # (allowInsecure: false). Public, not a secret. It expires 2027-12-14: renew
-# it in TrueNAS, re-sign the `nas` certificate and replace it here.
+# it in TrueNAS, re-sign the `nas` certificate and replace it here and in
+# platform/truenas-exporter/nas-ca.crt (tests/test_truenas_exporter.py).
 extraCaCerts: |-
   -----BEGIN CERTIFICATE-----
   MIID6jCCAtKgAwIBAgIEAP7rjzANBgkqhkiG9w0BAQsFADB9MRcwFQYDVQQDDA5o

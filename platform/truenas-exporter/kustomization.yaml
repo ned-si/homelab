@@ -19,6 +19,11 @@ configMapGenerator:
   - name: nas-iscsi-guard
     files:
       - iscsi_guard.py
+  # The NAS's CA, which both verify TLS with. A copy of extraCaCerts in
+  # infrastructure/democratic-csi/values-iscsi.yaml; a test keeps them equal.
+  - name: nas-ca
+    files:
+      - nas-ca.crt
   # The four nodes (talos/talconfig.yaml), /32 each.
   - name: nas-iscsi-auth-networks
     literals:
