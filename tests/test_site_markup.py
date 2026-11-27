@@ -302,7 +302,7 @@ def test_colour_literals(tmp_path, css, ok):
 FR_NAV = [
     ("Accueil", "https://nedsi.io/fr/"),
     ("Blog", "/fr/"),
-    ("Homelab", "https://homelab.nedsi.io/"),
+    ("Homelab", "https://homelab.nedsi.io/fr/"),
     ("Tech radar", "https://techradar.nedsi.io/fr/"),
     ("À propos", "/fr/about/"),
 ]

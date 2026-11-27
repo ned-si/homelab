@@ -42,6 +42,7 @@ linters:
         - organizations
         - artifacts
         - certificats
+        - restauration
     nolintlint:
       require-explanation: true
       require-specific: true
