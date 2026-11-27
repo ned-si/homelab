@@ -6,7 +6,24 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestFormatDate(t *testing.T) {
+	for _, tc := range []struct {
+		code string
+		d    time.Time
+		want string
+	}{
+		{"en", time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), "1 December 2026"},
+		{"fr", time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), "1er décembre 2026"},
+		{"fr", time.Date(2026, 11, 26, 0, 0, 0, 0, time.UTC), "26 novembre 2026"},
+	} {
+		if got := formatDate(tc.code, tc.d); got != tc.want {
+			t.Errorf("formatDate(%q, %v) = %q, want %q", tc.code, tc.d, got, tc.want)
+		}
+	}
+}
 
 var placeholder = regexp.MustCompile(`\{[a-z]+\}`)
 
