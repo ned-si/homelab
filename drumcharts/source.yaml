@@ -1,4 +1,4 @@
 # The site data of charts.nedsi.io, built and signed by ned-si/drum-charts
 # (.kiro/specs/drum-charts-site/design.md#the-pin). Renovate bumps the digest.
 # renovate: datasource=docker depName=ghcr.io/ned-si/drum-charts
-image: ghcr.io/ned-si/drum-charts:main@sha256:8325c958fd4f406a25183a7231e0186df642ef34c874c66490089103aa7ebbae
+image: ghcr.io/ned-si/drum-charts:main@sha256:b939ff6b9204eda67a76d91044d611516e557537788a57acb0aeb69b393dcf0e
