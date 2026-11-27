@@ -27,8 +27,14 @@ what: [GOVERNANCE.md](GOVERNANCE.md).
   [scripts/ci/check-title.sh](scripts/ci/check-title.sh).
 - Major new functionality MUST add tests to the automated suite that CI
   runs: pytest or bash tests in `tests/`, Go tests next to the code in
-  `dashboard/`, `techradar/` and `drumcharts/`. A bug fix adds a test that
-  fails without it where the code allows one.
+  `dashboard/`, `techradar/` and `drumcharts/`.
+- Every bug fix MUST land with a regression test in the same pull request:
+  a test in an automated suite that CI runs (pytest, bash, Go, promtool,
+  Kyverno, or a repo-policy rule with its fixture) that fails on the bug and
+  passes with the fix, and names the pull request or issue it guards. When
+  no sensible test exists (a one-off action, a value only the live system
+  shows), the pull request says why under Tested
+  ([docs/testing.md](docs/testing.md#regression-tests)).
 - A change updates the docs it makes stale, in the same pull request.
 - Style: the Google Go Style Guide as far as golangci-lint checks it
   (`dashboard/.golangci.yaml`), PEP 8 for Python as far as ruff checks it

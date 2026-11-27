@@ -222,6 +222,27 @@ Measured on 2026-11-27:
 | `python` | 83.0% | 4795/5780 | 80 |
 | combined | 83.0% | 7174/8641 | |
 
+### Regression tests
+
+A regression test reproduces a bug that once reached `main`: it fails on
+the code or configuration as it was before the fix and passes after it, so
+the same bug cannot come back unnoticed. Every bug fix lands with one
+([CONTRIBUTING.md](../CONTRIBUTING.md#requirements)), in the suite that
+fits:
+
+| The bug is in | The test goes in |
+|---|---|
+| a Python script or exporter | `tests/test_*.py` |
+| a shell script | `tests/bash/test_*.sh`, `tests/smoke/` |
+| Go code | `*_test.go` next to it |
+| an alert or recording rule | `tests/prometheus/*_test.yaml` |
+| a Kyverno policy or exception | `policies/kyverno/tests/` |
+| a manifest, Helm values or OpenTofu | a rule in `scripts/ci/repo_policy.py` with a fixture in `tests/test_repo_policy.py` |
+
+The test, or the rule's failure message, names the pull request or issue
+of the fix (`#1606`). A fix with no sensible test (a one-off console
+action, a value only the live system shows) says why in its pull request.
+
 ## 3. Pre-production (kind)
 
 The `preprod` job creates a kind cluster on the cluster's Kubernetes minor
