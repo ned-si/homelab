@@ -27,7 +27,8 @@ crosses the repositories.
 The blackbox probe `https://charts.nedsi.io/` feeds the `charts` SLO
 ([sre.md](sre.md)). The host, certificate and listeners are in
 [networking.md](networking.md#nedsiio); the layout and palette copies in
-[website.md](website.md#shared-layout).
+website.md ([Shared layout](website.md#shared-layout),
+[Palette](website.md#palette)).
 
 ## See that the site is current
 
@@ -39,15 +40,15 @@ Needs `gh`, `jq`, `curl`, `pdfinfo` and `shasum`. It compares the site
 with the latest drum-charts release: the song pages linked from `/`, one
 page image per PDF page, the SHA-256 of every `/pdf/<slug>.pdf`, and a
 `404` for every MP3. Expected: `release <tag>`, one `ok   /<slug>/ (<n>
-pages)` line per chart, then `charts-check: https://charts.nedsi.io matches
-<tag>`, exit 0. A `FAIL` line names the first difference. Shortly after a
+pages)` line per chart, `ok   /legend/ (<n> pages)`, `ok   <n> MP3s answer
+404`, then `charts-check: https://charts.nedsi.io matches <tag>`, exit 0. A `FAIL` line names the first difference. Shortly after a
 drum-charts merge a difference is normal: the site lags until both Renovate
 pull requests have deployed.
 
 To see where it is stuck, compare the pin with `:main`:
 
 ```sh
-grep '^image:' drumcharts/source.yaml
+git fetch origin && git show origin/main:drumcharts/source.yaml | grep '^image:'
 docker buildx imagetools inspect ghcr.io/ned-si/drum-charts:main | grep '^Digest'
 ```
 

@@ -52,8 +52,9 @@ Rules:
   `SITE_OUT=<dir> scripts/ci/site-check.sh --all`.
 
 A layout change reaches the blog, the drum charts and the dashboard with
-their next image deploys (digest bumps of `homelab-site` and `homelab-dashboard`); the
-landing page and the tech radar are live with the merge.
+their next image deploys (digest bumps of `homelab-site` and
+`homelab-dashboard`); the landing page and the tech radar are live with
+the merge.
 
 ## Theme
 
