@@ -3,6 +3,7 @@
 <h1>{{.Heading}}</h1>
 <p class="lead">{{.Lead}}</p>
 <p class="links"><a class="button" href="/pdf/{{.Slug}}.pdf" download>{{.Download}}</a> · <a href="{{.Root}}">{{.All}}</a>{{if .LegendLink}} · <a href="{{.Root}}legend/">{{.LegendLink}}</a>{{end}}</p>
+<p class="updated">{{.Version}}</p>
 <div class="sheets">
 {{- range $i, $p := .Images}}
 <img src="/pages/{{$p.Name}}" width="{{$p.Width}}" height="{{$p.Height}}" alt="{{$p.Alt}}"{{if $i}} loading="lazy"{{end}}>

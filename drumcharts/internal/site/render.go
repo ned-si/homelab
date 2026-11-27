@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed assets
@@ -77,6 +78,7 @@ type songView struct {
 	layout
 	Slug, Heading, Lead       string
 	Download, All, LegendLink string
+	Version                   template.HTML
 	Images                    []image
 }
 
@@ -138,9 +140,8 @@ func renderLang(files Files, d *Data, songs []Chart, l lang) error {
 		Songs:   m.text("home.songs", nil),
 		PDF:     m.text("home.pdf", nil),
 		Updated: m.html(pluralKey("home.updated", len(songs)), map[string]template.HTML{
-			"count":   escape(strconv.Itoa(len(songs))),
-			"release": link("https://github.com/ned-si/drum-charts/releases/tag/"+d.Release, d.Release),
-			"date":    template.HTML(`<time datetime="` + d.Date.Format("2006-01-02") + `">` + formatDate(l.Code, d.Date) + `</time>`), //nolint:gosec // G203: digits and a month name of formatDate
+			"count": escape(strconv.Itoa(len(songs))),
+			"date":  dateHTML(l.Code, d.Updated),
 		}),
 		Credits: m.html("home.credits", map[string]template.HTML{"github": link("https://github.com/ned-si/drum-charts", m.text("home.github_link", nil))}),
 	}
@@ -163,6 +164,7 @@ func renderLang(files Files, d *Data, songs []Chart, l lang) error {
 			Download:   m.text("song.download", nil),
 			All:        m.text("song.all", nil),
 			LegendLink: m.text("song.legend", nil),
+			Version:    version(m, l, s),
 		}
 		v.Images = images(s, func(n int) string {
 			return m.text("song.page_alt", args{"title": s.Title, "artist": s.Artist, "n": strconv.Itoa(n), "total": strconv.Itoa(len(s.Pages))})
@@ -178,6 +180,7 @@ func renderLang(files Files, d *Data, songs []Chart, l lang) error {
 		Lead:     m.text("legend.lead", nil),
 		Download: m.text("song.download", nil),
 		All:      m.text("song.all", nil),
+		Version:  version(m, l, d.Legend),
 	}
 	legend.Images = images(d.Legend, func(n int) string {
 		return m.text("legend.page_alt", args{"n": strconv.Itoa(n), "total": strconv.Itoa(len(d.Legend.Pages))})
@@ -216,6 +219,18 @@ func newLayout(m messages, l lang, title, description, rel string) layout {
 		Privacy:    m.text("footer.privacy", nil),
 		PrivacyURL: "https://blog.nedsi.io" + l.Root + "privacy/",
 	}
+}
+
+// version names the chart's version date and links its song release.
+func version(m messages, l lang, c Chart) template.HTML {
+	return m.html("song.version", map[string]template.HTML{
+		"date":    dateHTML(l.Code, c.Date),
+		"release": link("https://github.com/ned-si/drum-charts/releases/tag/"+c.Release, c.Release),
+	})
+}
+
+func dateHTML(code string, d time.Time) template.HTML {
+	return template.HTML(`<time datetime="` + d.Format(time.DateOnly) + `">` + formatDate(code, d) + `</time>`) //nolint:gosec // G203: digits and a month name of formatDate
 }
 
 func images(c Chart, alt func(n int) string) []image {

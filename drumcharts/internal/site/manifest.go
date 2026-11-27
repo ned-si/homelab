@@ -28,7 +28,7 @@ const (
 )
 
 // Schema is the version of the charts.json contract shared with drum-charts.
-const Schema = 1
+const Schema = 2
 
 const (
 	maxSongs = 200
@@ -38,7 +38,8 @@ const (
 )
 
 var (
-	releaseRe = regexp.MustCompile(`^charts-(\d{4}-\d{2}-\d{2})-([0-9a-f]{7})$`)
+	// versionRe is a release tag after its "<slug>-".
+	versionRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2})-([0-9a-f]{7})$`)
 	commitRe  = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	slugRe    = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 )
@@ -48,24 +49,27 @@ var reserved = []string{"fr", "pdf", "pages", "legend", "set-theme"}
 
 // Manifest is charts.json. Pointers tell a missing number from a zero.
 type Manifest struct {
-	Schema  *int    `json:"schema"`
-	Release string  `json:"release"`
-	Commit  string  `json:"commit"`
-	Legend  *Legend `json:"legend"`
-	Songs   []Song  `json:"songs"`
+	Schema *int    `json:"schema"`
+	Legend *Legend `json:"legend"`
+	Songs  []Song  `json:"songs"`
 }
 
-// Legend is the manifest's entry for legend.pdf.
+// Legend is the manifest's entry for legend.pdf; Release is its song
+// release, Commit the version commit the tag names.
 type Legend struct {
-	Pages *int `json:"pages"`
+	Pages   *int   `json:"pages"`
+	Release string `json:"release"`
+	Commit  string `json:"commit"`
 }
 
 // Song is one chart: Artist is the header's title, Title its subtitle.
 type Song struct {
-	Slug   string `json:"slug"`
-	Artist string `json:"artist"`
-	Title  string `json:"title"`
-	Pages  *int   `json:"pages"`
+	Slug    string `json:"slug"`
+	Artist  string `json:"artist"`
+	Title   string `json:"title"`
+	Pages   *int   `json:"pages"`
+	Release string `json:"release"`
+	Commit  string `json:"commit"`
 }
 
 // Page is one validated page image.
@@ -75,17 +79,18 @@ type Page struct {
 	SVG           []byte
 }
 
-// Chart is a song or the legend with its PDF and page images.
+// Chart is a song or the legend with its PDF and page images; Date is the
+// date of its release tag.
 type Chart struct {
-	Slug, Artist, Title string
-	PDF                 []byte
-	Pages               []Page
+	Slug, Artist, Title, Release string
+	Date                         time.Time
+	PDF                          []byte
+	Pages                        []Page
 }
 
-// Data is validated site data.
+// Data is validated site data; Updated is the newest Date of its charts.
 type Data struct {
-	Release string
-	Date    time.Time
+	Updated time.Time
 	Legend  Chart
 	Songs   []Chart
 }
@@ -137,11 +142,15 @@ func Load(dir string) (*Data, error) {
 	if len(p.list) > 0 {
 		return nil, p.err()
 	}
-	d := &Data{Release: m.Release}
-	d.Date, _ = time.Parse(time.DateOnly, releaseRe.FindStringSubmatch(m.Release)[1]) // checked above
-	d.Legend = readChart(root, Chart{Slug: "legend"}, *m.Legend.Pages, &p)
+	d := &Data{}
+	d.Legend = readChart(root, Chart{Slug: "legend", Release: m.Legend.Release, Date: versionDate("legend", m.Legend.Release)}, *m.Legend.Pages, &p)
+	d.Updated = d.Legend.Date
 	for _, s := range m.Songs {
-		d.Songs = append(d.Songs, readChart(root, Chart{Slug: s.Slug, Artist: s.Artist, Title: s.Title}, *s.Pages, &p))
+		c := readChart(root, Chart{Slug: s.Slug, Artist: s.Artist, Title: s.Title, Release: s.Release, Date: versionDate(s.Slug, s.Release)}, *s.Pages, &p)
+		if c.Date.After(d.Updated) {
+			d.Updated = c.Date
+		}
+		d.Songs = append(d.Songs, c)
 	}
 	if err := p.err(); err != nil {
 		return nil, err
@@ -219,25 +228,15 @@ func checkManifest(m *Manifest, p *problems) map[string]bool {
 	if m.Schema == nil || *m.Schema != Schema {
 		p.add(name, "schema must be %d", Schema)
 	}
-	commitOK := commitRe.MatchString(m.Commit)
-	if !commitOK {
-		p.add(name, "commit %q is not 40 lower-case hex", m.Commit)
-	}
-	if r := releaseRe.FindStringSubmatch(m.Release); r == nil {
-		p.add(name, "release %q is not charts-<yyyy-mm-dd>-<7 hex>", m.Release)
-	} else {
-		if _, err := time.Parse(time.DateOnly, r[1]); err != nil {
-			p.add(name, "release %q has no valid date", m.Release)
-		}
-		if commitOK && m.Commit[:7] != r[2] {
-			p.add(name, "commit %s does not start with the release's %s", m.Commit, r[2])
-		}
-	}
 	want := map[string]bool{}
-	if m.Legend == nil || !pagesOK(m.Legend.Pages) {
-		p.add(name, "legend.pages must be 1 to %d", maxPages)
-		m.Legend = &Legend{Pages: new(int)}
+	if m.Legend == nil {
+		m.Legend = &Legend{}
 	}
+	if !pagesOK(m.Legend.Pages) {
+		p.add(name, "legend.pages must be 1 to %d", maxPages)
+		m.Legend.Pages = new(int)
+	}
+	checkVersion(p, "legend.", "legend", m.Legend.Release, m.Legend.Commit)
 	addFiles(want, "legend", *m.Legend.Pages)
 	if len(m.Songs) < 1 || len(m.Songs) > maxSongs {
 		p.add(name, "songs must hold 1 to %d songs, holds %d", maxSongs, len(m.Songs))
@@ -265,9 +264,39 @@ func checkManifest(m *Manifest, p *problems) map[string]bool {
 			p.add(name, "%s: pages must be 1 to %d", at, maxPages)
 			s.Pages = new(int)
 		}
+		checkVersion(p, at+": ", s.Slug, s.Release, s.Commit)
 		addFiles(want, s.Slug, *s.Pages)
 	}
 	return want
+}
+
+// checkVersion applies the rules of a chart's release tag,
+// <slug>-<yyyy-mm-dd>-<7 hex>, and of its version commit; at prefixes each
+// line.
+func checkVersion(p *problems, at, slug, release, commit string) {
+	const name = "charts.json"
+	commitOK := commitRe.MatchString(commit)
+	if !commitOK {
+		p.add(name, "%scommit %q is not 40 lower-case hex", at, commit)
+	}
+	rest, ok := strings.CutPrefix(release, slug+"-")
+	r := versionRe.FindStringSubmatch(rest)
+	if !ok || r == nil {
+		p.add(name, "%srelease %q is not %s-<yyyy-mm-dd>-<7 hex>", at, release, slug)
+		return
+	}
+	if _, err := time.Parse(time.DateOnly, r[1]); err != nil {
+		p.add(name, "%srelease %q has no valid date", at, release)
+	}
+	if commitOK && commit[:7] != r[2] {
+		p.add(name, "%scommit %s does not start with the release's %s", at, commit, r[2])
+	}
+}
+
+// versionDate is the date of a release tag checkVersion passed.
+func versionDate(slug, release string) time.Time {
+	d, _ := time.Parse(time.DateOnly, versionRe.FindStringSubmatch(strings.TrimPrefix(release, slug+"-"))[1]) // checked by checkVersion
+	return d
 }
 
 func pagesOK(n *int) bool { return n != nil && *n >= 1 && *n <= maxPages }
