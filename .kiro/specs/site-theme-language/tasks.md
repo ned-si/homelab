@@ -66,7 +66,7 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
 
 ## Language
 
-- [ ] 4. French on `nedsi.io` and `blog.nedsi.io` (**live**):
+- [x] 4. French on `nedsi.io` and `blog.nedsi.io` (**live**):
       `hugo.toml` languages; `site/i18n/en.yaml` and `fr.yaml`; the
       French About, privacy, home, tags and 404, and
       `apps/website/landing/index-fr.html`, per
@@ -80,6 +80,10 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       7.3 and 7.4). Then the
       `homelab-site` digest bump. Check: acceptance criteria 5, 6 and 8
       live. [4.1-4.8, 4.10, 5.1, 5.3, 5.4]
+      French #1743, blog smoke #1744, image #1796 (`homelab-site`).
+      Checked live with curl: `nedsi.io/fr/` and the blog's `/fr/`,
+      `/fr/about/`, `/fr/privacy/` and `/fr/index.xml` return 200; the
+      PostSync smoke passed.
 - [x] 5. French on `homelab.nedsi.io` (**live**): `i18n.go` with the
       catalogue, `formatPercent` and dates; the `/fr/` route; the
       language toggle and `hreflang` in `layout.html`; `TestCatalogue`;
@@ -87,22 +91,26 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       for Homelab; the homelab-dashboard line this spec supersedes
       (Language). Then the dashboard image deploy. Check:
       acceptance criterion 7 live. [4.1-4.5, 4.9, 5.2]
-      French #1763.
-- [ ] 6. French on `techradar.nedsi.io` (**live**): `reason_fr` on every
+      French #1763, image #1838 (`homelab-dashboard`). Checked live:
+      `homelab.nedsi.io/fr/` has `lang="fr-CH"` and French headings.
+- [x] 6. French on `techradar.nedsi.io` (**live**): `reason_fr` on every
       entry and its validation; the radar catalogue; `index-fr.html`
       and its nginx location; the language toggle and `hreflang`; the
       French `NAV` target for the radar; the tech-radar line this spec
       supersedes (Language). Check: `/fr/` live with every reason in
       French; the generator's tests. [4.1-4.5, 4.7, 4.9]
+      French #1747. Checked live: `techradar.nedsi.io/fr/` returns 200
+      with the French radar.
 
 ## Docs
 
-- [ ] 7. Docs: `docs/website.md` (the theme contract, the palette and
+- [x] 7. Docs: `docs/website.md` (the theme contract, the palette and
       where its copies live, the cookie, how to add a translation or a
       stub, the conventions of [design, Translation](design.md#translation),
       Why it is like this); `docs/techradar.md` (`reason_fr`); the
       dashboard's doc (the catalogue). Check: a newcomer can add a
       palette colour and a French page from the docs alone; links
       resolve.
+      Docs (this PR).
 
 The last task ticked sets `status: done`, `closed:`, and closes #1662.

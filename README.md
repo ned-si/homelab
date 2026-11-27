@@ -74,7 +74,8 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
   [docs/networking.md](docs/networking.md), [docs/decisions.md](docs/decisions.md).
 - Data: [docs/backups.md](docs/backups.md), [docs/secrets.md](docs/secrets.md).
 - Monitoring: [docs/observability.md](docs/observability.md).
-- The public pages: [docs/homelab-dashboard.md](docs/homelab-dashboard.md),
+- The public pages: [docs/website.md](docs/website.md) (layout, themes,
+  languages), [docs/homelab-dashboard.md](docs/homelab-dashboard.md),
   [docs/techradar.md](docs/techradar.md).
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
 - Contributing, issues and pull requests: [CONTRIBUTING.md](CONTRIBUTING.md).

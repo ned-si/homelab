@@ -34,9 +34,11 @@ Scorecard API ──┘    (push key, GitHub token,       │     no token, no e
 - The web pod checks the size, the signature, the freshness (at most 5 min
   old, 1 min ahead) and the schema, keeps the last good snapshot in memory
   and renders the page on every request with `html/template`.
-- Port 8080 answers only `GET` and `HEAD` on `/`, `/snapshot.json` and
-  `/assets/dashboard.<hash>.css`; anything else is `404`, any other method
-  `405`. Port 9465 is in no HTTPRoute, port 9464 (`/metrics`, `/healthz`,
+- Port 8080 answers only `GET` and `HEAD` on `/`, `/fr/` (`/fr` is a
+  `301` to it), `/snapshot.json`, `/assets/dashboard.<hash>.css`,
+  `/theme.css` and `/set-theme/<light|dark><path>`
+  ([website.md](website.md#theme)); anything else is `404`, any other
+  method `405`. Port 9465 is in no HTTPRoute, port 9464 (`/metrics`, `/healthz`,
   `/readyz`) neither.
 - Neither pod mounts a ServiceAccount token
   (`automountServiceAccountToken: false`). Both run as UID 65532 with a
@@ -180,6 +182,43 @@ landing page, the blog and this dashboard. An app with fewer than 30 days of
 probes shows "since <date>" in grey, with no status word and no budget.
 Adding an app is a change to `dashboard/internal/snapshot/shown.go` and a
 release.
+
+## Languages
+
+The page is in English at `/` and in French at `/fr/`;
+`/snapshot.json` is the same for both. Every string the page prints is in
+the message catalogue `catalogues` in `dashboard/internal/web/i18n.go`,
+one map per language (`en`, `fr`) under the same keys. The templates
+print `{{index .T "<key>"}}`, and running text goes through `em`, which
+sets `*text*` in `<em>`. A `%s` is filled in by `locale.f`, in the same
+order in both languages.
+
+Numbers and dates come from the `locale` in the same file, not from the
+catalogue. French has a decimal comma and a narrow no-break space
+(U+202F) between groups of digits and before `%` and units, so 99.957
+shows `99,96 %` with the same half-to-even rounding as English. Times
+are in Zurich: `20 novembre 2026, 17:00`.
+
+To add or change a string:
+
+1. Add the key to both maps of `catalogues`, the French one per the
+   [translation conventions](website.md#translation-conventions).
+2. Print it in `templates/page.html` or `templates/layout.html`, or use
+   it in `render.go` through `l.t("<key>")` or `l.f("<key>", ...)`.
+3. Rewrite the golden pages, English and French, and read the diff:
+
+   ```sh
+   cd dashboard && go test ./internal/web -update && git diff --stat internal/web/testdata
+   ```
+
+   Expected: `ok`, and only the golden pages you meant to change.
+4. Run `scripts/ci/dashboard-check.sh --all` from the repository root.
+
+`TestCatalogue` fails on a key in one language only, an empty value, an
+em dash, "bot", a different number of `%s` than English, and a shown app
+or security signal without its name. `TestFrenchFormats` holds the
+French numbers and dates. A string change reaches the page with the next
+image deploy.
 
 ## SLSA level
 
