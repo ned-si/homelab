@@ -124,9 +124,10 @@ remote players; without it, only the LAN reaches the server.
   gitleaks and the Trivy gate run in CI; GitHub secret scanning has push
   protection. The repo-policy parsers are fuzzed with Atheris on every change
   to them and nightly (workflow `fuzz`).
-- Control (images): every image is pinned by digest (`repo-policy` rule
-  `image-digest`), so a tag re-pushed upstream arrives as a Renovate pull
-  request, not on the next pull. Three images are built here (site,
+- Control (images): every image the repository names in its manifests and
+  Helm values is pinned by digest (`repo-policy` rule `image-digest`), so a
+  tag re-pushed upstream arrives as a Renovate pull request, not on the next
+  pull. Upstream charts are pinned by version. Three images are built here (site,
   dashboard, Jamulus) at SLSA Build L2: GitHub-hosted builds with signed
   provenance, signed keyless with cosign, their identities in
   `ci/image-signers.yaml`. Kyverno `verify-own-images` checks the signature
@@ -138,7 +139,11 @@ remote players; without it, only the LAN reaches the server.
 - Residual: `verify-own-images` is in Audit, fail-open, so an unsigned image
   is reported, not refused; most upstream images publish no signature, so
   their digest proves only that the bytes did not change since Renovate saw
-  them; automerge trusts CI to catch a malicious update, which it does not
+  them; images that an upstream chart sets from its own defaults (Argo CD,
+  cert-manager, Grafana, Prometheus, external-dns, the CSI sidecars and
+  others, listed as "not checked" in `ci/image-signers.yaml`) carry only the
+  chart's tag, which `image-digest` cannot see, so a tag re-pushed upstream
+  reaches a node on its next pull; automerge trusts CI to catch a malicious update, which it does not
   look for.
 - Planned: signature verification enforced for the own images, then for the
   upstream publishers that sign (#725,

@@ -21,9 +21,10 @@ Users of the services, and anyone reusing this repository, can expect:
   protection block plaintext ([secrets.md](secrets.md)).
 - Every change to `main` is signed and passed the required `ci` check on a
   protected branch, administrators included.
-- Every image is pinned by digest. The images built here are signed
-  keyless by their own workflow, with SLSA provenance, and anyone can verify
-  them ([architecture.md](architecture.md#first-party-code)).
+- Every image the repository names, in its manifests and Helm values, is
+  pinned by digest; upstream charts are pinned by version. The images built
+  here are signed keyless by their own workflow, with SLSA provenance, and
+  anyone can verify them ([architecture.md](architecture.md#first-party-code)).
 - A reported vulnerability is handled as in
   [SECURITY.md](../SECURITY.md#handling-a-report).
 
@@ -34,6 +35,9 @@ They cannot expect:
   ([threat-model.md](threat-model.md#accepted-not-planned)).
 - Encryption on the LAN for NAS storage (iSCSI and NFS) and for Jamulus audio,
   whose protocol has none.
+- A digest on images that an upstream chart sets from its own defaults
+  (Argo CD, cert-manager, Grafana, Prometheus and others): they carry the
+  chart's tag, so a tag re-pushed upstream reaches a node on its next pull.
 - An unsigned image refused at admission: Kyverno `verify-own-images`
   reports an image without its signature or provenance but admits it, until
   the image-provenance work moves it to enforcement (#725).
@@ -80,7 +84,7 @@ OWASP Top 10 (2021):
 | A05 Security misconfiguration | Kyverno in CI and in the cluster, strict kubeconform, kube-linter, the Trivy config gate, `repo-policy`, security headers on every route | [testing.md](testing.md) |
 | A06 Vulnerable and outdated components | Renovate, GitHub vulnerability alerts, `govulncheck`, trivy-operator on the running images | [dependencies.md](dependencies.md) |
 | A07 Identification and authentication failures | Keycloak brute-force detection, no password grant, TOTP for admins | `platform/keycloak/realm/` |
-| A08 Software and data integrity failures | Signed commits; actions pinned by SHA; images by digest; own images signed, with their signature and provenance checked by Kyverno `verify-own-images` (Audit); signed dashboard pushes | `infrastructure/kyverno-policies/verify-own-images.yaml` |
+| A08 Software and data integrity failures | Signed commits; actions pinned by SHA; images the repository names pinned by digest, charts by version (chart-default images by tag only); own images signed, with their signature and provenance checked by Kyverno `verify-own-images` (Audit); signed dashboard pushes | `infrastructure/kyverno-policies/verify-own-images.yaml` |
 | A09 Security logging and monitoring failures | apiserver audit log; pod and Talos logs in SigNoz; Tetragon runtime detection; alerts that page through ntfy | [observability.md](observability.md) |
 | A10 Server-side request forgery | Own code calls only configured URLs; the dashboard's web pod has no egress | [homelab-dashboard.md](homelab-dashboard.md) |
 
@@ -132,6 +136,8 @@ CI/CD risks (OWASP Top 10 CI/CD):
   certificate, and send its API key over that connection (#1822).
 - Python has no linter in pre-commit or CI (#1823).
 - Image signatures are audited at admission, not enforced (#725).
+- Images that upstream charts set by default are pinned by chart version
+  and tag, not by digest.
 - NAS storage traffic and Jamulus audio cross the LAN unencrypted (see
   [Security requirements](#security-requirements)).
 - One maintainer, no successor arrangement yet
