@@ -211,7 +211,7 @@ Every pull request and every push to `main` runs
 one step per check. Inside a job every check runs even when an earlier one
 fails, and the job fails if any check failed.
 
-- `lint`: `yamllint`, `actionlint`, `shellcheck`, `tofu fmt` and
+- `lint`: `ruff`, `yamllint`, `actionlint`, `shellcheck`, `tofu fmt` and
   `tofu validate`.
 - `render`: a render of every Application and Helm release, `kubeconform`
   (strict schema validation against the cluster's Kubernetes version and the

@@ -75,10 +75,10 @@ def test_disks_and_alerts():
     out = lines()
     assert 'truenas_disk_info{disk="ada0",model="Model \\"X\\"",type="SSD"} 1' in out
     assert 'truenas_disk_temperature_celsius{disk="ada0"} 37' in out
-    assert not any(l.startswith('truenas_disk_temperature_celsius{disk="nvd0"') for l in out)
-    assert not any(l.startswith("truenas_disk_smart") for l in out)
+    assert not any(line.startswith('truenas_disk_temperature_celsius{disk="nvd0"') for line in out)
+    assert not any(line.startswith("truenas_disk_smart") for line in out)
     assert 'truenas_alerts{klass="SMART",level="CRITICAL"} 2' in out
-    assert not any("UnscheduledReboot" in l for l in out)
+    assert not any("UnscheduledReboot" in line for line in out)
 
 
 # Recorded from SCALE 25.10.8, trimmed: `system/info` and `reporting/get_data`
@@ -111,28 +111,28 @@ def test_cpu_memory_load():
 def test_memory_used_absent_without_arc():
     graphs = [g for g in SCALE["reporting/get_data"] if g["name"] != "arcsize"]
     out = exporter.build({**SCALE, "reporting/get_data": graphs}).render().splitlines()
-    assert not any(l.startswith(("truenas_memory_used", "truenas_memory_arc")) for l in out)
+    assert not any(line.startswith(("truenas_memory_used", "truenas_memory_arc")) for line in out)
 
 
 def test_cpu_memory_absent_without_answers():
     out = lines()
     for name in ("truenas_cpu_cores", "truenas_load1", "truenas_memory_total_bytes",
                  "truenas_cpu_utilisation_ratio", "truenas_memory_used_bytes"):
-        assert not any(l.startswith(name) for l in out)
+        assert not any(line.startswith(name) for line in out)
     graphs = [{"name": "cpu", "legend": ["time", "user"], "data": [[1, 5]]},
               {"name": "memory", "legend": ["time", "available"], "data": [[1, None]]}]
     out = exporter.build({**SCALE, "reporting/get_data": graphs}).render().splitlines()
-    assert not any(l.startswith(("truenas_cpu_utilisation", "truenas_memory_used")) for l in out)
+    assert not any(line.startswith(("truenas_cpu_utilisation", "truenas_memory_used")) for line in out)
     assert "truenas_memory_total_bytes 33580396544" in out
 
 
 def test_every_metric_has_help_and_type():
     for data in (DATA, SCALE):
         out = exporter.build(data).render().splitlines()
-        names = {l.split("{")[0].split(" ")[0] for l in out if not l.startswith("#")}
+        names = {line.split("{")[0].split(" ")[0] for line in out if not line.startswith("#")}
         for n in names:
             assert f"# TYPE {n} gauge" in out
-            assert any(l.startswith(f"# HELP {n} ") for l in out)
+            assert any(line.startswith(f"# HELP {n} ") for line in out)
 
 
 def collector(fail):
@@ -158,7 +158,7 @@ def test_required_endpoint_failure():
 def test_reporting_optional():
     out = collector({"reporting/get_data"}).collect().splitlines()
     assert "truenas_up 1" in out
-    assert not any(l.startswith("truenas_cpu_utilisation_ratio") for l in out)
+    assert not any(line.startswith("truenas_cpu_utilisation_ratio") for line in out)
 
 
 def test_reporting_query():
@@ -202,8 +202,8 @@ NODES = exporter.networks("192.168.1.247/32 192.168.1.238/32 192.168.1.239/32 19
 
 def iscsi_gauge(targets, initiators=None, nets=NODES):
     data = {"iscsi/target": targets, "iscsi/initiator": initiators or []}
-    return [l for l in exporter.build(data, nets).render().splitlines()
-            if l.startswith("truenas_iscsi_targets_unrestricted")]
+    return [line for line in exporter.build(data, nets).render().splitlines()
+            if line.startswith("truenas_iscsi_targets_unrestricted")]
 
 
 def test_iscsi_unrestricted_core():
@@ -234,7 +234,7 @@ def test_iscsi_unrestricted_scale():
 
 def test_iscsi_gauge_absent_without_networks_or_targets():
     assert iscsi_gauge([], nets=frozenset()) == []
-    assert not any(l.startswith("truenas_iscsi") for l in lines())
+    assert not any(line.startswith("truenas_iscsi") for line in lines())
 
 
 NAS_CA = REPO / "platform" / "truenas-exporter" / "nas-ca.crt"
