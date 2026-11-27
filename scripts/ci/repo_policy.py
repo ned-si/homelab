@@ -188,6 +188,13 @@ Regression rules, each failing on a bug that reached main (the PR is in its mess
   https-redirect-scheme no RequestRedirect on the https listener sets a scheme
   tailscale-ingress-backend  no Tailscale Ingress has a headless backend Service
   bootstrap-tracks-main bootstrap/variables.tf target_revision defaults to main
+  paperless-env         Paperless takes its secret key from a Secret and allows the in-cluster host
+  grafana-admin-secret  the Grafana admin comes from an existing Secret, not a random one
+  argo-stated-defaults  HTTPRoute backendRefs, CNPG plugin entries and Probes state the
+                        fields their webhooks default, so Argo CD stays Synced
+  auth-route-timeout    no route to Keycloak has an unlimited request timeout
+  no-lscr               no image is pulled from lscr.io
+  restic-readonly-root  every restic CronJob container has a read-only root filesystem
 
 Every image rule accepts a line that carries `# image-policy: allow <reason>`.
 """
@@ -382,6 +389,9 @@ SERVARR_APPS = {"sonarr", "radarr", "lidarr", "prowlarr"}
 ROUTER_FORWARDS = {("theater", "qbittorrent-seed"): "192.168.1.200",
                    ("syncthing", "syncthing-protocol"): "192.168.1.201"}
 BOOTSTRAP_VARIABLES = "bootstrap/variables.tf"
+KEYCLOAK_SERVICE = ("keycloak", "keycloak")
+# immich-db changes only through a spec with a fresh backup (#1845).
+STATED_DEFAULTS_EXEMPT = {("immich", "immich-db")}
 
 
 class Policy:
@@ -1771,6 +1781,111 @@ class Policy:
             self.fail(rule, f'{BOOTSTRAP_VARIABLES}: variable "target_revision" must default to "main", the '
                             "revision every Application tracks (#113)")
 
+    def rule_paperless_env(self) -> None:
+        rule = "paperless-env"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                pod = pod_spec_of(d)
+                if pod is None or d.get("kind") != "Deployment":
+                    continue
+                for c in pod.get("containers") or []:
+                    env = {str(x.get("name")): x for x in c.get("env") or []}
+                    if "PAPERLESS_URL" not in env:
+                        continue
+                    self.on(rule)
+                    where = f"{e['app']}: Deployment {self.ns_of(d, e)}/{self.name_of(d)} container {c.get('name')}"
+                    if not ((env.get("PAPERLESS_SECRET_KEY") or {}).get("valueFrom") or {}).get("secretKeyRef"):
+                        self.fail(rule, f"{where}: PAPERLESS_SECRET_KEY must come from a Secret; unset, Django "
+                                        "signs sessions with its well-known default key (#194)")
+                    hosts = str((env.get("PAPERLESS_ALLOWED_HOSTS") or {}).get("value") or "").split(",")
+                    probe_hosts = [h for h in ((c.get("readinessProbe") or {}).get("httpGet") or {}).get("httpHeaders")
+                                   or [] if str(h.get("name")).lower() == "host"]
+                    if "paperless" not in hosts or not probe_hosts:
+                        self.fail(rule, f"{where}: PAPERLESS_ALLOWED_HOSTS must list paperless and the readiness "
+                                        "probe send a Host header; since 3.5.0 other hosts get 400 (#1466)")
+
+    def rule_grafana_admin_secret(self) -> None:
+        rule = "grafana-admin-secret"
+        path = self.root / KPS_VALUES
+        if not path.is_file():
+            return
+        self.on(rule)
+        v = (yaml_file_docs(path) or [{}])[0]
+        if not ((v.get("grafana") or {}).get("admin") or {}).get("existingSecret"):
+            self.fail(rule, f"{KPS_VALUES}: grafana.admin.existingSecret must be set; the chart's random admin "
+                            "Secret changes on every render and restarts Grafana on every sync (#980)")
+
+    def rule_argo_stated_defaults(self) -> None:
+        # Fields an admission webhook or the API server defaults; unstated, Argo CD's
+        # server-side diff shows them as drift and the app never stays Synced.
+        rule = "argo-stated-defaults"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                kind, spec = d.get("kind"), d.get("spec") or {}
+                where = f"{e['app']}: {kind} {self.ns_of(d, e)}/{self.name_of(d)}"
+                if kind == "HTTPRoute" and self.group_of(d) == "gateway.networking.k8s.io":
+                    self.on(rule)
+                    for i, r in enumerate(spec.get("rules") or []):
+                        for b in r.get("backendRefs") or []:
+                            missing = [k for k in ("group", "kind", "weight") if k not in b]
+                            if missing:
+                                self.fail(rule, f"{where} rule {i}: backendRef {b.get('name')} must state "
+                                                f"{', '.join(missing)} (#64)")
+                elif kind == "Cluster" and self.group_of(d) == "postgresql.cnpg.io":
+                    self.on(rule)
+                    for p in spec.get("plugins") or []:
+                        if "enabled" not in p:
+                            self.fail(rule, f"{where}: plugin {p.get('name')} must state enabled (#267)")
+                    for x in spec.get("externalClusters") or []:
+                        p = x.get("plugin")
+                        if (self.ns_of(d, e), self.name_of(d)) in STATED_DEFAULTS_EXEMPT:
+                            continue
+                        if p is not None and not {"enabled", "isWALArchiver"} <= set(p):
+                            self.fail(rule, f"{where}: externalClusters {x.get('name')} plugin must state enabled "
+                                            "and isWALArchiver (#319)")
+                elif kind == "Probe" and self.group_of(d) == "monitoring.coreos.com":
+                    self.on(rule)
+                    relabel = ((spec.get("targets") or {}).get("staticConfig") or {}).get("relabelingConfigs") or []
+                    if not (spec.get("prober") or {}).get("path") or any("action" not in r for r in relabel):
+                        self.fail(rule, f"{where}: must state prober.path and every relabeling action (#282)")
+
+    def rule_auth_route_timeout(self) -> None:
+        rule = "auth-route-timeout"
+        for e, d in self.http_routes():
+            ns = self.ns_of(d, e)
+            for i, r in enumerate((d.get("spec") or {}).get("rules") or []):
+                if not any((b.get("namespace") or ns, b.get("name")) == KEYCLOAK_SERVICE
+                           for b in r.get("backendRefs") or []):
+                    continue
+                self.on(rule)
+                if str((r.get("timeouts") or {}).get("request")) in ("0", "0s"):
+                    self.fail(rule, f"{e['app']}: HTTPRoute {ns}/{self.name_of(d)} rule {i}: Keycloak has no "
+                                    "long-lived request; bound timeouts.request (pentest 2026-11-10, #1380)")
+
+    def rule_no_lscr(self) -> None:
+        rule = "no-lscr"
+        self.on(rule)
+        for rel, n, repo, _, allowed, _ in self.image_refs():
+            if repo.startswith("lscr.io/") and not allowed:
+                self.fail(rule, f"{rel}:{n}: lscr.io only redirects to ghcr.io/linuxserver and answered 503 for "
+                                "hours; pull from ghcr.io (#1635)")
+
+    def rule_restic_readonly_root(self) -> None:
+        rule = "restic-readonly-root"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                pod = pod_spec_of(d)
+                if pod is None or d.get("kind") != "CronJob":
+                    continue
+                for c in pod.get("containers") or []:
+                    if "RESTIC_REPOSITORY" not in {x.get("name") for x in c.get("env") or []}:
+                        continue
+                    self.on(rule)
+                    if (c.get("securityContext") or {}).get("readOnlyRootFilesystem") is not True:
+                        self.fail(rule, f"{e['app']}: CronJob {self.ns_of(d, e)}/{self.name_of(d)} container "
+                                        f"{c.get('name')} must set readOnlyRootFilesystem: true; restic writes only "
+                                        "to its cache and /tmp volumes (#973)")
+
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
@@ -1790,7 +1905,9 @@ class Policy:
                      self.rule_cnpg_full_image, self.rule_aws_tag_values, self.rule_sso_only_login,
                      self.rule_router_forwards, self.rule_route_match_unique,
                      self.rule_sso_proxy_unverified_email, self.rule_https_redirect_scheme,
-                     self.rule_tailscale_ingress_backend, self.rule_bootstrap_tracks_main):
+                     self.rule_tailscale_ingress_backend, self.rule_bootstrap_tracks_main,
+                     self.rule_paperless_env, self.rule_grafana_admin_secret, self.rule_argo_stated_defaults,
+                     self.rule_auth_route_timeout, self.rule_no_lscr, self.rule_restic_readonly_root):
             rule()
         for f in self.fails:
             print(f)
