@@ -113,4 +113,17 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       resolve.
       Docs #1860.
 
+## Changes
+
+- [x] 8. Language switch shows only the inactive language (operator,
+      2026-11-26): one `<a class="lang">` with `aria-label` "Français"
+      or "English" on the four hosts, no underline (`.prefs a` in
+      `layout.css` and its copies); `site_markup.py` and its test; the
+      dashboard and radar golden pages; Requirement 4.2 and
+      [design, Markup](design.md#markup). Then the `homelab-site` and
+      `homelab-dashboard` digest bumps. Check: the single link live on
+      the four hosts, both languages, both themes, at 1920x1080 and
+      390x844. [4.2] (#1857)
+      Switch #1859.
+
 The last task ticked sets `status: done`, `closed:`, and closes #1662.

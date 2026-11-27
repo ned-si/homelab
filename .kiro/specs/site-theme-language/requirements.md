@@ -152,10 +152,13 @@ French, and a link back to English on each one.
    `https://homelab.nedsi.io/fr/` and `https://techradar.nedsi.io/fr/`.
    There SHALL be no redirect by `Accept-Language` and no language
    cookie.
-2. EVERY public page SHALL carry a language toggle in its preferences,
-   left of the theme toggle: "EN" and "FR", the current language as
-   text with `aria-current="true"`, the other a link to the same page in
-   that language with `hreflang` and `lang` set.
+2. EVERY public page SHALL carry a language switch in its preferences,
+   left of the theme toggle: one link, not underlined, that shows only
+   the language the page is not in ("FR" on English pages, "EN" on
+   French ones) and leads to the same page in that language. It has
+   `hreflang` and `lang` set and the language's name as its accessible
+   name ("Français", "English"). The current language is not shown
+   (operator, 2026-11-26: readers know which language they are reading).
 3. THE navigation bar of a French page SHALL link the French version of
    each host once that host serves French
    ([design, Navigation](design.md#navigation)). Its link texts are
