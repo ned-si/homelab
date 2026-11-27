@@ -111,6 +111,6 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       dashboard's doc (the catalogue). Check: a newcomer can add a
       palette colour and a French page from the docs alone; links
       resolve.
-      Docs (this PR).
+      Docs #1860.
 
 The last task ticked sets `status: done`, `closed:`, and closes #1662.
