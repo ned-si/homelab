@@ -28,18 +28,21 @@ tracks carries a `# renovate:` comment that names its datasource.
 
 ## How updates merge
 
-- Every update automerges on a green `ci`, at any time
-  ([decisions.md](decisions.md#no-human-gates)). The `renovate-next` train
+- Every update automerges on a green `ci`, at any time unless an exception
+  below says otherwise ([decisions.md](decisions.md#no-human-gates)). The `renovate-next` train
   (`scripts/ci/renovate-next.sh`) rebases one pull request after each merge,
   so CI runs on the one that merges next.
 - `automerge-weekdays`: Cilium and the Gateway API CRDs open 3 days after
   their release and merge Monday to Friday, 09:00 to 16:59 Zurich; the
   operators that build Pods in code (tuppr, CloudNativePG and its Barman
   Cloud plugin) merge in the same window.
-- `no-automerge`: majors of data stores (PostgreSQL, ClickHouse, ZooKeeper,
-  Valkey, Redis, MariaDB, MySQL) open a pull request that a person merges,
-  because a store that ran on a new major cannot be rolled back.
-- Never by Renovate: the Immich database image, and the versions listed in
+- `no-automerge`: majors of data stores (ClickHouse, ZooKeeper, Valkey,
+  Redis, MariaDB, MySQL, PostgreSQL outside CloudNativePG) open a pull
+  request that a person merges, because a store that ran on a new major
+  cannot be rolled back.
+- Never by Renovate: the Immich database image, CloudNativePG PostgreSQL
+  majors (`ghcr.io/cloudnative-pg/postgresql`, until a major bump also moves
+  the backup `serverName`), and the versions listed in
   [roadmap.md](roadmap.md#versions-renovate-cannot-move-alone), each with its
   runbook.
 - A merge that degrades its Application is reverted automatically

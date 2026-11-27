@@ -104,9 +104,17 @@ CI/CD risks (OWASP Top 10 CI/CD):
   the site on `nginx-unprivileged`, Jamulus as UID 65532.
 - Pods: seccomp `RuntimeDefault`, no privilege escalation, capabilities
   dropped, no ServiceAccount token, a read-only root where the app allows
-  it; Pod Security `restricted` enforced in the platform and admin
-  namespaces. Exceptions are listed with their reason in
+  it. Exceptions are listed with their reason in
   `ci/pod-hardening-gaps.txt`.
+- Pod Security levels, per namespace in
+  `infrastructure/namespaces/namespaces.yaml`: `restricted` on the gateway,
+  the controllers (Argo CD, cert-manager, external-dns, Kyverno, tuppr,
+  Trivy, metrics-server, the kubelet certificate approver), the own images
+  (website, dashboard, Jamulus), Headlamp, Hubble, `pentest` and `home`;
+  `baseline` on Keycloak, SigNoz, `ingress`, `backup-verify` and most
+  household apps (Immich, books, Mealie, Paperless, Syncthing, theater);
+  `privileged` where node-level agents or proxies run (democratic-csi,
+  monitoring, logging, Tetragon, Tailscale).
 - Nodes: Talos, an immutable OS managed only through its mTLS API;
   Kubernetes Secrets encrypted at rest.
 

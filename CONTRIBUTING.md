@@ -50,6 +50,7 @@ enforces it.
 On macOS with Homebrew, from the repository root:
 
 ```sh
+brew install go-task                # provides `task`
 task tools                          # the CLI tools the hooks call: sops, kustomize, helm, ...
 python3 -m venv ~/.venvs/homelab    # outside the tree, which does not ignore a venv
 . ~/.venvs/homelab/bin/activate
