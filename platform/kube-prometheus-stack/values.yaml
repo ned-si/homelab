@@ -48,8 +48,8 @@ prometheusOperator:
 
 # eMMC wear: Talos exposes life_time and pre_eol_info only in sysfs, so a
 # sidecar reads them from /host/sys every 5 minutes for the textfile collector
-# (docs/observability.md). extraArgs replaces the chart's list, so its two
-# filesystem filters are repeated.
+# (docs/observability.md). extraArgs comes after the chart's defaultArgs (the
+# filesystem filters); repeating one crash-loops node-exporter (#1824).
 prometheus-node-exporter:
   resources:
     requests:
@@ -58,8 +58,6 @@ prometheus-node-exporter:
     limits:
       memory: 128Mi
   extraArgs:
-    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
-    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
     - --collector.textfile.directory=/run/textfile
   sidecarVolumeMount:
     - name: textfile

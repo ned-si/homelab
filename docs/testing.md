@@ -69,6 +69,12 @@ their script runs, and the script fails when one is missing.
     both fail, so the file only shrinks. An Application under
     `clusters/homelab/apps/` whose namespace is not in `APP_NAMESPACES`
     fails too.
+  - the repository invariant `container-args-unique`: no container of any
+    rendered pod template, upstream Helm charts included, passes the same
+    `--flag[=value]` twice. A chart that starts setting a flag our values
+    also set fails here instead of crash-looping in the cluster (#1824).
+    The kind boot cannot catch it: the upstream charts are not in `deploy/`,
+    and node-exporter needs host paths and the host network.
 - `tests`:
   - unit tests: `pytest tests` under coverage.py (render, repo policy,
     workflow entry points, pre-commit parity, the `ci` job list; see
