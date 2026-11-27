@@ -44,6 +44,10 @@ objects and rule ids only; values are never printed.
                         A stale, malformed or duplicate line fails, and so does
                         an Application under clusters/homelab/apps/ whose
                         namespace is not in APP_NAMESPACES
+  container-args-unique no container of a rendered pod template, upstream charts
+                        included, passes the same `--flag[=value]` twice in its
+                        command and args (node-exporter crash-looped on a
+                        repeated flag after a chart moved our extraArgs, #1824)
   cronjob-suspended / cronjob-guard / guard-modes / cronjob-active
                         new-layout CronJobs rendered from the apps and platform
                         layers are suspended, unless listed in
@@ -744,6 +748,27 @@ class Policy:
         for (ref, check), n in sorted(listed.items(), key=lambda x: x[1]):
             if (ref, check) not in found:
                 self.fail(rule, f"{POD_GAPS}:{n}: {ref} {check} is no longer a gap; remove the line")
+
+    def rule_container_args_unique(self) -> None:
+        # Identical items only: some flags repeat by design (--source=a
+        # --source=b), the same item twice never does, and kingpin binaries exit.
+        rule = "container-args-unique"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                pod = pod_spec_of(d)
+                if pod is None:
+                    continue
+                self.on(rule)
+                for c in (pod.get("initContainers") or []) + (pod.get("containers") or []):
+                    items = [a for a in (c.get("command") or []) + (c.get("args") or [])
+                             if isinstance(a, str) and a.startswith("--") and len(a) > 2]
+                    seen: set[str] = set()
+                    for a in items:
+                        if a in seen:
+                            flag = a.split("=", 1)[0]
+                            self.fail(rule, f"{e['app']}: {d.get('kind')} {self.ns_of(d, e)}/{self.name_of(d)} "
+                                            f"container {c.get('name')} repeats {flag}")
+                        seen.add(a)
 
     def rule_cronjobs(self) -> None:
         non_backup = self.read_list("ci/non-backup-cronjobs.txt")
@@ -1491,7 +1516,7 @@ class Policy:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
                      self.rule_iscsi_selinux_label, self.rule_pod_security_labels, self.rule_pod_hardening,
-                     self.rule_cronjobs,
+                     self.rule_container_args_unique, self.rule_cronjobs,
                      self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,

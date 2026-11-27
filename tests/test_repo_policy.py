@@ -164,6 +164,20 @@ def test_monitor_needs_release_label(tmp_path):
     assert policy(tmp_path / "b", renders=[("tetragon", "2+3", "platform", "tetragon", [sm])]).returncode == 0
 
 
+def test_container_args_repeated_fails(tmp_path):
+    flt = "--collector.filesystem.fs-types-exclude=^(proc|sysfs)$"
+    ds = {"apiVersion": "apps/v1", "kind": "DaemonSet", "metadata": {"name": "node-exporter", "namespace": "monitoring"},
+          "spec": {"template": {"spec": {"containers": [
+              {"name": "node-exporter", "args": ["--path.procfs=/host/proc", flt, flt]},
+              {"name": "sidecar", "command": ["/bin/sh", "-c"], "args": ["x", "x"]}]}}}}
+    render = [("kube-prometheus-stack", "2+3", "platform", "monitoring", [ds])]
+    assert [f for f in fails(policy(tmp_path, renders=render)) if "container-args-unique" in f] == [
+        "FAIL container-args-unique: kube-prometheus-stack: DaemonSet monitoring/node-exporter container "
+        "node-exporter repeats --collector.filesystem.fs-types-exclude"]
+    ds["spec"]["template"]["spec"]["containers"][0]["args"] = ["--source=service", "--source=ingress", flt]
+    assert policy(tmp_path / "b", renders=render).returncode == 0
+
+
 def project(name, cluster, namespaced=None, namespaces=("*",)):
     spec = {"destinations": [{"server": "https://kubernetes.default.svc", "namespace": n} for n in namespaces],
             "clusterResourceWhitelist": cluster}
