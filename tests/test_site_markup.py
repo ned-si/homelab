@@ -151,13 +151,19 @@ DASHBOARD_GOLDEN = sorted((REPO / "dashboard/internal/web/testdata").glob("*.gol
 
 @pytest.mark.parametrize("page", DASHBOARD_GOLDEN, ids=lambda p: p.name)
 def test_dashboard_golden_pages_pass(page):
-    """The app's pages carry the site navigation for their host and the same markup rules."""
+    """The app's pages carry the site navigation, the preferences and the
+    language links for their language, and the same markup rules."""
     import site_markup
 
-    checker = site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")
+    path = "/fr/" if page.name.startswith("fr-") else "/"
+    if page.name.endswith("notfound.golden.html"):
+        path += "404.html"
+    checker = site_markup.Checker("homelab.nedsi.io", f"https://homelab.nedsi.io{path}")
     checker.feed(page.read_text(encoding="utf-8"))
     checker.close()
     checker.check_nav()
+    checker.check_prefs()
+    checker.check_language()
     assert checker.problems == []
 
 
@@ -168,6 +174,8 @@ def test_dashboard_golden_pages_exist():
         "exhausted.golden.html",
         "empty.golden.html",
         "notfound.golden.html",
+        "fr-full.golden.html",
+        "fr-notfound.golden.html",
     }
 
 
@@ -294,7 +302,7 @@ def test_colour_literals(tmp_path, css, ok):
 FR_NAV = [
     ("Accueil", "https://nedsi.io/fr/"),
     ("Blog", "/fr/"),
-    ("Homelab", "https://homelab.nedsi.io/"),
+    ("Homelab", "https://homelab.nedsi.io/fr/"),
     ("Tech radar", "https://techradar.nedsi.io/fr/"),
     ("À propos", "/fr/about/"),
 ]

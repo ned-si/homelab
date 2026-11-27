@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="fr-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homelab | nedsi</title>
+<meta name="description" content="Le homelab en chiffres : disponibilité en direct, certificats, cluster, sécurité et chiffres du projet.">
+<meta name="author" content="nedsi">
+<link rel="canonical" href="https://homelab.nedsi.io/fr/">
+<link rel="alternate" hreflang="en" href="https://homelab.nedsi.io/">
+<link rel="alternate" hreflang="fr" href="https://homelab.nedsi.io/fr/">
+<link rel="alternate" hreflang="x-default" href="https://homelab.nedsi.io/">
+<link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/fr/index.xml" title="nedsi">
+<link rel="stylesheet" href="/assets/dashboard.8764b282.css" integrity="sha256-h2SygnCKopblocwb84GmlZBOdJU2KLFqF7TOnkAq6ds=">
+<link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+<header class="site">
+<nav class="site" aria-label="Site">
+<a href="https://nedsi.io/fr/">Accueil</a>
+<a href="https://blog.nedsi.io/fr/">Blog</a>
+<a href="/fr/" aria-current="page">Homelab</a>
+<a href="https://techradar.nedsi.io/fr/">Tech radar</a>
+<a href="https://blog.nedsi.io/fr/about/">À propos</a>
+</nav>
+<p class="prefs">
+<span class="lang"><a href="https://homelab.nedsi.io/" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>
+<a class="to-light" href="/set-theme/light/fr/" rel="nofollow" title="Thème clair, mémorisé dans un cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">Thème clair</span></a>
+<a class="to-dark" href="/set-theme/dark/fr/" rel="nofollow" title="Thème sombre"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">Thème sombre</span></a>
+</p>
+</header>
+<main>
+
+<header class="page">
+<h1>Homelab</h1>
+<p class="intro">Un homelab surconçu, en chiffres.</p>
+<p class="meta">SLA : 99,50 % de disponibilité sur 30 jours glissants, par app.</p>
+<p class="meta">Mis à jour le <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time> (heure de Zurich).</p>
+</header>
+<section aria-labelledby="availability">
+<h2 id="availability">Disponibilité</h2>
+<p class="meta">Les 30 derniers jours jusqu’à maintenant, mesurés par des sondes. La dernière barre est la journée en cours.</p>
+<div class="cards">
+<div class="card">
+<h3>Immich <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big ok">99,96<span class="unit"> %</span></span> <span class="status ok">Atteint</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 91,40 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="91.4" height="6.0"/></svg></div>
+<p class="meta">91,40 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 27 atteints, 1 à risque, 2 manqués"><g><rect class="warn" x="1.0" y="36.0" width="8.0" height="24.0"><title>2026-10-22 : 97,00 %</title></rect><rect class="bad" x="11.0" y="46.8" width="8.0" height="13.2"><title>2026-10-23 : 96,10 %</title></rect><rect class="bad" x="21.0" y="51.6" width="8.0" height="8.4"><title>2026-10-24 : 95,70 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="2.4" width="8.0" height="57.6"><title>2026-10-27 : 99,80 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="1.2" width="8.0" height="58.8"><title>2026-10-30 : 99,90 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="1.2" width="8.0" height="58.8"><title>2026-11-03 : 99,90 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="1.2" width="8.0" height="58.8"><title>2026-11-07 : 99,90 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="1.2" width="8.0" height="58.8"><title>2026-11-12 : 99,90 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="0.0" width="8.0" height="60.0"><title>2026-11-16 : 100,00 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="1.2" width="8.0" height="58.8"><title>2026-11-18 : 99,90 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Mealie <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big warn">99,50<span class="unit"> %</span></span> <span class="status warn">À risque</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 15,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="warn" x="0.0" y="0.0" width="15.0" height="6.0"/></svg></div>
+<p class="meta">15,00 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 29 atteints, 1 manqués"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="1.2" width="8.0" height="58.8"><title>2026-10-23 : 99,90 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="bad" x="121.0" y="58.0" width="8.0" height="2.0"><title>2026-11-03 : 85,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="0.0" width="8.0" height="60.0"><title>2026-11-16 : 100,00 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="0.0" width="8.0" height="60.0"><title>2026-11-18 : 100,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Paperless-ngx <span class="state bad">En panne</span></h3>
+<p class="stat"><span class="big bad">99,10<span class="unit"> %</span></span> <span class="status bad">Manqué</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur épuisé"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/></svg></div>
+<p class="meta">Épuisé</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 28 atteints, 1 à risque, 1 manqués"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="0.0" width="8.0" height="60.0"><title>2026-11-16 : 100,00 %</title></rect><rect class="bad" x="261.0" y="58.0" width="8.0" height="2.0"><title>2026-11-17 : 83,90 %</title></rect><rect class="ok" x="271.0" y="3.6" width="8.0" height="56.4"><title>2026-11-18 : 99,70 %</title></rect><rect class="ok" x="281.0" y="1.2" width="8.0" height="58.8"><title>2026-11-19 : 99,90 %</title></rect><rect class="warn today" x="291.0" y="34.8" width="8.0" height="25.2"><title>2026-11-20 (journée en cours) : 97,10 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Plex <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big warn">99,60<span class="unit"> %</span></span> <span class="status warn">À risque</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 22,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="warn" x="0.0" y="0.0" width="22.0" height="6.0"/></svg></div>
+<p class="meta">22,00 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 28 atteints, 1 à risque, 1 sans données"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="none" x="101.0" y="57.0" width="8.0" height="3.0"><title>2026-11-01 : Pas de données</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="0.0" width="8.0" height="60.0"><title>2026-11-16 : 100,00 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="warn" x="271.0" y="24.0" width="8.0" height="36.0"><title>2026-11-18 : 98,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Syncthing <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big warn">99,50<span class="unit"> %</span></span> <span class="status warn">À risque</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 11,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="warn" x="0.0" y="0.0" width="11.0" height="6.0"/></svg></div>
+<p class="meta">11,00 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 29 atteints, 1 manqués"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="bad" x="181.0" y="58.0" width="8.0" height="2.0"><title>2026-11-09 : 85,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="0.0" width="8.0" height="60.0"><title>2026-11-16 : 100,00 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="0.0" width="8.0" height="60.0"><title>2026-11-18 : 100,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Keycloak <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big warn">99,50<span class="unit"> %</span></span> <span class="status warn">À risque</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 9,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="warn" x="0.0" y="0.0" width="9.0" height="6.0"/></svg></div>
+<p class="meta">9,00 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 29 atteints, 1 manqués"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="bad" x="251.0" y="58.0" width="8.0" height="2.0"><title>2026-11-16 : 85,00 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="0.0" width="8.0" height="60.0"><title>2026-11-18 : 100,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Observabilité <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big ok">99,80<span class="unit"> %</span></span> <span class="status ok">Atteint</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 60,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="60.0" height="6.0"/></svg></div>
+<p class="meta">60,00 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 29 atteints, 1 à risque"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="warn" x="201.0" y="12.0" width="8.0" height="48.0"><title>2026-11-11 : 99,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="0.0" width="8.0" height="60.0"><title>2026-11-16 : 100,00 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="0.0" width="8.0" height="60.0"><title>2026-11-18 : 100,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="1.2" width="8.0" height="58.8"><title>2026-11-20 (journée en cours) : 99,90 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Page d’accueil <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big bad">98,10<span class="unit"> %</span></span> <span class="status bad">Manqué</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur épuisé"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/></svg></div>
+<p class="meta">Épuisé</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 29 atteints, 1 manqués"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="bad" x="251.0" y="58.0" width="8.0" height="2.0"><title>2026-11-16 : 90,50 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="0.0" width="8.0" height="60.0"><title>2026-11-18 : 100,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Blog <span class="state ok">En service</span></h3>
+<p class="stat"><span class="big ok">99,90<span class="unit"> %</span></span> <span class="status ok">Atteint</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Budget d’erreur restant : 90,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="90.0" height="6.0"/></svg></div>
+<p class="meta">90,00 % du budget d’erreur restant</p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 30 atteints"><g><rect class="ok" x="1.0" y="0.0" width="8.0" height="60.0"><title>2026-10-22 : 100,00 %</title></rect><rect class="ok" x="11.0" y="0.0" width="8.0" height="60.0"><title>2026-10-23 : 100,00 %</title></rect><rect class="ok" x="21.0" y="0.0" width="8.0" height="60.0"><title>2026-10-24 : 100,00 %</title></rect><rect class="ok" x="31.0" y="0.0" width="8.0" height="60.0"><title>2026-10-25 : 100,00 %</title></rect><rect class="ok" x="41.0" y="0.0" width="8.0" height="60.0"><title>2026-10-26 : 100,00 %</title></rect><rect class="ok" x="51.0" y="0.0" width="8.0" height="60.0"><title>2026-10-27 : 100,00 %</title></rect><rect class="ok" x="61.0" y="0.0" width="8.0" height="60.0"><title>2026-10-28 : 100,00 %</title></rect><rect class="ok" x="71.0" y="0.0" width="8.0" height="60.0"><title>2026-10-29 : 100,00 %</title></rect><rect class="ok" x="81.0" y="0.0" width="8.0" height="60.0"><title>2026-10-30 : 100,00 %</title></rect><rect class="ok" x="91.0" y="0.0" width="8.0" height="60.0"><title>2026-10-31 : 100,00 %</title></rect><rect class="ok" x="101.0" y="0.0" width="8.0" height="60.0"><title>2026-11-01 : 100,00 %</title></rect><rect class="ok" x="111.0" y="0.0" width="8.0" height="60.0"><title>2026-11-02 : 100,00 %</title></rect><rect class="ok" x="121.0" y="0.0" width="8.0" height="60.0"><title>2026-11-03 : 100,00 %</title></rect><rect class="ok" x="131.0" y="0.0" width="8.0" height="60.0"><title>2026-11-04 : 100,00 %</title></rect><rect class="ok" x="141.0" y="0.0" width="8.0" height="60.0"><title>2026-11-05 : 100,00 %</title></rect><rect class="ok" x="151.0" y="0.0" width="8.0" height="60.0"><title>2026-11-06 : 100,00 %</title></rect><rect class="ok" x="161.0" y="0.0" width="8.0" height="60.0"><title>2026-11-07 : 100,00 %</title></rect><rect class="ok" x="171.0" y="0.0" width="8.0" height="60.0"><title>2026-11-08 : 100,00 %</title></rect><rect class="ok" x="181.0" y="0.0" width="8.0" height="60.0"><title>2026-11-09 : 100,00 %</title></rect><rect class="ok" x="191.0" y="0.0" width="8.0" height="60.0"><title>2026-11-10 : 100,00 %</title></rect><rect class="ok" x="201.0" y="0.0" width="8.0" height="60.0"><title>2026-11-11 : 100,00 %</title></rect><rect class="ok" x="211.0" y="0.0" width="8.0" height="60.0"><title>2026-11-12 : 100,00 %</title></rect><rect class="ok" x="221.0" y="0.0" width="8.0" height="60.0"><title>2026-11-13 : 100,00 %</title></rect><rect class="ok" x="231.0" y="0.0" width="8.0" height="60.0"><title>2026-11-14 : 100,00 %</title></rect><rect class="ok" x="241.0" y="0.0" width="8.0" height="60.0"><title>2026-11-15 : 100,00 %</title></rect><rect class="ok" x="251.0" y="4.8" width="8.0" height="55.2"><title>2026-11-16 : 99,60 %</title></rect><rect class="ok" x="261.0" y="0.0" width="8.0" height="60.0"><title>2026-11-17 : 100,00 %</title></rect><rect class="ok" x="271.0" y="0.0" width="8.0" height="60.0"><title>2026-11-18 : 100,00 %</title></rect><rect class="ok" x="281.0" y="0.0" width="8.0" height="60.0"><title>2026-11-19 : 100,00 %</title></rect><rect class="ok today" x="291.0" y="2.4" width="8.0" height="57.6"><title>2026-11-20 (journée en cours) : 99,80 %</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+<div class="card">
+<h3>Tableau de bord du homelab <span class="state none">Pas de données</span></h3>
+<p class="stat"><span class="status none">Pas de données</span></p>
+<div class="bars"><svg viewBox="0 0 300 60" preserveAspectRatio="none" role="img" focusable="false" aria-label="30 jours : 0 atteints, 30 sans données"><g><rect class="none" x="1.0" y="57.0" width="8.0" height="3.0"><title>2026-10-22 : Pas de données</title></rect><rect class="none" x="11.0" y="57.0" width="8.0" height="3.0"><title>2026-10-23 : Pas de données</title></rect><rect class="none" x="21.0" y="57.0" width="8.0" height="3.0"><title>2026-10-24 : Pas de données</title></rect><rect class="none" x="31.0" y="57.0" width="8.0" height="3.0"><title>2026-10-25 : Pas de données</title></rect><rect class="none" x="41.0" y="57.0" width="8.0" height="3.0"><title>2026-10-26 : Pas de données</title></rect><rect class="none" x="51.0" y="57.0" width="8.0" height="3.0"><title>2026-10-27 : Pas de données</title></rect><rect class="none" x="61.0" y="57.0" width="8.0" height="3.0"><title>2026-10-28 : Pas de données</title></rect><rect class="none" x="71.0" y="57.0" width="8.0" height="3.0"><title>2026-10-29 : Pas de données</title></rect><rect class="none" x="81.0" y="57.0" width="8.0" height="3.0"><title>2026-10-30 : Pas de données</title></rect><rect class="none" x="91.0" y="57.0" width="8.0" height="3.0"><title>2026-10-31 : Pas de données</title></rect><rect class="none" x="101.0" y="57.0" width="8.0" height="3.0"><title>2026-11-01 : Pas de données</title></rect><rect class="none" x="111.0" y="57.0" width="8.0" height="3.0"><title>2026-11-02 : Pas de données</title></rect><rect class="none" x="121.0" y="57.0" width="8.0" height="3.0"><title>2026-11-03 : Pas de données</title></rect><rect class="none" x="131.0" y="57.0" width="8.0" height="3.0"><title>2026-11-04 : Pas de données</title></rect><rect class="none" x="141.0" y="57.0" width="8.0" height="3.0"><title>2026-11-05 : Pas de données</title></rect><rect class="none" x="151.0" y="57.0" width="8.0" height="3.0"><title>2026-11-06 : Pas de données</title></rect><rect class="none" x="161.0" y="57.0" width="8.0" height="3.0"><title>2026-11-07 : Pas de données</title></rect><rect class="none" x="171.0" y="57.0" width="8.0" height="3.0"><title>2026-11-08 : Pas de données</title></rect><rect class="none" x="181.0" y="57.0" width="8.0" height="3.0"><title>2026-11-09 : Pas de données</title></rect><rect class="none" x="191.0" y="57.0" width="8.0" height="3.0"><title>2026-11-10 : Pas de données</title></rect><rect class="none" x="201.0" y="57.0" width="8.0" height="3.0"><title>2026-11-11 : Pas de données</title></rect><rect class="none" x="211.0" y="57.0" width="8.0" height="3.0"><title>2026-11-12 : Pas de données</title></rect><rect class="none" x="221.0" y="57.0" width="8.0" height="3.0"><title>2026-11-13 : Pas de données</title></rect><rect class="none" x="231.0" y="57.0" width="8.0" height="3.0"><title>2026-11-14 : Pas de données</title></rect><rect class="none" x="241.0" y="57.0" width="8.0" height="3.0"><title>2026-11-15 : Pas de données</title></rect><rect class="none" x="251.0" y="57.0" width="8.0" height="3.0"><title>2026-11-16 : Pas de données</title></rect><rect class="none" x="261.0" y="57.0" width="8.0" height="3.0"><title>2026-11-17 : Pas de données</title></rect><rect class="none" x="271.0" y="57.0" width="8.0" height="3.0"><title>2026-11-18 : Pas de données</title></rect><rect class="none" x="281.0" y="57.0" width="8.0" height="3.0"><title>2026-11-19 : Pas de données</title></rect><rect class="none today" x="291.0" y="57.0" width="8.0" height="3.0"><title>2026-11-20 (journée en cours) : Pas de données</title></rect></g><line class="target" x1="0" y1="6.0" x2="300" y2="6.0"/></svg></div>
+</div>
+</div>
+</section>
+<div class="cards">
+<section class="panel stats" aria-labelledby="cluster">
+<h2 id="cluster">Cluster</h2>
+<h3>Nœuds et NAS : utilisation, saturation, erreurs</h3>
+<div class="tile-groups">
+<div class="tile-group">
+<h4>homelab-cp-1 <span class="state ok">Prêt</span></h4>
+<div class="tiles compact">
+<div class="tile">
+<p class="tile-label">CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">31,20<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="CPU : 31,20 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="31.2" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">62,00<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Mémoire : 62,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="62.0" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Disque</p>
+<div class="tile-body">
+<p class="tile-value ok">57,50<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Disque : 57,50 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="57.5" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">4,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression E/S</p>
+<div class="tile-body">
+<p class="tile-value ok">0,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Erreurs réseau</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> /s</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="tile-group">
+<h4>homelab-cp-2 <span class="state ok">Prêt</span></h4>
+<div class="tiles compact">
+<div class="tile">
+<p class="tile-label">CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">44,80<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="CPU : 44,80 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="44.8" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">71,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Mémoire : 71,30 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="71.3" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Disque</p>
+<div class="tile-body">
+<p class="tile-value ok">64,10<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Disque : 64,10 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="64.1" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">4,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression E/S</p>
+<div class="tile-body">
+<p class="tile-value ok">0,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Erreurs réseau</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> /s</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="tile-group">
+<h4>homelab-cp-3 <span class="state ok">Prêt</span></h4>
+<div class="tiles compact">
+<div class="tile">
+<p class="tile-label">CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">28,40<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="CPU : 28,40 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="28.4" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">58,90<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Mémoire : 58,90 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="58.9" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Disque</p>
+<div class="tile-body">
+<p class="tile-value ok">65,60<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Disque : 65,60 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="65.6" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">4,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression E/S</p>
+<div class="tile-body">
+<p class="tile-value ok">0,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Erreurs réseau</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> /s</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="tile-group">
+<h4>homelab-w-1 <span class="state ok">Prêt</span></h4>
+<div class="tiles compact">
+<div class="tile">
+<p class="tile-label">CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">52,60<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="CPU : 52,60 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="52.6" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Mémoire</p>
+<div class="tile-body">
+<p class="tile-value warn">80,40<span class="unit"> %</span> <span class="status warn">Attention</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Mémoire : 80,40 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="warn" x="0.0" y="0.0" width="80.4" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Disque</p>
+<div class="tile-body">
+<p class="tile-value ok">38,50<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Disque : 38,50 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="38.5" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">4,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression mémoire</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pression E/S</p>
+<div class="tile-body">
+<p class="tile-value ok">0,30<span class="unit"> %</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Erreurs réseau</p>
+<div class="tile-body">
+<p class="tile-value ok">0,00<span class="unit"> /s</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="tile-group">
+<h4>NAS <span class="state ok">En service</span></h4>
+<div class="tiles compact">
+<div class="tile">
+<p class="tile-label">Pool</p>
+<div class="tile-body">
+<p class="tile-value ok">47,90<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Pool : 47,90 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="47.9" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">CPU</p>
+<div class="tile-body">
+<p class="tile-value ok">2,00<span class="unit"> %</span> <span class="status ok">OK</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="CPU : 2,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="ok" x="0.0" y="0.0" width="2.0" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Mémoire</p>
+<div class="tile-body">
+<p class="tile-value warn">88,10<span class="unit"> %</span> <span class="status warn">Attention</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Mémoire : 88,10 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect class="warn" x="0.0" y="0.0" width="88.1" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Charge par cœur</p>
+<div class="tile-body">
+<p class="tile-value ok">0,02 <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Erreurs de disque</p>
+<div class="tile-body">
+<p class="tile-value ok">0 <span class="status ok">OK</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Erreurs de <em>scrub</em></p>
+<div class="tile-body">
+<p class="tile-value ok">0 <span class="status ok">OK</span></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<h3>Gateway, 5 minutes glissantes : débit, erreurs, durée</h3>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">Requêtes</p>
+<div class="tile-body">
+<p class="tile-value">0,63<span class="unit"> par seconde</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Réponses 5xx</p>
+<div class="tile-body">
+<p class="tile-value warn">0,59<span class="unit"> %</span> <span class="status warn">Attention</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Durée p95</p>
+<div class="tile-body">
+<p class="tile-value ok">41<span class="unit"> ms</span> <span class="status ok">OK</span></p>
+</div>
+</div>
+</div>
+<h3>État</h3>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">Argo CD</p>
+<div class="tile-body">
+<p class="tile-value warn">55<span class="unit"> apps</span> <span class="status warn">Attention</span></p>
+<p class="tile-detail">54 Synced, 55 Healthy</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Redémarrages</p>
+<div class="tile-body">
+<p class="tile-value ok">3 <span class="status ok">OK</span></p>
+<p class="tile-detail">24 h glissantes</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Volumes</p>
+<div class="tile-body">
+<p class="tile-value ok">35<span class="unit"> PVC</span> <span class="status ok">OK</span></p>
+<p class="tile-detail">384 Gio sur 1,0 Tio, le plus plein à 80,80 %</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Nœuds</p>
+<div class="tile-body">
+<p class="tile-value">4<span class="unit"> nœuds</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Talos</p>
+<div class="tile-body">
+<p class="tile-value">v1.14.6</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Kubernetes</p>
+<div class="tile-body">
+<p class="tile-value">v1.37.2</p>
+</div>
+</div>
+</div>
+<h3>Bases de données et sauvegardes</h3>
+<p class="meta">Chaque base PostgreSQL est son propre cluster CloudNativePG. Chaque changement est archivé sur S3 en moins de 5 minutes et chaque nuit ajoute une sauvegarde de base, si bien qu’une base peut être restaurée à n’importe quel moment de sa fenêtre de restauration. Chaque semaine, chacune est restaurée dans un nouveau cluster, et ses tables et ses lignes sont comparées à la source.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">PostgreSQL</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit"> bases</span> <span class="status ok">En service</span></p>
+<p class="tile-detail">Vues sur les 24 h glissantes</p>
+<p class="tile-detail">8 en service, 1 Gio de données</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Archivage des WAL</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit"> sur 8</span> <span class="status ok">Archivage</span></p>
+<p class="tile-detail">1 517 fichiers archivés, 24 h glissantes</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Sauvegardes de base</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit"> sur 8</span> <span class="status ok">À jour</span></p>
+<p class="tile-detail">Chaque nuit, chacune dans les 26 h glissantes</p>
+<p class="tile-detail">La plus ancienne il y a 19 h 31 min</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Restauration à un instant donné</p>
+<div class="tile-body">
+<p class="tile-value">30<span class="unit"> jours</span></p>
+<p class="tile-detail">La fenêtre la plus courte de toutes les bases</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Tests de restauration</p>
+<div class="tile-body">
+<p class="tile-value ok">8<span class="unit"> sur 8</span> <span class="status ok">Réussi</span></p>
+<p class="tile-detail">Chaque semaine, 8 jours glissants</p>
+<p class="tile-detail">1 031 332 lignes comparées</p>
+<p class="tile-detail">Médiane de 6 min 54 s jusqu’à une copie restaurée</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Fraîcheur des sauvegardes</p>
+<div class="tile-body">
+<p class="tile-value ok">99,97<span class="unit"> %</span> <span class="status ok">Atteint</span></p>
+<p class="tile-detail">La moins bonne base, 30 jours glissants, objectif 99,00 %</p>
+</div>
+</div>
+</div>
+<p class="meta">Les apps qui gardent leur base dans SQLite, un fichier dans le volume de l’app, sont copiées vers S3 chaque nuit avec restic. La plupart des copies sont faites pendant que l’app tourne, et le test de restauration hebdomadaire vérifie les fichiers de base qu’il couvre. Valkey, Redis et ClickHouse contiennent des files d’attente, des caches et de la télémétrie qui se reconstruisent ou expirent, ils ne sont donc pas sauvegardés.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">SQLite</p>
+<div class="tile-body">
+<p class="tile-value ok">9<span class="unit"> apps</span> <span class="status ok">En service</span></p>
+<p class="tile-detail">Vues sur les 24 h glissantes</p>
+<p class="tile-detail">9 en service</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Sauvegardes SQLite</p>
+<div class="tile-body">
+<p class="tile-value ok">9<span class="unit"> sur 9</span> <span class="status ok">À jour</span></p>
+<p class="tile-detail">Chaque nuit vers S3, chacune dans les 26 h glissantes</p>
+<p class="tile-detail">4 ont réussi le test de restauration hebdomadaire, 8 jours glissants</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Valkey et Redis</p>
+<div class="tile-body">
+<p class="tile-value ok">3<span class="unit"> instances</span> <span class="status ok">En service</span></p>
+<p class="tile-detail">Vues sur les 24 h glissantes</p>
+<p class="tile-detail">3 en service</p>
+<p class="tile-detail">En mémoire, sans sauvegarde</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">ClickHouse</p>
+<div class="tile-body">
+<p class="tile-value ok">1<span class="unit"> instance</span> <span class="status ok">En service</span></p>
+<p class="tile-detail">Vues sur les 24 h glissantes</p>
+<p class="tile-detail">1 en service</p>
+<p class="tile-detail">Les logs et les traces expirent, sans sauvegarde</p>
+</div>
+</div>
+</div>
+<p class="meta">État au <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time>.</p>
+</section>
+<section class="panel stats" aria-labelledby="project">
+<h2 id="project">Projet, 30 jours glissants</h2>
+<p class="meta">Chaque <em>pull request</em> mergée dans main est un déploiement.</p>
+<h3>Métriques DORA</h3>
+<p class="meta"><a href="https://dora.dev/">DORA</a>, pour DevOps Research and Assessment, est le programme de recherche derrière les rapports State of DevOps. Il résume la livraison logicielle en quatre métriques : à quelle fréquence les changements arrivent en production (fréquence de déploiement), combien de temps un changement met pour y arriver (délai de livraison des changements), à quelle fréquence un changement casse quelque chose (taux d’échec des changements) et à quelle vitesse tout revient à la normale quand ça arrive (temps de rétablissement).</p>
+<p class="meta">Chaque métrique tombe dans l’une de quatre catégories, Élite, Élevé, Moyen ou Faible, tirées des groupes de performance du <a href="https://dora.dev/research/2023/dora-report/">rapport DORA 2023</a>. Bien sûr, ces métriques ont été pensées pour des équipes, pas pour une personne et quelques agents, mais elles font quand même un bon étalon.</p>
+<div class="tiles">
+<div class="tile accent ok">
+<p class="tile-label">Niveau global</p>
+<div class="tile-body">
+<p class="tile-value">Élite</p>
+</div>
+</div>
+</div>
+<p class="meta">Le niveau global est la plus basse des quatre catégories, pour qu’une métrique faible ne soit jamais noyée dans une moyenne.</p>
+<div class="tiles bands">
+<div class="tile">
+<p class="tile-label">Fréquence de déploiement</p>
+<div class="tile-body">
+<p class="tile-value ok">709<span class="unit"> déploiements</span> <span class="status ok">Élite</span></p>
+<p class="tile-detail">23,6 par jour</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Délai de livraison des changements</p>
+<div class="tile-body">
+<p class="tile-value ok">21<span class="unit"> min</span> <span class="status ok">Élite</span></p>
+<p class="tile-detail">Médiane de 640 changements</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Taux d’échec des changements</p>
+<div class="tile-body">
+<p class="tile-value ok">1,30<span class="unit"> %</span> <span class="status ok">Élite</span></p>
+<p class="tile-detail">9 changements en échec</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Temps de rétablissement</p>
+<div class="tile-body">
+<p class="tile-value ok">25<span class="unit"> min</span> <span class="status ok">Élite</span></p>
+<p class="tile-detail">Médiane de 4 incidents</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Taux de reprise</p>
+<div class="tile-body">
+<p class="tile-value">1,69<span class="unit"> %</span></p>
+<p class="tile-detail">12 sur 709 déploiements</p>
+</div>
+</div>
+</div>
+<p class="meta">Le taux de reprise compte les déploiements imprévus : <em>rollbacks</em>, <em>fix forwards</em> et <em>merges</em> <code>fix</code> faits pendant un incident ou dans les 24 heures qui suivent, sur l’ensemble des déploiements. Le taux de reprise, cinquième métrique de DORA depuis 2024, n’a pas de catégorie ici : les groupes de 2023 dont viennent ces catégories sont plus anciens.</p>
+<h3>Renovate et CI</h3>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">Ouvertes par Renovate</p>
+<div class="tile-body">
+<p class="tile-value">50,00<span class="unit"> %</span></p>
+<div class="meter"><svg viewBox="0 0 100 6" preserveAspectRatio="none" role="img" focusable="false" aria-label="Ouvertes par Renovate : 50,00 %"><rect class="track" x="0.0" y="0.0" width="100.0" height="6.0"/><rect x="0.0" y="0.0" width="50.0" height="6.0"/></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label"><em>Run</em> de CI médian</p>
+<div class="tile-body">
+<p class="tile-value">5<span class="unit"> min</span> 05<span class="unit"> s</span></p>
+</div>
+</div>
+</div>
+<h3>Derniers <em>runs</em> de CI sur main</h3>
+<ul class="runs">
+<li><span class="status ok">Réussi</span> <a href="https://github.com/ned-si/homelab/pull/1602">#1602</a> <code>6d0407e</code> <time datetime="2026-11-20T16:40:12&#43;01:00">20 nov. 16:40</time>, 4<span class="unit"> min</span> 58<span class="unit"> s</span></li>
+<li><span class="status bad">Échec</span> <a href="https://github.com/ned-si/homelab/pull/1601">#1601</a> <code>a433737</code> <time datetime="2026-11-20T16:02:40&#43;01:00">20 nov. 16:02</time>, 5<span class="unit"> min</span> 41<span class="unit"> s</span></li>
+<li><span class="status none">Annulé</span> <a href="https://github.com/ned-si/homelab/pull/1600">#1600</a> <code>e8e93eb</code> <time datetime="2026-11-20T15:31:05&#43;01:00">20 nov. 15:31</time>, 1<span class="unit"> min</span> 35<span class="unit"> s</span></li>
+<li><span class="status warn">Autre</span> <code>2ec595b</code> <time datetime="2026-11-20T15:10:00&#43;01:00">20 nov. 15:10</time>, 0<span class="unit"> s</span></li>
+<li><span class="status ok">Réussi</span> <a href="https://github.com/ned-si/homelab/pull/1587">#1587</a> <code>b24598b</code> <time datetime="2026-11-20T14:58:44&#43;01:00">20 nov. 14:58</time>, 5<span class="unit"> min</span> 12<span class="unit"> s</span></li>
+</ul>
+<p class="meta">État au <time datetime="2026-11-20T16:52:00&#43;01:00">20 novembre 2026, 16:52</time>.</p>
+</section>
+<section class="panel stats" aria-labelledby="supply-chain">
+<h2 id="supply-chain">Chaîne d’approvisionnement</h2>
+<h3>Provenance SLSA</h3>
+<p class="meta">Les deux images que je construis ici, ce tableau de bord et le site, sont construites sur des <em>runners</em> hébergés par GitHub, et GitHub signe une provenance pour chacune : cela donne le <a href="https://slsa.dev/spec/v1.0/levels">SLSA Build level 2</a>. Kyverno vérifie les deux sur chaque Pod qui les fait tourner. Le niveau 3 demande de déplacer le <em>build</em> dans un <em>workflow</em> réutilisable, ce sera pour plus tard.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">homelab-dashboard</p>
+<div class="tile-body">
+<p class="tile-value ok">Build L2 <span class="status ok">Vérifiée</span></p>
+<p class="tile-detail"><em>Runner</em> hébergé par GitHub, dashboard-publish.yaml sur main</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">homelab-site</p>
+<div class="tile-body">
+<p class="tile-value ok">Build L2 <span class="status ok">Vérifiée</span></p>
+<p class="tile-detail"><em>Runner</em> hébergé par GitHub, site-publish.yaml sur main</p>
+</div>
+</div>
+</div>
+<p class="meta">État au <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time>.</p>
+<h3>OpenSSF Scorecard</h3>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque <em>merge</em> dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais) ; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous ; une note sous un contrôle explique pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">rapport complet</a>.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">Score</p>
+<div class="tile-body">
+<p class="tile-value ok">7,5<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail">Analyse Scorecard du 20 novembre 2026, 15:06</p>
+</div>
+</div>
+</div>
+<div class="tiles checks">
+<div class="tile">
+<p class="tile-label">Binary-Artifacts</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">no binaries found in the repo</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Branch-Protection</p>
+<div class="tile-body">
+<p class="tile-value warn">4<span class="unit"> / 10</span> <span class="status warn">Attention</span></p>
+<p class="tile-detail" lang="en-GB">branch protection is not maximal on development and all release branches</p>
+<p class="tile-detail">Voulu : main n’accepte que des pull requests aux commits signés et au CI vert, sans approbation, pour que Renovate et les agents fassent leurs merges sans attendre personne.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">CI-Tests</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">30 out of 30 merged PRs checked by a CI test -- score normalized to 10</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">CII-Best-Practices</p>
+<div class="tile-body">
+<p class="tile-value bad">2<span class="unit"> / 10</span> <span class="status bad">Critique</span></p>
+<p class="tile-detail" lang="en-GB">badge detected: InProgress</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Code-Review</p>
+<div class="tile-body">
+<p class="tile-value bad">0<span class="unit"> / 10</span> <span class="status bad">Critique</span></p>
+<p class="tile-detail" lang="en-GB">Found 0/28 approved changesets -- score normalized to 0</p>
+<p class="tile-detail">Voulu : je gère ça seul et des agents ouvrent les pull requests, donc personne d’autre ne les approuve. Le CI au vert est le seul contrôle.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Contributors</p>
+<div class="tile-body">
+<p class="tile-value bad">0<span class="unit"> / 10</span> <span class="status bad">Critique</span></p>
+<p class="tile-detail" lang="en-GB">project has 0 contributing companies or organizations -- score normalized to 0</p>
+<p class="tile-detail">Voulu : un opérateur et quelques agents, sans entreprise ni organisation derrière le dépôt.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Dangerous-Workflow</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">no dangerous workflow patterns detected</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Dependency-Update-Tool</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">update tool detected</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Fuzzing</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">project is fuzzed</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">License</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">license file detected</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Maintained</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">30 commit(s) and 29 issue activity found in the last 90 days -- score normalized to 10</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Packaging</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">packaging workflow detected</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Pinned-Dependencies</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">all dependencies are pinned</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">SAST</p>
+<div class="tile-body">
+<p class="tile-value ok">9<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">SAST tool detected but not run on all commits</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Security-Policy</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">security policy file detected</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Signed-Releases</p>
+<div class="tile-body">
+<p class="tile-value none"><span class="status none">Non applicable</span></p>
+<p class="tile-detail" lang="en-GB">no releases found</p>
+<p class="tile-detail">Les images sont signées avec cosign et ont une provenance SLSA Build L2. Pas de releases GitHub, c’est voulu : ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Token-Permissions</p>
+<div class="tile-body">
+<p class="tile-value ok">10<span class="unit"> / 10</span> <span class="status ok">OK</span></p>
+<p class="tile-detail" lang="en-GB">GitHub workflow tokens follow principle of least privilege</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Vulnerabilities</p>
+<div class="tile-body">
+<p class="tile-value bad">0<span class="unit"> / 10</span> <span class="status bad">Critique</span></p>
+<p class="tile-detail" lang="en-GB">29 existing vulnerabilities detected</p>
+</div>
+</div>
+</div>
+<p class="meta">État au <time datetime="2026-11-20T16:30:00&#43;01:00">20 novembre 2026, 16:30</time>.</p>
+</section>
+<section class="panel stats" aria-labelledby="security">
+<h2 id="security">Sécurité</h2>
+<p class="meta">Ce que les défenses ont refoulé, compté sur tout le cluster : les 24 dernières heures, les 7 derniers jours, et ces mêmes 7 jours en barres de six heures. Les chiffres de la Gateway excluent nos propres sondes et contrôles. Les alertes préviennent qui doit agir ; cette carte se contente de compter.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">Hôte ou chemin inconnu</p>
+<div class="tile-body">
+<p class="tile-value ok">4 412 <span class="status ok">Habituel</span></p>
+<p class="tile-detail">24 h glissantes, 7,01 % de 62 940 requêtes</p>
+<p class="tile-detail">7 jours glissants : 26 391 (6,12 %)</p>
+<p class="tile-detail">760 autres, auxquelles la Gateway a répondu elle-même, ne peuvent pas être attribuées.</p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 1 103"><g><rect class="spark" x="1.0" y="6.8" width="8.0" height="33.2"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 916</title></rect><rect class="spark" x="11.0" y="6.8" width="8.0" height="33.2"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 916</title></rect><rect class="spark" x="21.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 916</title></rect><rect class="spark" x="31.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 916</title></rect><rect class="spark" x="41.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 916</title></rect><rect class="spark" x="51.0" y="6.8" width="8.0" height="33.2"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 916</title></rect><rect class="spark" x="61.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 916</title></rect><rect class="spark" x="71.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 916</title></rect><rect class="spark" x="81.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 916</title></rect><rect class="spark" x="91.0" y="6.8" width="8.0" height="33.2"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 916</title></rect><rect class="spark" x="101.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 916</title></rect><rect class="spark" x="111.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 916</title></rect><rect class="spark" x="121.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 916</title></rect><rect class="spark" x="131.0" y="6.8" width="8.0" height="33.2"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 916</title></rect><rect class="spark" x="141.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 916</title></rect><rect class="spark" x="151.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 916</title></rect><rect class="spark" x="161.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 916</title></rect><rect class="spark" x="171.0" y="6.8" width="8.0" height="33.2"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 916</title></rect><rect class="spark" x="181.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 916</title></rect><rect class="spark" x="191.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 916</title></rect><rect class="spark" x="201.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 916</title></rect><rect class="spark" x="211.0" y="6.8" width="8.0" height="33.2"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 916</title></rect><rect class="spark" x="221.0" y="6.8" width="8.0" height="33.2"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 916</title></rect><rect class="spark" x="231.0" y="6.8" width="8.0" height="33.2"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 916</title></rect><rect class="spark" x="241.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 1 103</title></rect><rect class="spark" x="251.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 1 103</title></rect><rect class="spark" x="261.0" y="0.0" width="8.0" height="40.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 1 103</title></rect><rect class="spark" x="271.0" y="0.0" width="8.0" height="40.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 1 103</title></rect></g></svg></div>
+<p class="tile-detail">Y compris notre propre <em>scan</em> de sécurité hebdomadaire.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Refusées par une app</p>
+<div class="tile-body">
+<p class="tile-value ok">40 <span class="status ok">Habituel</span></p>
+<p class="tile-detail">24 h glissantes, 0,06 % de 62 940 requêtes</p>
+<p class="tile-detail">Dont 12 réponses 403</p>
+<p class="tile-detail">7 jours glissants : 661 (0,15 %)</p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 28"><g><rect class="spark" x="1.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 28</title></rect><rect class="spark" x="11.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 28</title></rect><rect class="spark" x="21.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 28</title></rect><rect class="spark" x="31.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 28</title></rect><rect class="spark" x="41.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 28</title></rect><rect class="spark" x="51.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 28</title></rect><rect class="spark" x="61.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 28</title></rect><rect class="spark" x="71.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 28</title></rect><rect class="spark" x="81.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 28</title></rect><rect class="spark" x="91.0" y="0.0" width="8.0" height="40.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 28</title></rect><rect class="spark" x="101.0" y="0.0" width="8.0" height="40.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 28</title></rect><rect class="spark" x="111.0" y="0.0" width="8.0" height="40.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 28</title></rect><rect class="spark" x="121.0" y="0.0" width="8.0" height="40.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 28</title></rect><rect class="spark" x="131.0" y="1.4" width="8.0" height="38.6"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 27</title></rect><rect class="spark" x="141.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 27</title></rect><rect class="spark" x="151.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 27</title></rect><rect class="spark" x="161.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 27</title></rect><rect class="spark" x="171.0" y="1.4" width="8.0" height="38.6"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 27</title></rect><rect class="spark" x="181.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 27</title></rect><rect class="spark" x="191.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 27</title></rect><rect class="spark" x="201.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 27</title></rect><rect class="spark" x="211.0" y="1.4" width="8.0" height="38.6"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 27</title></rect><rect class="spark" x="221.0" y="1.4" width="8.0" height="38.6"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 27</title></rect><rect class="spark" x="231.0" y="1.4" width="8.0" height="38.6"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 27</title></rect><rect class="spark" x="241.0" y="25.7" width="8.0" height="14.3"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 10</title></rect><rect class="spark" x="251.0" y="25.7" width="8.0" height="14.3"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 10</title></rect><rect class="spark" x="261.0" y="25.7" width="8.0" height="14.3"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 10</title></rect><rect class="spark" x="271.0" y="25.7" width="8.0" height="14.3"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 10</title></rect></g></svg></div>
+<p class="tile-detail">Y compris notre propre <em>scan</em> de sécurité hebdomadaire.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Méthode non autorisée (405)</p>
+<div class="tile-body">
+<p class="tile-value ok">29 <span class="status ok">Habituel</span></p>
+<p class="tile-detail">24 h glissantes, 0,05 % de 62 940 requêtes</p>
+<p class="tile-detail">7 jours glissants : 114 (0,03 %)</p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 8"><g><rect class="spark" x="1.0" y="20.0" width="8.0" height="20.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 4</title></rect><rect class="spark" x="11.0" y="20.0" width="8.0" height="20.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 4</title></rect><rect class="spark" x="21.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 4</title></rect><rect class="spark" x="31.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 4</title></rect><rect class="spark" x="41.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 4</title></rect><rect class="spark" x="51.0" y="20.0" width="8.0" height="20.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 4</title></rect><rect class="spark" x="61.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 4</title></rect><rect class="spark" x="71.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 4</title></rect><rect class="spark" x="81.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 4</title></rect><rect class="spark" x="91.0" y="20.0" width="8.0" height="20.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 4</title></rect><rect class="spark" x="101.0" y="20.0" width="8.0" height="20.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 4</title></rect><rect class="spark" x="111.0" y="20.0" width="8.0" height="20.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 4</title></rect><rect class="spark" x="121.0" y="20.0" width="8.0" height="20.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 4</title></rect><rect class="spark" x="131.0" y="25.0" width="8.0" height="15.0"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 3</title></rect><rect class="spark" x="141.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 3</title></rect><rect class="spark" x="151.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 3</title></rect><rect class="spark" x="161.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 3</title></rect><rect class="spark" x="171.0" y="25.0" width="8.0" height="15.0"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 3</title></rect><rect class="spark" x="181.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 3</title></rect><rect class="spark" x="191.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 3</title></rect><rect class="spark" x="201.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 3</title></rect><rect class="spark" x="211.0" y="25.0" width="8.0" height="15.0"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 3</title></rect><rect class="spark" x="221.0" y="25.0" width="8.0" height="15.0"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 3</title></rect><rect class="spark" x="231.0" y="25.0" width="8.0" height="15.0"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 3</title></rect><rect class="spark" x="241.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 8</title></rect><rect class="spark" x="251.0" y="5.0" width="8.0" height="35.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 7</title></rect><rect class="spark" x="261.0" y="5.0" width="8.0" height="35.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 7</title></rect><rect class="spark" x="271.0" y="5.0" width="8.0" height="35.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 7</title></rect></g></svg></div>
+<p class="tile-detail">Y compris notre propre <em>scan</em> de sécurité hebdomadaire.</p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Connexions échouées</p>
+<div class="tile-body">
+<p class="tile-value warn">40 <span class="status warn">Plus que d’habitude</span></p>
+<p class="tile-detail">24 h glissantes, 50,00 % de 80 connexions</p>
+<p class="tile-detail">7 jours glissants : 46 (8,71 %)</p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 1"><g><rect class="spark" x="1.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 1</title></rect><rect class="spark" x="11.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 1</title></rect><rect class="spark" x="21.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 1</title></rect><rect class="spark" x="31.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 1</title></rect><rect class="spark" x="41.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 1</title></rect><rect class="spark" x="51.0" y="0.0" width="8.0" height="40.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 1</title></rect><rect class="spark" x="61.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 0</title></rect><rect class="spark" x="71.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 0</title></rect><rect class="spark" x="81.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 0</title></rect><rect class="spark" x="91.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 0</title></rect><rect class="spark" x="101.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 0</title></rect><rect class="spark" x="111.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 0</title></rect><rect class="spark" x="121.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 0</title></rect><rect class="spark" x="131.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 0</title></rect><rect class="spark" x="141.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 0</title></rect><rect class="spark" x="151.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 0</title></rect><rect class="spark" x="161.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 0</title></rect><rect class="spark" x="171.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 0</title></rect><rect class="spark" x="181.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 0</title></rect><rect class="spark" x="191.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 0</title></rect><rect class="spark" x="201.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 0</title></rect><rect class="spark" x="211.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 0</title></rect><rect class="spark" x="221.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 0</title></rect><rect class="spark" x="231.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 0</title></rect><rect class="spark" x="241.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 1</title></rect><rect class="spark" x="251.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 1</title></rect><rect class="spark" x="261.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 0</title></rect><rect class="spark" x="271.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 0</title></rect></g></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Déploiements bloqués par une règle</p>
+<div class="tile-body">
+<p class="tile-value warn">1 <span class="status warn">Vu</span></p>
+<p class="tile-detail">24 h glissantes</p>
+<p class="tile-detail">7 jours glissants : 3</p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 1"><g><rect class="spark" x="1.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 1</title></rect><rect class="spark" x="11.0" y="0.0" width="8.0" height="40.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 1</title></rect><rect class="spark" x="21.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 0</title></rect><rect class="spark" x="31.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 0</title></rect><rect class="spark" x="41.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 0</title></rect><rect class="spark" x="51.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 0</title></rect><rect class="spark" x="61.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 0</title></rect><rect class="spark" x="71.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 0</title></rect><rect class="spark" x="81.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 0</title></rect><rect class="spark" x="91.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 0</title></rect><rect class="spark" x="101.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 0</title></rect><rect class="spark" x="111.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 0</title></rect><rect class="spark" x="121.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 0</title></rect><rect class="spark" x="131.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 0</title></rect><rect class="spark" x="141.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 0</title></rect><rect class="spark" x="151.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 0</title></rect><rect class="spark" x="161.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 0</title></rect><rect class="spark" x="171.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 0</title></rect><rect class="spark" x="181.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 0</title></rect><rect class="spark" x="191.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 0</title></rect><rect class="spark" x="201.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 0</title></rect><rect class="spark" x="211.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 0</title></rect><rect class="spark" x="221.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 0</title></rect><rect class="spark" x="231.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 0</title></rect><rect class="spark" x="241.0" y="0.0" width="8.0" height="40.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 1</title></rect><rect class="spark" x="251.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 0</title></rect><rect class="spark" x="261.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 0</title></rect><rect class="spark" x="271.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 0</title></rect></g></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Paquets entrants d’internet rejetés</p>
+<div class="tile-body">
+<p class="tile-value none"><span class="status none">Pas de données</span></p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 0"><g><rect class="none" x="1.0" y="38.0" width="8.0" height="2.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : Pas de données</title></rect><rect class="none" x="11.0" y="38.0" width="8.0" height="2.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : Pas de données</title></rect><rect class="none" x="21.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : Pas de données</title></rect><rect class="none" x="31.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : Pas de données</title></rect><rect class="none" x="41.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : Pas de données</title></rect><rect class="none" x="51.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : Pas de données</title></rect><rect class="none" x="61.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : Pas de données</title></rect><rect class="none" x="71.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : Pas de données</title></rect><rect class="none" x="81.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : Pas de données</title></rect><rect class="none" x="91.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : Pas de données</title></rect><rect class="none" x="101.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : Pas de données</title></rect><rect class="none" x="111.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : Pas de données</title></rect><rect class="none" x="121.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : Pas de données</title></rect><rect class="none" x="131.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : Pas de données</title></rect><rect class="none" x="141.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : Pas de données</title></rect><rect class="none" x="151.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : Pas de données</title></rect><rect class="none" x="161.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : Pas de données</title></rect><rect class="none" x="171.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : Pas de données</title></rect><rect class="none" x="181.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : Pas de données</title></rect><rect class="none" x="191.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : Pas de données</title></rect><rect class="none" x="201.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : Pas de données</title></rect><rect class="none" x="211.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : Pas de données</title></rect><rect class="none" x="221.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : Pas de données</title></rect><rect class="none" x="231.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : Pas de données</title></rect><rect class="none" x="241.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : Pas de données</title></rect><rect class="none" x="251.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : Pas de données</title></rect><rect class="none" x="261.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : Pas de données</title></rect><rect class="none" x="271.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : Pas de données</title></rect></g></svg></div>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">Détections à l’exécution</p>
+<div class="tile-body">
+<p class="tile-value ok">0 <span class="status ok">Aucun</span></p>
+<p class="tile-detail">24 h glissantes</p>
+<p class="tile-detail">7 jours glissants : 0</p>
+<div class="spark"><svg viewBox="0 0 280 40" preserveAspectRatio="none" role="img" focusable="false" aria-label="28 comptages de six heures, maximum 0"><g><rect class="spark" x="1.0" y="38.0" width="8.0" height="2.0"><title>Du 13 nov. 17:00 au 13 nov. 23:00 : 0</title></rect><rect class="spark" x="11.0" y="38.0" width="8.0" height="2.0"><title>Du 13 nov. 23:00 au 14 nov. 05:00 : 0</title></rect><rect class="spark" x="21.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 05:00 au 14 nov. 11:00 : 0</title></rect><rect class="spark" x="31.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 11:00 au 14 nov. 17:00 : 0</title></rect><rect class="spark" x="41.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 17:00 au 14 nov. 23:00 : 0</title></rect><rect class="spark" x="51.0" y="38.0" width="8.0" height="2.0"><title>Du 14 nov. 23:00 au 15 nov. 05:00 : 0</title></rect><rect class="spark" x="61.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 05:00 au 15 nov. 11:00 : 0</title></rect><rect class="spark" x="71.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 11:00 au 15 nov. 17:00 : 0</title></rect><rect class="spark" x="81.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 17:00 au 15 nov. 23:00 : 0</title></rect><rect class="spark" x="91.0" y="38.0" width="8.0" height="2.0"><title>Du 15 nov. 23:00 au 16 nov. 05:00 : 0</title></rect><rect class="spark" x="101.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 05:00 au 16 nov. 11:00 : 0</title></rect><rect class="spark" x="111.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 11:00 au 16 nov. 17:00 : 0</title></rect><rect class="spark" x="121.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 17:00 au 16 nov. 23:00 : 0</title></rect><rect class="spark" x="131.0" y="38.0" width="8.0" height="2.0"><title>Du 16 nov. 23:00 au 17 nov. 05:00 : 0</title></rect><rect class="spark" x="141.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 05:00 au 17 nov. 11:00 : 0</title></rect><rect class="spark" x="151.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 11:00 au 17 nov. 17:00 : 0</title></rect><rect class="spark" x="161.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 17:00 au 17 nov. 23:00 : 0</title></rect><rect class="spark" x="171.0" y="38.0" width="8.0" height="2.0"><title>Du 17 nov. 23:00 au 18 nov. 05:00 : 0</title></rect><rect class="spark" x="181.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 05:00 au 18 nov. 11:00 : 0</title></rect><rect class="spark" x="191.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 11:00 au 18 nov. 17:00 : 0</title></rect><rect class="spark" x="201.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 17:00 au 18 nov. 23:00 : 0</title></rect><rect class="spark" x="211.0" y="38.0" width="8.0" height="2.0"><title>Du 18 nov. 23:00 au 19 nov. 05:00 : 0</title></rect><rect class="spark" x="221.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 05:00 au 19 nov. 11:00 : 0</title></rect><rect class="spark" x="231.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 11:00 au 19 nov. 17:00 : 0</title></rect><rect class="spark" x="241.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 17:00 au 19 nov. 23:00 : 0</title></rect><rect class="spark" x="251.0" y="38.0" width="8.0" height="2.0"><title>Du 19 nov. 23:00 au 20 nov. 05:00 : 0</title></rect><rect class="spark" x="261.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 05:00 au 20 nov. 11:00 : 0</title></rect><rect class="spark" x="271.0" y="38.0" width="8.0" height="2.0"><title>Du 20 nov. 11:00 au 20 nov. 17:00 : 0</title></rect></g></svg></div>
+</div>
+</div>
+</div>
+<p class="meta">État au <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time>.</p>
+</section>
+<section class="panel stats" aria-labelledby="certificates">
+<h2 id="certificates">Certificats</h2>
+<p class="meta">Jours restants avant l’expiration du certificat des noms publics. cert-manager le renouvelle 30 jours avant.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">*.lilalala.com</p>
+<div class="tile-body">
+<p class="tile-value ok">39<span class="unit"> jours</span> <span class="status ok">Valide</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">nedsi.io</p>
+<div class="tile-body">
+<p class="tile-value ok">82<span class="unit"> jours</span> <span class="status ok">Valide</span></p>
+</div>
+</div>
+<div class="tile">
+<p class="tile-label">homelab.nedsi.io</p>
+<div class="tile-body">
+<p class="tile-value none"><span class="status none">Pas de données</span></p>
+</div>
+</div>
+</div>
+<p class="meta">État au <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time>.</p>
+</section>
+</div>
+<h2>Plus tard</h2>
+<div class="cards">
+<section class="panel later" aria-labelledby="solar">
+<h3 id="solar">Production solaire</h3>
+<p>Ce que les panneaux solaires produisent au fil de la journée. La production seulement : ce que la maison consomme reste privé, car cela en dit beaucoup trop sur quand nous sommes à la maison.</p>
+</section>
+<section class="panel later" aria-labelledby="home">
+<h3 id="home">Domotique</h3>
+<p>Quelques chiffres de Home Assistant, quand j’aurai trouvé lesquels sont à la fois intéressants et sans risque à partager. Rien qui dise si quelqu’un est là.</p>
+</section>
+</div>
+</main>
+<footer class="site">
+<p>Articles de nedsi. <a href="https://blog.nedsi.io/fr/index.xml">RSS</a>. <a href="https://blog.nedsi.io/fr/privacy/">Confidentialité</a>.</p>
+</footer>
+</body>
+</html>

@@ -9,9 +9,10 @@ import (
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
-// The chart builders take numbers and dates only and emit svg, g, rect, line
-// and title, with numeric attributes and a class from the status set, so the
-// result is safe as template.HTML. TestChartMarkup checks every builder.
+// The chart builders take numbers, dates and catalogue strings only and emit
+// svg, g, rect, line and title, with numeric attributes and a class from the
+// status set, so the result is safe as template.HTML. TestChartMarkup checks
+// every builder in both languages.
 
 const (
 	meterWidth, meterHeight = 100, 6
@@ -26,11 +27,6 @@ const (
 
 func coord(v float64) string {
 	return strconv.FormatFloat(v, 'f', 1, 64)
-}
-
-// percent is pct with the sign, for text, titles and aria-labels.
-func percent(v float64) string {
-	return pct(v) + "%"
 }
 
 func openSVG(b *strings.Builder, w, h int, label string) {
@@ -48,11 +44,11 @@ func rect(b *strings.Builder, class string, x, y, w, h float64) {
 
 // budgetMeter draws the error budget left (0-100%) as a filled track; at or
 // below 0 the track is empty.
-func budgetMeter(left float64) template.HTML {
+func budgetMeter(l *locale, left float64) template.HTML {
 	var b strings.Builder
-	label := "Error budget exhausted"
+	label := l.t("chart.exhausted")
 	if left > 0 {
-		label = "Error budget left: " + percent(left)
+		label = l.f("chart.value", l.t("chart.budget"), l.percent(left))
 	}
 	openSVG(&b, meterWidth, meterHeight, label)
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
@@ -67,9 +63,9 @@ func budgetMeter(left float64) template.HTML {
 
 // meter draws a utilisation (0-100%) as a track filled in its status
 // colour.
-func meter(label string, v float64, st status) template.HTML {
+func meter(l *locale, label string, v float64, st status) template.HTML {
 	var b strings.Builder
-	openSVG(&b, meterWidth, meterHeight, label+": "+percent(v))
+	openSVG(&b, meterWidth, meterHeight, l.f("chart.value", label, l.percent(v)))
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
 	b.WriteString("/>")
 	if v > 0 {
@@ -81,9 +77,9 @@ func meter(label string, v float64, st status) template.HTML {
 }
 
 // shareBar draws a share (0-100%) as a filled track.
-func shareBar(label string, share float64) template.HTML {
+func shareBar(l *locale, label string, share float64) template.HTML {
 	var b strings.Builder
-	openSVG(&b, meterWidth, meterHeight, label+": "+percent(share))
+	openSVG(&b, meterWidth, meterHeight, l.f("chart.value", label, l.percent(share)))
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
 	b.WriteString("/>")
 	if share > 0 {
@@ -103,7 +99,7 @@ func barHeight(v float64) float64 {
 // dailyBars draws one bar per day of days (snapshot dates, oldest first),
 // the last one today so far and outlined; each bar is coloured by that day's
 // status and titled with its date and value. A dashed line marks the target.
-func dailyBars(days []string, values []*float64) template.HTML {
+func dailyBars(l *locale, days []string, values []*float64) template.HTML {
 	counts := map[status]int{}
 	var bars strings.Builder
 	for i, v := range values {
@@ -115,26 +111,26 @@ func dailyBars(days []string, values []*float64) template.HTML {
 		}
 		if i == len(values)-1 {
 			class += " today"
-			day += " (today so far)"
+			day = l.f("chart.today", day)
 		}
-		h, text := barNone, noData
+		h, text := barNone, l.t("status.nodata")
 		if v != nil {
-			h, text = barHeight(*v), percent(*v)
+			h, text = barHeight(*v), l.percent(*v)
 		}
 		rect(&bars, class, float64(i*barStep+(barStep-barWidth)/2), barsHeight-h, barWidth, h)
-		bars.WriteString("><title>" + day + ": " + text + "</title></rect>")
+		bars.WriteString("><title>" + l.f("chart.value", day, text) + "</title></rect>")
 	}
-	parts := []string{strconv.Itoa(counts[statusOK]) + " met"}
+	parts := []string{l.f("chart.met", strconv.Itoa(counts[statusOK]))}
 	for _, p := range []struct {
-		s    status
-		word string
-	}{{statusWarn, "at risk"}, {statusBad, "missed"}, {statusNone, "without data"}} {
+		s   status
+		key string
+	}{{statusWarn, "chart.at-risk"}, {statusBad, "chart.missed"}, {statusNone, "chart.nodata"}} {
 		if counts[p.s] > 0 {
-			parts = append(parts, strconv.Itoa(counts[p.s])+" "+p.word)
+			parts = append(parts, l.f(p.key, strconv.Itoa(counts[p.s])))
 		}
 	}
 	var b strings.Builder
-	openSVG(&b, barsWidth, barsHeight, strconv.Itoa(len(values))+" days: "+strings.Join(parts, ", "))
+	openSVG(&b, barsWidth, barsHeight, l.f("chart.days", strconv.Itoa(len(values)), strings.Join(parts, ", ")))
 	b.WriteString("<g>" + bars.String() + "</g>")
 	y := coord(barsHeight - barHeight(target))
 	b.WriteString(`<line class="target" x1="0" y1="` + y + `" x2="` + strconv.Itoa(barsWidth) + `" y2="` + y + `"/>`)
@@ -146,7 +142,7 @@ func dailyBars(days []string, values []*float64) template.HTML {
 // on a linear scale from 0 to the largest; all at the minimum height when
 // every one is 0. Each bar is titled with its span in Zurich time and its
 // count.
-func sparkBars(end time.Time, buckets []*int) template.HTML {
+func sparkBars(l *locale, end time.Time, buckets []*int) template.HTML {
 	top := 0
 	for _, v := range buckets {
 		if v != nil {
@@ -156,19 +152,19 @@ func sparkBars(end time.Time, buckets []*int) template.HTML {
 	var bars strings.Builder
 	for i, v := range buckets {
 		to := end.Add(-time.Duration(len(buckets)-1-i) * snapshot.BucketWidth)
-		span := shortTime(to.Add(-snapshot.BucketWidth)) + " to " + shortTime(to)
-		class, h, text := "none", sparkMin, noData
+		span := l.f("chart.span", l.shortTime(to.Add(-snapshot.BucketWidth)), l.shortTime(to))
+		class, h, text := "none", sparkMin, l.t("status.nodata")
 		if v != nil {
-			class, text = "spark", thousands(*v)
+			class, text = "spark", l.thousands(*v)
 			if top > 0 {
 				h = max(sparkMin, float64(*v)/float64(top)*sparkHeight)
 			}
 		}
 		rect(&bars, class, float64(i*sparkStep+(sparkStep-sparkBar)/2), sparkHeight-h, sparkBar, h)
-		bars.WriteString("><title>" + span + ": " + text + "</title></rect>")
+		bars.WriteString("><title>" + l.f("chart.value", span, text) + "</title></rect>")
 	}
 	var b strings.Builder
-	openSVG(&b, sparkWidth, sparkHeight, strconv.Itoa(len(buckets))+" counts of six hours, highest "+thousands(top))
+	openSVG(&b, sparkWidth, sparkHeight, l.f("chart.spark", strconv.Itoa(len(buckets)), l.thousands(top)))
 	b.WriteString("<g>" + bars.String() + "</g></svg>")
 	return template.HTML(b.String()) //nolint:gosec // G203: numbers and times only, see TestChartMarkup.
 }

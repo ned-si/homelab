@@ -714,8 +714,10 @@ without learning which databases there are.
   replica per role; rendered `deploy/` like every app.
 - Cost: nothing paid; GHCR public package, GitHub-hosted runners.
 - Resources: each role under 32 Mi of memory at rest.
-- Language: English, British spelling; reference text follows the
-  documentation standard, the page's prose the operator's voice.
+- Language: English, British spelling, at `/`, and Swiss French at `/fr/`
+  ([site-theme-language](../site-theme-language/requirements.md#requirement-4-english-and-french));
+  reference text follows the documentation standard, the page's prose the
+  operator's voice.
 
 ## Acceptance criteria
 

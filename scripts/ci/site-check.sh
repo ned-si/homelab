@@ -53,12 +53,17 @@ if hugo --source site --destination "$out" --cleanDestinationDir --minify \
   python3 scripts/ci/site_markup.py "$out" || fail "markup: see the lines above"
   python3 scripts/ci/site_markup.py apps/website/landing nedsi.io || fail "landing markup: see the lines above"
   python3 scripts/ci/site_markup.py --content site/content || fail "translations: see the lines above"
-  # The dashboard's goldens are its rendered pages, so its nav is checked too.
+  # The dashboard's goldens are its rendered pages, so its nav is checked too,
+  # each at its own URL: fr-* under /fr/, the not-found pages as 404.html.
   for g in dashboard/internal/web/testdata/*.golden.html; do
-    d="$work/dashboard/$(basename "$g" .golden.html)"
-    mkdir -p "$d" && cp "$g" "$d/index.html"
+    name=$(basename "$g" .golden.html)
+    d="$work/dashboard/$name"
+    file=index.html
+    case $name in *notfound) file=404.html ;; esac
+    case $name in fr-*) file=fr/$file ;; esac
+    mkdir -p "$(dirname "$d/$file")" && cp "$g" "$d/$file"
+    python3 scripts/ci/site_markup.py "$d" homelab.nedsi.io || fail "dashboard markup ($name): see the lines above"
   done
-  python3 scripts/ci/site_markup.py "$work/dashboard" homelab.nedsi.io || fail "dashboard markup: see the lines above"
 else
   fail "hugo build (warnings fail it too)"
 fi

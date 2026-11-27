@@ -86,7 +86,7 @@ SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.
 # The hosts whose pages carry the theme toggle (site-theme-language tasks 1-3).
 THEMED = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io", "charts.nedsi.io")
 # The hosts that serve French (site-theme-language tasks 4-6).
-LANGUAGES = ("nedsi.io", "blog.nedsi.io", "techradar.nedsi.io")
+LANGUAGES = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
 LOCALE = {"en": "en-GB", "fr": "fr-CH"}
 PREFS = {
     "en": [
@@ -110,7 +110,7 @@ NAV = {
     "fr": [
         ("Accueil", "https://nedsi.io/fr/"),
         ("Blog", "https://blog.nedsi.io/fr/"),
-        ("Homelab", "https://homelab.nedsi.io/"),
+        ("Homelab", "https://homelab.nedsi.io/fr/"),
         ("Tech radar", "https://techradar.nedsi.io/fr/"),
         ("À propos", "https://blog.nedsi.io/fr/about/"),
     ],

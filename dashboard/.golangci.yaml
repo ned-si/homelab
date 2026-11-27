@@ -33,13 +33,16 @@ linters:
       checks: ["all"]
     misspell:
       locale: UK
-      # The namespace of the download tooling, then OpenSSF Scorecard's own
-      # US-spelt check names and reasons, shown verbatim.
+      # The namespace of the download tooling, OpenSSF Scorecard's own
+      # US-spelt check names and reasons, shown verbatim, then French words
+      # of the catalogue (internal/web/i18n.go).
       ignore-rules:
         - theater
         - normalized
         - organizations
         - artifacts
+        - certificats
+        - restauration
     nolintlint:
       require-explanation: true
       require-specific: true

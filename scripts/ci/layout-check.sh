@@ -57,6 +57,7 @@ done
 # pushfixture reads its fixture relative to dashboard/.
 (cd "$root/dashboard" && "$work/pushfixture" push "$work/private-key" http://127.0.0.1:19465)
 curl -fs -m 10 -o "$work/dashboard.html" http://127.0.0.1:18080/
+curl -fs -m 10 -o "$work/dashboard-fr.html" http://127.0.0.1:18080/fr/
 css=$(grep -o '/assets/dashboard\.[0-9a-f]*\.css' "$work/dashboard.html" | head -n 1)
 [ -n "$css" ] || { echo "layout-check: no stylesheet link in the dashboard page" >&2; exit 1; }
 curl -fs -m 10 -o "$www$css" "http://127.0.0.1:18080$css"
@@ -69,12 +70,10 @@ cp "$root/apps/website/techradar/techradar.css" "$www/"
 cp -R "$public/css" "$www/css"
 cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
 pages=(landing blog about privacy dashboard techradar)
-# The pages whose preferences match the landing page's. The dashboard gets
-# the language toggle in site-theme-language task 5; until then its
-# preferences are narrower.
-themed="landing blog about privacy article techradar landing-fr blog-fr about-fr privacy-fr techradar-fr"
+# The pages whose preferences match the landing page's.
+themed="landing blog about privacy article dashboard techradar landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr"
 # One comparison per language; the first page of each is the reference.
-fr_pages=(landing-fr blog-fr about-fr privacy-fr techradar-fr)
+fr_pages=(landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr)
 cp "$root/apps/website/techradar/index-fr.html" "$work/techradar-fr.html"
 cp "$root/apps/website/landing/index-fr.html" "$work/landing-fr.html"
 cp "$public/fr/index.html" "$work/blog-fr.html"

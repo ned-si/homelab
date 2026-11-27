@@ -2119,7 +2119,7 @@ tile is `noDataTile(label)`:
 | Base backups | `base_fresh`, unit "of <count>" | "Fresh", "Stale" | "Nightly, each in the rolling 26 h"; "Oldest <durationText(base_oldest_seconds)> ago" |
 | Point-in-time recovery | `recovery_window_seconds / 86400` rounded down, unit "days" | none (no class) | "The shortest window of all databases" |
 | Restore tests | `restore_passed`, unit "of <count>" | "Passed", "Overdue", "Failed" | "Weekly, rolling 8 days"; "<restore_rows> rows compared" (`thousands`); "Median <durationText(restore_median_seconds)> to a restored copy" |
-| Backup freshness | `pct(freshness_30d)`, unit "%" | "Met", "Missed" | "Lowest database, rolling 30 days, target 99.00%" |
+| Backup freshness | `pct(freshness_30d)`, unit "%" | "Met", "Missed" | "Worst database, rolling 30 days, target 99.00%" |
 
 A detail line whose figure is `null` is left out; a tile whose value is
 `null` is `noDataTile`. The words and thresholds are one function each

@@ -83,11 +83,16 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case "/":
-		s.servePage(w, r)
+		s.servePage(w, r, english)
+	case "/fr/":
+		s.servePage(w, r, french)
+	case "/fr":
+		w.Header().Set("Location", "/fr/")
+		w.WriteHeader(http.StatusMovedPermanently)
 	case "/snapshot.json":
 		h := s.current.Load()
 		if h == nil {
-			s.serveNotFound(w)
+			s.serveNotFound(w, r)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-cache")
@@ -108,7 +113,7 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 			s.setTheme(w, r)
 			return
 		}
-		s.serveNotFound(w)
+		s.serveNotFound(w, r)
 	}
 }
 
@@ -124,7 +129,7 @@ func (s *Server) setTheme(w http.ResponseWriter, r *http.Request) {
 	theme, back, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/set-theme/"), "/")
 	back = "/" + back
 	if !ok || (theme != "light" && theme != "dark") || !backPath.MatchString(back) || strings.HasPrefix(back, "//") {
-		s.serveNotFound(w)
+		s.serveNotFound(w, r)
 		return
 	}
 	if themeClick(r) {
@@ -158,12 +163,14 @@ func themeClick(r *http.Request) bool {
 	return false
 }
 
-func (s *Server) servePage(w http.ResponseWriter, r *http.Request) {
+// servePage renders the page in l: English at /, French at /fr/
+// (.kiro/specs/site-theme-language/design.md#dashboard).
+func (s *Server) servePage(w http.ResponseWriter, r *http.Request, l *locale) {
 	var snap *snapshot.Snapshot
 	if h := s.current.Load(); h != nil {
 		snap = h.snap
 	}
-	d, err := view(snap, s.now())
+	d, err := view(l, snap, s.now())
 	if err == nil {
 		d.CSS, d.CSSIntegrity = s.cssPath, s.cssIntegrity
 		var b bytes.Buffer
@@ -177,9 +184,15 @@ func (s *Server) servePage(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
-func (s *Server) serveNotFound(w http.ResponseWriter) {
+// serveNotFound answers 404 in French under /fr/, in English elsewhere.
+func (s *Server) serveNotFound(w http.ResponseWriter, r *http.Request) {
+	l := english
+	if strings.HasPrefix(r.URL.Path, french.Path) {
+		l = french
+	}
 	var b bytes.Buffer
-	d := &pageData{Title: "Page not found", CSS: s.cssPath, CSSIntegrity: s.cssIntegrity}
+	d := newPage(l, "title.notfound")
+	d.CSS, d.CSSIntegrity, d.NotFound = s.cssPath, s.cssIntegrity, true
 	if err := s.notFound.Execute(&b, d); err != nil {
 		s.logger.Error("render failed", "error", err.Error())
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
