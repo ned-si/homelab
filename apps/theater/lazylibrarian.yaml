@@ -116,7 +116,7 @@ spec:
       initContainers:
         - name: apply-config
           # renovate: datasource=docker depName=ghcr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
-          image: ghcr.io/linuxserver/lazylibrarian:4a554fc2-ls408@sha256:6dbbc01780f8df830c8c64421069b82f21efaf0fd09bb9d9b865768e1861d5d0
+          image: ghcr.io/linuxserver/lazylibrarian:c5bec1de-ls409@sha256:f3084b5408b52f6012581e8ab50c5130e9eb7ac239189bd6ad3a1d2104123717
           imagePullPolicy: IfNotPresent
           command: ["python3", "/managed/apply.py"]
           envFrom:
@@ -146,7 +146,7 @@ spec:
         - name: lazylibrarian
           # Starts as root (s6-overlay), then drops to PUID/PGID.
           # renovate: datasource=docker depName=ghcr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
-          image: ghcr.io/linuxserver/lazylibrarian:4a554fc2-ls408@sha256:6dbbc01780f8df830c8c64421069b82f21efaf0fd09bb9d9b865768e1861d5d0
+          image: ghcr.io/linuxserver/lazylibrarian:c5bec1de-ls409@sha256:f3084b5408b52f6012581e8ab50c5130e9eb7ac239189bd6ad3a1d2104123717
           imagePullPolicy: IfNotPresent
           env:
             - name: TZ
