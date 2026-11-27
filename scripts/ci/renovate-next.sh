@@ -20,7 +20,9 @@
 # Paused while RENOVATE_TRAIN_PAUSED ("<pr> <utc time>", set by
 # scripts/pr-merge.sh during its merge lock) is younger than PAUSE_STALE_MIN
 # (90) minutes; GitHub auto-merge stays as it is (#960). Held the same way
-# while a pull request labelled `auto-rollback` is open (#1003).
+# while a pull request labelled `auto-rollback` is open (#1003), and while
+# another pull request is in flight: not Renovate's, not a draft, auto-merge
+# on, up to date, a check run of the `ci` workflow not completed.
 #
 # Prints one line per auto-merge turned on, then one line, what it did
 # and why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1:
@@ -43,6 +45,10 @@ if [ "$dow" -le 5 ] && [ "$((10#$hour))" -ge 9 ] && [ "$((10#$hour))" -le 16 ]; 
 prs=$($GH pr list --repo "$REPO" --author app/renovate --state open --limit 100 \
   --json number,isDraft,autoMergeRequest,createdAt,headRefOid,body,statusCheckRollup,labels,comments)
 
+behind() { # <sha>: commits on main that the head does not have
+  $GH api "repos/$REPO/compare/main...$1" --jq .behind_by
+}
+
 PAUSED=${RENOVATE_TRAIN_PAUSED:-}
 PAUSE_STALE_MIN=${PAUSE_STALE_MIN:-90}
 NOW_EPOCH=${NOW_EPOCH:-$(date +%s)}
@@ -64,6 +70,20 @@ if [ -n "$rollback" ]; then
   echo "held by open auto-rollback revert $rollback; nothing rebased"
   exit 0
 fi
+# Another pull request about to merge: a rebase now would move main under it.
+inflight=$($GH pr list --repo "$REPO" --state open --limit 100 \
+  --json number,author,isDraft,autoMergeRequest,headRefOid,statusCheckRollup \
+  --jq '.[] | select(.author.login != "app/renovate" and (.isDraft | not) and .autoMergeRequest != null)
+    | select([.statusCheckRollup[]? | select(.__typename == "CheckRun" and .workflowName == "ci" and .status != "COMPLETED")] | length > 0)
+    | "\(.number)\t\(.headRefOid)"')
+while IFS=$'\t' read -r n sha; do
+  [ -n "$n" ] || continue
+  b=$(behind "$sha")
+  if [ "$b" = 0 ]; then
+    echo "held by #$n (auto-merge on, up to date, ci running); nothing rebased"
+    exit 0
+  fi
+done <<<"$inflight"
 # Waiting for minimumReleaseAge: one comment, then left alone until it passes.
 WAIT_MARK='<!-- renovate-next:release-age -->'
 for n in $(jq -r --arg m "$WAIT_MARK" '.[]
@@ -110,10 +130,6 @@ if [ -z "$rows" ]; then
   echo "no Renovate pull request to merge"
   exit 0
 fi
-
-behind() { # <sha>: commits on main that the head does not have
-  $GH api "repos/$REPO/compare/main...$1" --jq .behind_by
-}
 
 next=""
 while IFS=$'\t' read -r n sha ci ticked; do
