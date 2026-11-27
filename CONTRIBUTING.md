@@ -84,5 +84,7 @@ python3 -m pytest -q tests          # Python and bash tests: all passed
 ```
 
 `drumcharts/` skips its page image test unless `DRUMCHARTS_DATA` is set,
-as `scripts/ci/drumcharts-check.sh` does. The four layers of checks, from
+as `scripts/ci/drumcharts-check.sh` does. `go build` keeps debug information;
+the dashboard image strips it unless built with
+`docker build --build-arg LDFLAGS= dashboard`. The four layers of checks, from
 local hooks to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
