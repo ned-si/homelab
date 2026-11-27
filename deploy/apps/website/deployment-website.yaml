@@ -33,7 +33,7 @@ spec:
         - /etc/nginx-site/nginx.conf
         - -g
         - daemon off;
-        image: ghcr.io/ned-si/homelab-site:main@sha256:01e1a457b366372d3477db94759528cb614b7a5483d0ae28e54a9383050f09a0
+        image: ghcr.io/ned-si/homelab-site:main@sha256:88da6b241d17140a2ca070a8b7b358004d117f6fec6378bc0530b72626a5191a
         livenessProbe:
           httpGet:
             path: /

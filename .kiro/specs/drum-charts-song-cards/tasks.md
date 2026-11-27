@@ -12,11 +12,14 @@ on top of task 1. Merges through `scripts/pr-merge.sh`.
       the golden tree; `docs/drum-charts.md` where it describes the home
       page. Branch `feat/charts-song-cards`. Check: acceptance criteria
       1 and 2; screenshots of the golden home page at 1920x1080,
-      390x844 and 320x568 in both themes, locally. [1, 2] #1891.
-- [ ] 2. Deploy (**live** and visible): the `homelab-site` digest pull
+      390x844 and 320x568 in both themes, locally. [1, 2] #1891, English
+      only: main had no French charts pages yet, so the French alt text
+      and the grid at `/fr/` come with drum-charts-site task 7, which
+      renders the French tree from the same template.
+- [x] 2. Deploy (**live** and visible): the `homelab-site` digest pull
       request built from task 1's merge (Renovate's, or by hand on
       `chore/charts-song-cards-deploy`). Check: acceptance criteria 3
-      and 4. [1, 2]
+      and 4. [1, 2] #1892.
 
 The last task ticked sets `status: done`, `closed:`, moves the index row
 to done and closes #1878.
