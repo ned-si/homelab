@@ -23,7 +23,7 @@ row, says `Closes #1832` and merges with the wrapper.
       ([design, The Renovate train](design.md#the-renovate-train)).
       Check: `ci` green; after the merge, the next `renovate-next` run
       prints a decision line and no error. [3.2; AC 4, AC 8 before] (#1870)
-- [ ] 2. `scripts/pr-merge.sh` merges through GitHub auto-merge: the
+- [x] 2. `scripts/pr-merge.sh` merges through GitHub auto-merge: the
       wrapper, `scripts/lib/merge_lock.sh`, the comment in
       `scripts/ci/check-title.sh`, the `RENOVATE_TRAIN_PAUSED` comments in
       `scripts/ci/renovate-next.sh` and `.github/workflows/renovate-next.yaml`
@@ -31,13 +31,13 @@ row, says `Closes #1832` and merges with the wrapper.
       `tests/bash/test_pr_merge_lock.sh` on the REST routes, the fake `gh`
       in `tests/bash/lib.sh` ([design, The wrapper](design.md#the-wrapper)).
       The PR body says `Closes #1793`.
-      Check: `ci` green; AC 1, 2, 3 and 5. [1, 2, 3.3; AC 1-3, 5, 10]
-- [ ] 3. Skills and local notes, right after task 2 merges (local, no PR):
+      Check: `ci` green; AC 1, 2, 3 and 5. [1, 2, 3.3; AC 1-3, 5, 10] (#1871)
+- [x] 3. Skills and local notes, right after task 2 merges (local, no PR):
       a copy of each skill kept first, then the run-conventions and
       homelab-context skills and the handover notes as in
       [design, The skills and the local notes](design.md#the-skills-and-the-local-notes).
       No Claude Code link is added. Ticked with the date by the task 4
-      PR. [5.1]
+      PR. [5.1] (2026-11-27)
 - [ ] 4. Docs: the files in
       [design, Documentation and the skills](design.md#documentation-and-the-skills),
       including the break-glass runbooks and the active netpol-default-deny
