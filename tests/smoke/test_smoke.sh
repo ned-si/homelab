@@ -391,6 +391,14 @@ expect_contains "and reports both sources" "api.ipify.org and ifconfig.me agree 
 F=$(fresh dns3); echo "not-an-ip" > "$F/wan.txt"
 run "$F"
 expect_eq "unreadable --default-targets fails item 10" false "$(pass_of 10)"
+# #47: a stale second A record next to the WAN address passed when only one answer was compared.
+F=$(fresh dns4); printf 'argo.example.test %s\nargo.example.test 203.0.113.9\nmedia.example.test %s\n' "$WAN" "$WAN" > "$F/dig.txt"
+run "$F"
+expect_eq "an extra address in the answer set fails item 10" false "$(pass_of 10)"
+# #81: Cilium's redirect Location carries :443; the same URL as without it.
+F=$(fresh h8); tsv_set "$F" http://argo.example.test/ "$ENTRY" 308 https://argo.example.test:443/
+run "$F"
+expect_eq "a redirect to https://host:443/ passes item 7" true "$(pass_of 7)"
 
 echo "-- item 11: SSO"
 F=$(fresh s0)
