@@ -35,7 +35,7 @@ data:
     <a href="https://blog.nedsi.io/fr/">Blog</a>
     <a href="https://homelab.nedsi.io/fr/">Homelab</a>
     <a href="/fr/" aria-current="page">Tech radar</a>
-    <a href="https://charts.nedsi.io/">Partitions</a>
+    <a href="https://charts.nedsi.io/fr/">Partitions</a>
     <a href="https://blog.nedsi.io/fr/about/">À propos</a>
     </nav>
     <p class="prefs">
@@ -985,5 +985,5 @@ data:
     .prefs .to-light { display: none; }
 kind: ConfigMap
 metadata:
-  name: website-techradar-b8dkdgm9gd
+  name: website-techradar-5h9827kbdf
   namespace: website

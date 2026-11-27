@@ -307,7 +307,7 @@ FR_NAV = [
     ("Blog", "/fr/"),
     ("Homelab", "https://homelab.nedsi.io/fr/"),
     ("Tech radar", "https://techradar.nedsi.io/fr/"),
-    ("Partitions", "https://charts.nedsi.io/"),
+    ("Partitions", "https://charts.nedsi.io/fr/"),
     ("À propos", "/fr/about/"),
 ]
 
@@ -421,20 +421,36 @@ CHARTS_SONG = (
 )
 
 
+CHARTS_FR_NAV = [
+    ("Accueil", "https://nedsi.io/fr/"),
+    ("Blog", "https://blog.nedsi.io/fr/"),
+    ("Homelab", "https://homelab.nedsi.io/fr/"),
+    ("Tech radar", "https://techradar.nedsi.io/fr/"),
+    ("Partitions", "/fr/"),
+    ("À propos", "https://blog.nedsi.io/fr/about/"),
+]
+
+
 def charts_run(tmp_path, pages):
-    """site_markup over English-only charts.nedsi.io pages (no French yet)."""
-    for rel, body in pages.items():
-        path = page_path(rel)
-        start = f'<html lang="en-GB"><head><link rel="canonical" href="https://charts.nedsi.io{path}"><link rel="stylesheet" href="/theme.css"></head>'
-        body = body.replace("</nav></header>", "</nav>" + prefs(path) + "</header>")
-        write(tmp_path / rel, f"<!doctype html>{start}<body>{body}</body></html>")
-    return subprocess.run([sys.executable, CHECK, str(tmp_path), "charts.nedsi.io"], capture_output=True, text=True)
+    """site_markup over charts.nedsi.io pages."""
+    return run(tmp_path, pages, "charts.nedsi.io")
 
 
 def test_charts_pages_pass(tmp_path):
-    pages = {"index.html": nav("Charts", CHARTS_NAV) + CHARTS_HOME, "tool-schism/index.html": nav("Charts", CHARTS_NAV) + CHARTS_SONG}
+    pages = {
+        "index.html": nav("Charts", CHARTS_NAV) + CHARTS_HOME,
+        "tool-schism/index.html": nav("Charts", CHARTS_NAV) + CHARTS_SONG,
+        "fr/index.html": nav("Partitions", CHARTS_FR_NAV) + CHARTS_HOME,
+        "fr/tool-schism/index.html": nav("Partitions", CHARTS_FR_NAV) + CHARTS_SONG,
+    }
     res = charts_run(tmp_path, pages)
     assert res.returncode == 0, res.stdout
+
+
+def test_charts_french_nav_fails(tmp_path):
+    res = charts_run(tmp_path, {"fr/index.html": nav("Charts", CHARTS_NAV) + CHARTS_HOME})
+    assert res.returncode == 1
+    assert "site nav" in res.stdout
 
 
 @pytest.mark.parametrize(

@@ -116,6 +116,7 @@ spec:
           done
           expect 200 https://charts.nedsi.io/
           has_headers https://charts.nedsi.io/
+          expect 200 https://charts.nedsi.io/fr/
           expect 200 https://charts.nedsi.io/pdf/legend.pdf
           printf '%s\n' "$resp" | grep -qi '^content-disposition: attachment$' \
             || { echo "FAIL https://charts.nedsi.io/pdf/legend.pdf: no Content-Disposition: attachment"; fail=1; }
