@@ -67,6 +67,7 @@ Change specs, active:
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 5: the cluster objects and the route |
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
+| [drum-charts-per-song-releases](drum-charts-per-song-releases/) | 2026-11-27 | #1865 | task 1: per-song releases and the data image in drum-charts, after drum-charts-site task 9 |
 | [drum-charts-site](drum-charts-site/) | 2026-11-26 | #1761 | task 6: links to `charts.nedsi.io` |
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 4: the app accounts and deleting `family` and `media` (operator) |
