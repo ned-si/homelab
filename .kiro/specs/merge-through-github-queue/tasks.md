@@ -38,7 +38,7 @@ row, says `Closes #1832` and merges with the wrapper.
       [design, The skills and the local notes](design.md#the-skills-and-the-local-notes).
       No Claude Code link is added. Ticked with the date by the task 4
       PR. [5.1] (2026-11-27)
-- [ ] 4. Docs: the files in
+- [x] 4. Docs: the files in
       [design, Documentation and the skills](design.md#documentation-and-the-skills),
       including the break-glass runbooks and the active netpol-default-deny
       spec (design D6, its break-glass acceptance criterion), merged with
@@ -58,9 +58,10 @@ row, says `Closes #1832` and merges with the wrapper.
       4. After the merge: `gh run list -R ned-si/homelab --commit
          <merge-sha>` lists `ci` and `renovate-next`.
       Check: AC 6, and AC 9 (Scorecard Branch-Protection 4) once Scorecard
-      has run after the merge. [4.3, 5.2, 5.3; AC 6, 9]
-- [ ] 5. Verify a Renovate merge and the settings (no task PR): the
+      has run after the merge. [4.3, 5.2, 5.3; AC 6, 9] (#1882)
+- [x] 5. Verify a Renovate merge and the settings (no task PR): the
       first Renovate PR merged after task 4, with `ci` green on its head;
       the three settings commands print the expected lines. Ticked with
       that PR's number and merge SHA by the closing PR above, which sets
       this spec `done` and closes #1832. [3.1, 4.1, 4.2, 4.4; AC 7, 8 after]
+      (#1884, ee9df96b)
