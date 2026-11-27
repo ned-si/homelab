@@ -304,7 +304,7 @@ func TestCardsStatusWords(t *testing.T) {
 <p class="tile-detail">1,031,332 rows compared</p>
 <p class="tile-detail">Median 6 min 54 s to a restored copy</p>`,
 			`<p class="tile-value ok">99.97<span class="unit">%</span> <span class="status ok">Met</span></p>
-<p class="tile-detail">Lowest database, rolling 30 days, target 99.00%</p>`,
+<p class="tile-detail">Worst database, rolling 30 days, target 99.00%</p>`,
 		}},
 		{alarm, []string{
 			`<p class="tile-value warn">14<span class="unit">days</span> <span class="status warn">Renewal late</span></p>`,
@@ -472,7 +472,7 @@ func TestRollingWindows(t *testing.T) {
 		"Another 760 answered by the Gateway itself cannot be attributed.", "Of these, 12 are 403s",
 		"Includes our own weekly security scan.", "Rolling 24 h, 50.00% of 80 sign-ins",
 		"Seen in the rolling 24 h", "files archived, rolling 24 h", "Nightly, each in the rolling 26 h",
-		"Weekly, rolling 8 days", "Lowest database, rolling 30 days")
+		"Weekly, rolling 8 days", "Worst database, rolling 30 days")
 	for _, bad := range []string{"observe mode", "last 30 days", "last 24 hours", "last 7 days", "in 24 h", "in 7 days", "over 30 days"} {
 		if strings.Contains(strings.ToLower(body), bad) {
 			t.Errorf("the page says %q", bad)
