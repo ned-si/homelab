@@ -75,6 +75,10 @@ their script runs, and the script fails when one is missing.
     also set fails here instead of crash-looping in the cluster (#1824).
     The kind boot cannot catch it: the upstream charts are not in `deploy/`,
     and node-exporter needs host paths and the host network.
+  - the regression rules of `scripts/ci/repo_policy.py` (listed in its
+    docstring): each one fails on a configuration bug that once reached
+    `main` and names its pull request in the failure, with a fixture in
+    `tests/test_repo_policy.py` that reproduces the bug.
 - `tests`:
   - unit tests: `pytest tests` under coverage.py (render, repo policy,
     workflow entry points, pre-commit parity, the `ci` job list; see

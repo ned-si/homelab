@@ -174,6 +174,21 @@ objects and rule ids only; values are never printed.
                         manager captures the digest and moves tag and digest
                         together; it cannot add a missing one.
 
+Regression rules, each failing on a bug that reached main (the PR is in its message):
+  rwo-rollout           a Deployment mounting a ReadWriteOnce PVC uses Recreate or maxSurge 0
+  container-env-unique  no container sets the same env name twice
+  cookieless-backends   rules to a COOKIELESS_BACKENDS Service remove the Cookie header
+  cnpg-full-image       the CNPG_FULL_IMAGE Clusters run no minimal image
+  aws-tag-values        tag values under bootstrap/*.tf use only characters IAM accepts
+  sso-only-login        no Argo CD local admin or Dex, no Grafana password form, the
+                        Servarr apps set <APP>__AUTH__METHOD=External
+  router-forwards       the ROUTER_FORWARDS Services keep the address the router forwards to
+  route-match-unique    no two HTTPRoute rules on one listener and hostname share a match
+  sso-proxy-unverified-email  every oauth2-proxy alpha config allows unverified emails
+  https-redirect-scheme no RequestRedirect on the https listener sets a scheme
+  tailscale-ingress-backend  no Tailscale Ingress has a headless backend Service
+  bootstrap-tracks-main bootstrap/variables.tf target_revision defaults to main
+
 Every image rule accepts a line that carries `# image-policy: allow <reason>`.
 """
 from __future__ import annotations
@@ -356,6 +371,17 @@ HARDENING_CHECKS = ("probes", "seccomp", "privilege-escalation", "capabilities",
 ROOT_CAPS = {"CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"}
 LONG_RUNNING_KINDS = {"Deployment", "StatefulSet", "DaemonSet"}
 GAP_REF = re.compile(r"^[a-z0-9-]+/[A-Za-z]+/[a-z0-9.-]+/(?:[a-z0-9.-]+|\*)$")
+# Regression rules: each reproduces a bug that reached main.
+COOKIELESS_BACKENDS = {("theater", "plex")}
+CNPG_FULL_IMAGE = {("keycloak", "keycloak-db")}
+AWS_TAG_VALUE = re.compile(r"^[\w .:/=+\-@]*$")
+ARGOCD_VALUES = "bootstrap/argocd-values.yaml"
+KPS_VALUES = "platform/kube-prometheus-stack/values.yaml"
+SERVARR_APPS = {"sonarr", "radarr", "lidarr", "prowlarr"}
+# Router port forwards (docs/networking.md) point at these addresses.
+ROUTER_FORWARDS = {("theater", "qbittorrent-seed"): "192.168.1.200",
+                   ("syncthing", "syncthing-protocol"): "192.168.1.201"}
+BOOTSTRAP_VARIABLES = "bootstrap/variables.tf"
 
 
 class Policy:
@@ -1512,6 +1538,239 @@ class Policy:
                                 "(`docker buildx imagetools inspect <image>`, the Digest line) "
                                 "or add `# image-policy: allow <reason>`")
 
+    # -- regression rules: each reproduces a bug that reached main (PR in the message)
+    def http_routes(self):
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") == "HTTPRoute" and self.group_of(d) == "gateway.networking.k8s.io":
+                    yield e, d
+
+    def rule_rwo_rollout(self) -> None:
+        rule = "rwo-rollout"
+        rwo: set[tuple[str, str]] = set()
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") == "PersistentVolumeClaim" and \
+                        "ReadWriteOnce" in ((d.get("spec") or {}).get("accessModes") or []):
+                    rwo.add((self.ns_of(d, e), self.name_of(d)))
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") != "Deployment" or d.get("apiVersion") != "apps/v1":
+                    continue
+                ns, spec = self.ns_of(d, e), d.get("spec") or {}
+                claims = sorted(str((v.get("persistentVolumeClaim") or {}).get("claimName"))
+                                for v in ((spec.get("template") or {}).get("spec") or {}).get("volumes") or []
+                                if (ns, str((v.get("persistentVolumeClaim") or {}).get("claimName"))) in rwo)
+                if not claims:
+                    continue
+                self.on(rule)
+                strategy = spec.get("strategy") or {}
+                surge = (strategy.get("rollingUpdate") or {}).get("maxSurge", "25%")
+                if strategy.get("type") != "Recreate" and str(surge) not in ("0", "0%"):
+                    self.fail(rule, f"{e['app']}: Deployment {ns}/{self.name_of(d)} mounts ReadWriteOnce PVC "
+                                    f"{', '.join(claims)} and rolls with maxSurge {surge}: the new pod cannot "
+                                    "attach the volume (#202); use Recreate or maxSurge: 0")
+
+    def rule_container_env_unique(self) -> None:
+        # A duplicate env name fails the sync (democratic-csi, NODE_EXTRA_CA_CERTS, #1371).
+        rule = "container-env-unique"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                pod = pod_spec_of(d)
+                if pod is None:
+                    continue
+                self.on(rule)
+                for c in (pod.get("initContainers") or []) + (pod.get("containers") or []):
+                    names = [str(v.get("name")) for v in c.get("env") or []]
+                    dups = sorted({n for n in names if names.count(n) > 1})
+                    if dups:
+                        self.fail(rule, f"{e['app']}: {d.get('kind')} {self.ns_of(d, e)}/{self.name_of(d)} "
+                                        f"container {c.get('name')} sets env {', '.join(dups)} twice")
+
+    def rule_cookieless_backends(self) -> None:
+        rule = "cookieless-backends"
+        for e, d in self.http_routes():
+            ns = self.ns_of(d, e)
+            for i, r in enumerate((d.get("spec") or {}).get("rules") or []):
+                hit = [b for b in r.get("backendRefs") or []
+                       if (b.get("namespace") or ns, b.get("name")) in COOKIELESS_BACKENDS]
+                if not hit:
+                    continue
+                self.on(rule)
+                removed = {str(h).lower() for f in r.get("filters") or [] if f.get("type") == "RequestHeaderModifier"
+                           for h in (f.get("requestHeaderModifier") or {}).get("remove") or []}
+                if "cookie" not in removed:
+                    self.fail(rule, f"{e['app']}: HTTPRoute {ns}/{self.name_of(d)} rule {i} forwards cookies to "
+                                    f"{hit[0].get('name')}, which answers 400 to the SSO cookies (#1176); add a "
+                                    "RequestHeaderModifier that removes Cookie")
+
+    def rule_cnpg_full_image(self) -> None:
+        rule = "cnpg-full-image"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                key = (self.ns_of(d, e), self.name_of(d))
+                if d.get("kind") != "Cluster" or self.group_of(d) != "postgresql.cnpg.io" \
+                        or key not in CNPG_FULL_IMAGE:
+                    continue
+                self.on(rule)
+                parsed = parse_image(str((d.get("spec") or {}).get("imageName") or ""))
+                if parsed and "minimal" in image_variant(parsed[1]):
+                    self.fail(rule, f"{e['app']}: Cluster {key[0]}/{key[1]} runs a minimal image; its database "
+                                    "locale is not C and the minimal image lacks it "
+                                    "(docs/postmortems/2026-10-15-keycloak-db-image.md)")
+
+    def rule_aws_tag_values(self) -> None:
+        rule = "aws-tag-values"
+        for rel in self.tracked():
+            if not (rel.startswith("bootstrap/") and rel.endswith(".tf")):
+                continue
+            self.on(rule)
+            in_tags = False
+            for n, line in self.lines(rel):
+                if re.match(r"^\s*(tags|default_tags|tags_all)\s*=\s*\{\s*$", line):
+                    in_tags = True
+                    continue
+                if in_tags and re.match(r"^\s*\}", line):
+                    in_tags = False
+                    continue
+                m = re.match(r'^\s*"?[^"=\s]+"?\s*=\s*"(.*)"\s*$', line) if in_tags else None
+                if m and not AWS_TAG_VALUE.match(re.sub(r"\$\{[^}]*\}", "x", m.group(1))):
+                    self.fail(rule, f"{rel}:{n}: tag value has a character IAM rejects (allowed: letters, digits, "
+                                    "spaces and _.:/=+-@; #424, #1363, #1364)")
+
+    def rule_sso_only_login(self) -> None:
+        rule = "sso-only-login"
+        argocd, kps = self.root / ARGOCD_VALUES, self.root / KPS_VALUES
+        if argocd.is_file():
+            self.on(rule)
+            v = (yaml_file_docs(argocd) or [{}])[0]
+            if str(((v.get("configs") or {}).get("cm") or {}).get("admin.enabled")).lower() != "false":
+                self.fail(rule, f"{ARGOCD_VALUES}: configs.cm admin.enabled must be false: the local admin "
+                                "skips Keycloak and its OTP (#348)")
+            if (v.get("dex") or {}).get("enabled") is not False:
+                self.fail(rule, f"{ARGOCD_VALUES}: dex.enabled must be false: Argo CD logs in through Keycloak "
+                                "directly (#1006)")
+        if kps.is_file():
+            self.on(rule)
+            v = (yaml_file_docs(kps) or [{}])[0]
+            auth = (((v.get("grafana") or {}).get("grafana.ini") or {}).get("auth") or {})
+            if auth.get("disable_login_form") is not True:
+                self.fail(rule, f"{KPS_VALUES}: grafana.ini auth.disable_login_form must be true: the password "
+                                "form skips Keycloak and its OTP (#1321)")
+        for e in self.entries():
+            for d in self.docs_of(e):
+                pod = pod_spec_of(d)
+                if pod is None or d.get("kind") != "Deployment":
+                    continue
+                for c in pod.get("containers") or []:
+                    app = str(c.get("name"))
+                    if app not in SERVARR_APPS:
+                        continue
+                    self.on(rule)
+                    env = {str(x.get("name")): x.get("value") for x in c.get("env") or []}
+                    if env.get(f"{app.upper()}__AUTH__METHOD") != "External":
+                        self.fail(rule, f"{e['app']}: Deployment {self.ns_of(d, e)}/{self.name_of(d)} container "
+                                        f"{app} must set {app.upper()}__AUTH__METHOD=External: theater-sso is its "
+                                        "only login (#1181)")
+
+    def rule_router_forwards(self) -> None:
+        rule = "router-forwards"
+        seen: dict[tuple[str, str], dict] = {}
+        for e in self.entries():
+            for d in self.docs_of(e):
+                key = (self.ns_of(d, e), self.name_of(d))
+                if d.get("kind") == "Service" and key in ROUTER_FORWARDS:
+                    seen[key] = d
+        if not seen:
+            return
+        self.on(rule)
+        for (ns, name), ip in sorted(ROUTER_FORWARDS.items()):
+            d = seen.get((ns, name))
+            got = ((d or {}).get("metadata") or {}).get("annotations", {}).get("lbipam.cilium.io/ips")
+            if d is None or (d.get("spec") or {}).get("type") != "LoadBalancer" or got != ip:
+                self.fail(rule, f"Service {ns}/{name} must be a LoadBalancer with lbipam.cilium.io/ips: {ip}, the "
+                                "address the router forwards to (#38)")
+
+    def rule_route_match_unique(self) -> None:
+        rule = "route-match-unique"
+        seen: dict[tuple, str] = {}
+        for e, d in self.http_routes():
+            spec, ns = d.get("spec") or {}, self.ns_of(d, e)
+            self.on(rule)
+            parents = [(p.get("name"), p.get("sectionName")) for p in spec.get("parentRefs") or []]
+            where = f"{e['app']}: HTTPRoute {ns}/{self.name_of(d)}"
+            for i, r in enumerate(spec.get("rules") or []):
+                for m in r.get("matches") or []:
+                    for p in parents:
+                        for h in spec.get("hostnames") or ["*"]:
+                            key = (p, h, json.dumps(m, sort_keys=True))
+                            if key in seen and seen[key] != f"{where} rule {i}":
+                                self.fail(rule, f"{where} rule {i} repeats a match of {seen[key]} on {h}: one of "
+                                                "them never serves, and a reorder can skip the SSO proxy (#1088)")
+                            seen.setdefault(key, f"{where} rule {i}")
+
+    def rule_sso_proxy_unverified_email(self) -> None:
+        rule = "sso-proxy-unverified-email"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") != "ConfigMap":
+                    continue
+                for k, text in ((d.get("data") or {}).items()):
+                    if "oidcConfig:" not in str(text) or "providers:" not in str(text):
+                        continue
+                    self.on(rule)
+                    if not re.search(r"^\s*insecureAllowUnverifiedEmail:\s*true\s*$", str(text), re.M):
+                        self.fail(rule, f"{e['app']}: ConfigMap {self.ns_of(d, e)}/{self.name_of(d)} key {k}: "
+                                        "oauth2-proxy needs insecureAllowUnverifiedEmail: true, Keycloak users have "
+                                        "no verified email (callback 500, #606, #494)")
+
+    def rule_https_redirect_scheme(self) -> None:
+        rule = "https-redirect-scheme"
+        for e, d in self.http_routes():
+            spec = d.get("spec") or {}
+            if not any(p.get("sectionName") == "https" for p in spec.get("parentRefs") or []):
+                continue
+            self.on(rule)
+            for i, r in enumerate(spec.get("rules") or []):
+                for f in r.get("filters") or []:
+                    if f.get("type") == "RequestRedirect" and (f.get("requestRedirect") or {}).get("scheme"):
+                        self.fail(rule, f"{e['app']}: HTTPRoute {self.ns_of(d, e)}/{self.name_of(d)} rule {i}: no "
+                                        "scheme on an https redirect, Cilium never matches it there (404, #1337)")
+
+    def rule_tailscale_ingress_backend(self) -> None:
+        rule = "tailscale-ingress-backend"
+        services: dict[tuple[str, str], dict] = {}
+        ingresses = []
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") == "Service" and d.get("apiVersion") == "v1":
+                    services[(self.ns_of(d, e), self.name_of(d))] = d
+                elif d.get("kind") == "Ingress" and (d.get("spec") or {}).get("ingressClassName") == "tailscale":
+                    ingresses.append((e, d))
+        for e, d in ingresses:
+            self.on(rule)
+            spec, ns = d.get("spec") or {}, self.ns_of(d, e)
+            backends = [spec.get("defaultBackend") or {}] + [
+                p.get("backend") or {} for r in spec.get("rules") or [] for p in (r.get("http") or {}).get("paths") or []]
+            for b in backends:
+                name = (b.get("service") or {}).get("name")
+                svc = services.get((ns, str(name)))
+                if svc and (svc.get("spec") or {}).get("clusterIP") == "None":
+                    self.fail(rule, f"{e['app']}: Ingress {ns}/{self.name_of(d)}: backend {name} is headless; the "
+                                    "Tailscale operator needs a ClusterIP Service (#1328)")
+
+    def rule_bootstrap_tracks_main(self) -> None:
+        rule = "bootstrap-tracks-main"
+        path = self.root / BOOTSTRAP_VARIABLES
+        if not path.is_file():
+            return
+        self.on(rule)
+        body = hcl_block(path.read_text(), r'variable\s+"target_revision"')
+        m = re.search(r'^\s*default\s*=\s*"([^"]*)"', body or "", re.M)
+        if not m or m.group(1) != "main":
+            self.fail(rule, f'{BOOTSTRAP_VARIABLES}: variable "target_revision" must default to "main", the '
+                            "revision every Application tracks (#113)")
+
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
@@ -1526,7 +1785,12 @@ class Policy:
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
-                     self.rule_image_variant, self.rule_image_digest):
+                     self.rule_image_variant, self.rule_image_digest,
+                     self.rule_rwo_rollout, self.rule_container_env_unique, self.rule_cookieless_backends,
+                     self.rule_cnpg_full_image, self.rule_aws_tag_values, self.rule_sso_only_login,
+                     self.rule_router_forwards, self.rule_route_match_unique,
+                     self.rule_sso_proxy_unverified_email, self.rule_https_redirect_scheme,
+                     self.rule_tailscale_ingress_backend, self.rule_bootstrap_tracks_main):
             rule()
         for f in self.fails:
             print(f)
