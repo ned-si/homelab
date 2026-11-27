@@ -31,7 +31,7 @@
 #   disallow-privileged  -> pod-security-vpol/baseline/disallow-privileged-containers
 #   require-resources    -> best-practices-vpol/require-pod-requests-limits
 repo: https://github.com/kyverno/policies
-commit: cbd2d6991976a512014d43817fa64d6c8b98a7d7
+commit: 5d95c8000d8065cb87e1e2ff14985eecb776dc88
 cddb8e735bbb0fac7eb8085c54fbce282ab8aa44446550d082f7734ddee360e9  pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
 5c4d132818f5159ffb55a5b0e98e9501c37151826dd8120bde57df29735100e6  pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
 ba6e6bc99588095ac1442930daf71122f1407dc7796db78943ba568684589562  pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
@@ -48,7 +48,7 @@ de0810c3ac91f1bbda3ff29345a1a9dd906222a47809ed32e93f7123c0baec21  pod-security-v
 5276cb3c4f3d782604334d40cb40e659ee5d9ffefb190b9d52ab880e74bbb3b8  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
 fd22b77d67e01e17e4f0083f605736adce25f4a4486e90879a3350a9e918b0ac  pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
 3d00ca7fe7224a0ce8f24582ece94912722322704eec97509195417f4f7119b0  pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
-ff3381547d52102aae74e8426bc0aa2c9eb11ce473bc2af1380a6b3dcff9caeb  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
+4cea98d228078db8aa2ccaaa899181506dba9cf06df88f00eed720fddba615da  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
 82c6b67c48d5176622d82470f45c8f6626cbcf884438a7b31d154b69a2f71c53  best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
 f383d4237bad7936551cad44d0a9a52dfeb69cc79db8e64b2bdde6c4f4820870  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
 cabf42f219d7c3a8f82a3d4a2515b03a0ecab5957e3f74298071d5c353c30c2b  best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
