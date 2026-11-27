@@ -42,6 +42,8 @@ def cronjob(name="backup", ns="mealie", suspend=True, guard=True, containers=1, 
          "envFrom": [{"secretRef": {"name": "s3-backup"}}],
          "volumeMounts": [{"name": "data", "mountPath": "/data"}]}
     pod = {"containers": [copy.deepcopy(c) for _ in range(containers)], "initContainers": []}
+    for x in pod["containers"]:
+        x["securityContext"] = {"readOnlyRootFilesystem": True}
     if guard:
         g = {"name": "pending-guard", "image": c["image"], "command": ["/bin/sh", "/guard/pending-guard.sh"],
              "env": copy.deepcopy(c["env"]) + ([{"name": "GUARD_MODE", "value": mode}] if mode else []),
@@ -1451,3 +1453,85 @@ def test_bootstrap_tracks_main_113(tmp_path):
     assert len(rule_fails(r, "bootstrap-tracks-main")) == 1
     r = policy(tmp_path / "b", files={"bootstrap/variables.tf": tf.replace('"deployed"', '"main"')})
     assert rule_fails(r, "bootstrap-tracks-main") == []
+
+
+def paperless(env, probe_headers=None):
+    probe = {"httpGet": {"path": "/", "port": 8000, "httpHeaders": probe_headers or []}}
+    return {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "paperless", "namespace": "paperless"},
+            "spec": {"template": {"spec": {"containers": [{"name": "paperless", "env": env, "readinessProbe": probe}]}}}}
+
+
+def test_paperless_env(tmp_path):
+    # #194: no PAPERLESS_SECRET_KEY, sessions signed with Django's default key.
+    # #1466: Paperless 3.5.0 answered 400 to http://paperless:8000 and to the probe's pod IP.
+    url = {"name": "PAPERLESS_URL", "value": "https://archive.example.org"}
+    r = policy(tmp_path, renders=[("paperless", "2+3", "apps", "paperless", [paperless([url])])])
+    got = rule_fails(r, "paperless-env")
+    assert len(got) == 2 and "(#194)" in got[0] and "(#1466)" in got[1]
+    env = [url, {"name": "PAPERLESS_SECRET_KEY", "valueFrom": {"secretKeyRef": {"name": "s", "key": "k"}}},
+           {"name": "PAPERLESS_ALLOWED_HOSTS", "value": "archive.example.org,paperless"}]
+    dep = paperless(env, [{"name": "Host", "value": "localhost"}])
+    assert rule_fails(policy(tmp_path / "b", renders=[("paperless", "2+3", "apps", "paperless", [dep])]),
+                      "paperless-env") == []
+
+
+def test_grafana_admin_secret_980(tmp_path):
+    # #980: the chart's random admin Secret changed on every render; Grafana restarted on every sync.
+    kps = "grafana:\n  admin:\n    userKey: admin-user\n"
+    r = policy(tmp_path, files={"platform/kube-prometheus-stack/values.yaml": kps})
+    assert len(rule_fails(r, "grafana-admin-secret")) == 1
+    r = policy(tmp_path / "b", files={"platform/kube-prometheus-stack/values.yaml": kps + "    existingSecret: grafana-admin\n"})
+    assert rule_fails(r, "grafana-admin-secret") == []
+
+
+def test_argo_stated_defaults(tmp_path):
+    # Fields a webhook defaults kept the app OutOfSync: #64 backendRefs, #267 CNPG plugins,
+    # #319 CNPG externalClusters plugin, #282 Probe prober.path and relabeling action.
+    rt = route("app", "app", [{"backendRefs": [{"name": "app", "port": 80}]}])
+    cl = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "db", "namespace": "app"},
+          "spec": {"plugins": [{"name": "barman-cloud.cloudnative-pg.io", "isWALArchiver": True}],
+                   "externalClusters": [{"name": "origin", "plugin": {"name": "barman-cloud.cloudnative-pg.io"}}]}}
+    pr = {"apiVersion": "monitoring.coreos.com/v1", "kind": "Probe", "metadata": {"name": "p", "namespace": "app"},
+          "spec": {"prober": {"url": "bb:9115"},
+                   "targets": {"staticConfig": {"relabelingConfigs": [{"sourceLabels": ["__param_target"]}]}}}}
+    r = policy(tmp_path, renders=[("app", "2+3", "apps", "app", [rt, cl, pr])])
+    got = rule_fails(r, "argo-stated-defaults")
+    assert [x for x in ("(#64)", "(#267)", "(#319)", "(#282)") if not any(x in f for f in got)] == []
+    rt["spec"]["rules"][0]["backendRefs"][0].update(group="", kind="Service", weight=1)
+    cl["spec"]["plugins"][0]["enabled"] = True
+    cl["spec"]["externalClusters"][0]["plugin"].update(enabled=True, isWALArchiver=False)
+    pr["spec"]["prober"]["path"] = "/probe"
+    pr["spec"]["targets"]["staticConfig"]["relabelingConfigs"][0]["action"] = "replace"
+    r = policy(tmp_path / "b", renders=[("app", "2+3", "apps", "app", [rt, cl, pr])])
+    assert rule_fails(r, "argo-stated-defaults") == []
+
+
+def test_auth_route_timeout_1380(tmp_path):
+    # #1380 (pentest 2026-11-10): the Keycloak route had `request: 0s`, so a client could hold a stream.
+    rule = {"backendRefs": [{"name": "keycloak", "port": 8080}], "timeouts": {"request": "0s"}}
+    r = policy(tmp_path, renders=[("keycloak", "2+3", "platform", "keycloak", [route("keycloak", "keycloak", [rule])])])
+    assert len(rule_fails(r, "auth-route-timeout")) == 1
+    rule["timeouts"]["request"] = "60s"
+    r = policy(tmp_path / "b", renders=[("keycloak", "2+3", "platform", "keycloak", [route("keycloak", "keycloak", [rule])])])
+    assert rule_fails(r, "auth-route-timeout") == []
+
+
+def test_no_lscr_1635(tmp_path):
+    # #1635: lscr.io answered 503 for hours; it only redirects to ghcr.io/linuxserver.
+    line = "      image: lscr.io/linuxserver/lazylibrarian:4e8f22d9-ls405@sha256:" + "e" * 64 + "\n"
+    r = policy(tmp_path, files={"apps/theater/lazylibrarian.yaml": line})
+    assert len(rule_fails(r, "no-lscr")) == 1
+    r = policy(tmp_path / "b", files={"apps/theater/lazylibrarian.yaml": line.replace("lscr.io", "ghcr.io")})
+    assert rule_fails(r, "no-lscr") == []
+
+
+def test_restic_readonly_root_973(tmp_path):
+    # #973: the Paperless backup's restic container had a writable root filesystem (Trivy KSV-0014).
+    cj = cronjob(name="paperless-backup", ns="paperless")
+    cj["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]["securityContext"] = {}
+    r = policy(tmp_path, renders=[("paperless", "2+3", "apps", "paperless", [cj])])
+    assert len(rule_fails(r, "restic-readonly-root")) == 1
+    cj["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]["securityContext"] = {
+        "readOnlyRootFilesystem": True}
+    r = policy(tmp_path / "b", renders=[("paperless", "2+3", "apps", "paperless", [cj])])
+    assert rule_fails(r, "restic-readonly-root") == []
