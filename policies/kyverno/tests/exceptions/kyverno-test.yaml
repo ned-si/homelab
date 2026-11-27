@@ -1,0 +1,39 @@
+# Regression tests of the PolicyExceptions in policies/kyverno/exceptions:
+# each excepted workload is skipped, and a neighbour the exception does not
+# name still fails.
+---
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: exceptions
+policies:
+  - ../../require-probes.yaml
+  - ../../upstream/pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
+exceptions:
+  - ../../exceptions/cert-manager.yaml
+  - ../../exceptions/tetragon.yaml
+resources:
+  - resources.yaml
+results:
+  # #1274: the exception named only the controller; the cainjector was denied.
+  - policy: require-probes
+    isValidatingPolicy: true
+    resources: [cert-manager, cert-manager-cainjector]
+    kind: Deployment
+    result: skip
+  - policy: require-probes
+    isValidatingPolicy: true
+    resources: [cert-manager-other]
+    kind: Deployment
+    result: fail
+  # #907: from chart 1.8 the Tetragon agent runs with capabilities instead of privileged.
+  - policy: disallow-capabilities
+    isValidatingPolicy: true
+    resources: [tetragon]
+    kind: DaemonSet
+    result: skip
+  - policy: disallow-capabilities
+    isValidatingPolicy: true
+    resources: [not-tetragon]
+    kind: DaemonSet
+    result: fail
