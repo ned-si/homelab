@@ -74,7 +74,6 @@ Change specs, active:
 | [merge-through-github-queue](merge-through-github-queue/) | 2026-11-27 | #1832 | task 1: hold the Renovate train while a pull request is in flight |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [public-website](public-website/) | 2026-11-13 | #971 | tasks 11-12: the Home and About text, one layout across the public pages |
-| [site-theme-language](site-theme-language/) | 2026-11-25 | #1662 | task 1: the theme on `nedsi.io` and the blog, after public-website task 12 |
 | [tech-radar](tech-radar/) | 2026-11-25 | #1671 | task 3: the nav link, the landing card and the layout check, after public-website task 12 |
 
 Change specs, done:
@@ -92,6 +91,7 @@ Change specs, done:
 | [pod-security-restricted](pod-security-restricted/) | 2026-11-04 | 2026-11-06 |
 | [scorecard-hardening](scorecard-hardening/) | 2026-10-16 | 2026-10-26 |
 | [self-hosted-jamulus](self-hosted-jamulus/) | 2026-11-25 | 2026-11-25, the DNS record in #1742 |
+| [site-theme-language](site-theme-language/) | 2026-11-25 | 2026-11-27 |
 | [wave3-network-logs](wave3-network-logs/) | 2026-10-16 | 2026-11-02 |
 | [wave3-reliability](wave3-reliability/) | 2026-10-16 | 2026-10-16 |
 | [wave3-runtime-security](wave3-runtime-security/) | 2026-10-17 | 2026-10-27 |

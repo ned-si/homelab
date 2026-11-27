@@ -1,7 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-25
+closed: 2026-11-27
 issue: 1662
 ---
 # Requirements: site-theme-language
