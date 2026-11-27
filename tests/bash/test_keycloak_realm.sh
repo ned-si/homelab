@@ -146,4 +146,14 @@ for g in $( { sed -n 's/^[^#=]*=//p' "$REALM_DIR/access.conf"; sed -n 's/^proxy_
   expect_contains "admin group $g needs OTP (mfa_groups)" " $g " "$mfa"
 done
 
+# #1231: the Keycloak image has no awk, so the Job failed on an awk call.
+# apply.sh calls none of the tools its header says the image lacks.
+expect_eq "apply.sh calls no awk, jq or curl" "" \
+  "$(grep -nE '(^|[|;&(`[:space:]])(awk|jq|curl)([[:space:]]|$)' "$REALM_DIR/apply.sh" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+# #1365: the console's cookie check loads the master realm's frontend URL; on
+# the public host it timed out. It is the admin hostname of the deployment.
+expect_eq "master_frontend_url is KC_HOSTNAME_ADMIN" \
+  "$(grep -A1 'name: KC_HOSTNAME_ADMIN' "$REPO_ROOT/platform/keycloak/deployment.yaml" | sed -n 's/^ *value: *//p')" \
+  "$(sed -n 's/^master_frontend_url=//p' "$REALM_DIR/platform.conf")"
+
 finish
