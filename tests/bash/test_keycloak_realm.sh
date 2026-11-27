@@ -138,4 +138,12 @@ while IFS= read -r c; do
 done < <(sed -n 's/^\([A-Za-z0-9_-]*\)\.redirectUris=.*/\1/p' "$REALM_DIR/clients.conf")
 expect_eq "still no kcadm call" "" "$(cat "$tmp/kcadm.log" 2>/dev/null || true)"
 
+# #1061: ArgoCDAdmins, TheaterAdmins and HomeAssistantAdmins granted admin
+# roles without OTP; every admin group in access.conf or proxy_clients needs it.
+mfa=" $(sed -n 's/^mfa_groups=//p' "$REALM_DIR/platform.conf") "
+for g in $( { sed -n 's/^[^#=]*=//p' "$REALM_DIR/access.conf"; sed -n 's/^proxy_clients=//p' "$REALM_DIR/platform.conf" | tr ' ' '\n' | sed 's/.*://'; } |
+  tr ' ' '\n' | grep -E '^(admins|.*Admins)$' | sort -u); do
+  expect_contains "admin group $g needs OTP (mfa_groups)" " $g " "$mfa"
+done
+
 finish
