@@ -122,12 +122,12 @@ longer instead of widening the grid. The focus outline uses the colour and offse
 
 ## Strings
 
-One new key; four go. The French is a proposal until the operator
-corrects it, and task 1 merges only with his text.
+One new key; four go. The French is the operator's, approved as
+proposed on 2026-11-27.
 
 | Key | English | French |
 | --- | --- | --- |
-| `home.card_alt` (new) | First page of {title} by {artist} | Première page de {title} par {artist} (proposed) |
+| `home.card_alt` (new) | First page of {title} by {artist} | Première page de {title} par {artist} |
 | `home.col_song`, `home.col_artist`, `home.col_pages`, `home.col_pdf` | Removed | Removed |
 
 Reused as they are: `home.songs`, `pages.one`, `pages.other`,
