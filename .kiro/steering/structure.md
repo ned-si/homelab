@@ -13,6 +13,7 @@ inclusion: always
 | `apps/` | Layer 3: one directory per app (manifests and Helm values) |
 | `dashboard/` | The Go module of `homelab-dashboard`, the public dashboard: both roles, tests and golden files, `Dockerfile` |
 | `techradar/` | The tech radar: `entries.yaml` and the Go generator that renders `apps/website/techradar/` |
+| `drumcharts/` | The drum charts site: the pinned data image in `source.yaml` and the Go generator that `site-publish` runs into the `homelab-site` image |
 | `jamulus/` | The Jamulus server image: `Dockerfile` on the upstream signed .deb, the upstream release key, `jamulus-ping` |
 | `*/secrets/` | SOPS-encrypted Secrets for that layer, with a `.example` template each |
 | `components/` | Kustomize Components shared by apps (`postsync-smoke`, `presync-backup`) |

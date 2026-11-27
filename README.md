@@ -76,7 +76,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 - Monitoring: [docs/observability.md](docs/observability.md).
 - The public pages: [docs/website.md](docs/website.md) (layout, themes,
   languages), [docs/homelab-dashboard.md](docs/homelab-dashboard.md),
-  [docs/techradar.md](docs/techradar.md).
+  [docs/techradar.md](docs/techradar.md), [docs/drum-charts.md](docs/drum-charts.md).
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
 - Contributing, issues and pull requests: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Governance, conduct and security reports: [GOVERNANCE.md](GOVERNANCE.md),
@@ -110,6 +110,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Headlamp | Read-only Kubernetes web UI | `headlamp` | `headlamp` | Yes (group `admins`) |
 | Homelab dashboard | Public availability, cluster and project figures ([docs/homelab-dashboard.md](docs/homelab-dashboard.md)) | `homelab-dashboard` | `homelab.nedsi.io` | No (public, read-only) |
 | Tech radar | What the homelab uses, tries, assesses and holds, and why ([docs/techradar.md](docs/techradar.md)) | `website` | `techradar.nedsi.io` | No (public, static) |
+| Drum charts | The drum charts of `ned-si/drum-charts`, to read or download as PDF ([docs/drum-charts.md](docs/drum-charts.md)) | `website` | `charts.nedsi.io` | No (public, static) |
 
 Hostnames are prefixes of `lilalala.com` unless written in full. Plex and
 Jellyfin stay off SSO so their TV apps can sign in.
@@ -193,6 +194,7 @@ The project is two repositories, both active:
 | [`talos/`](talos) | talhelper config for the Talos nodes (machine configs, Image Factory schematic, patches); [docs/talos.md](docs/talos.md) |
 | [`ci/`](ci) | Helm CLI release list, vendored CRD schemas, pinned CI Python requirements |
 | [`techradar/`](techradar) | The tech radar's entries and Go generator; the page it renders is in `apps/website/techradar/` ([docs/techradar.md](docs/techradar.md)) |
+| [`drumcharts/`](drumcharts) | The Go generator of `charts.nedsi.io` and the pin of its data, `source.yaml`; `site-publish` renders it into the `homelab-site` image ([docs/drum-charts.md](docs/drum-charts.md)) |
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |
 | [`tests/`](tests) | pytest and bash tests for the scripts |
 | [`docs/`](docs) | Architecture, networking, bootstrap, backups, secrets, observability, decisions, runbooks, [roadmap](docs/roadmap.md) |

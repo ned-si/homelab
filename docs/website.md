@@ -3,8 +3,11 @@
 The public pages: the landing page at `https://nedsi.io/`
 (`apps/website/landing/`, a ConfigMap), the blog at `https://blog.nedsi.io/`
 (`site/`, Hugo, in the `homelab-site` image), the dashboard at
-`https://homelab.nedsi.io/` (`dashboard/`, [homelab-dashboard.md](homelab-dashboard.md))
-and the tech radar at `https://techradar.nedsi.io/` ([techradar.md](techradar.md)).
+`https://homelab.nedsi.io/` (`dashboard/`, [homelab-dashboard.md](homelab-dashboard.md)),
+the tech radar at `https://techradar.nedsi.io/` ([techradar.md](techradar.md))
+and the drum charts at `https://charts.nedsi.io/` (rendered by the Go
+generator in `drumcharts/` into the `homelab-site` image,
+[drum-charts.md](drum-charts.md)).
 Every page comes in a dark and a light theme and in English and French.
 The specs are [.kiro/specs/public-website/](../.kiro/specs/public-website/)
 and [.kiro/specs/site-theme-language/](../.kiro/specs/site-theme-language/).
@@ -48,8 +51,8 @@ Rules:
   Locally: `CHROME=<a Chrome binary> scripts/ci/layout-check.sh <dir>` after
   `SITE_OUT=<dir> scripts/ci/site-check.sh --all`.
 
-A layout change reaches the blog and the dashboard with their next image
-deploys (digest bumps of `homelab-site` and `homelab-dashboard`); the
+A layout change reaches the blog, the drum charts and the dashboard with
+their next image deploys (digest bumps of `homelab-site` and `homelab-dashboard`); the
 landing page and the tech radar are live with the merge.
 
 ## Theme
@@ -72,7 +75,7 @@ the pages keep their caching.
 
 | Host | `/theme.css` and `/set-theme/` |
 | --- | --- |
-| `nedsi.io`, `blog.nedsi.io`, `techradar.nedsi.io` | nginx: the maps `$theme`, `$theme_click` and `$theme_cookie` in `apps/website/nginx.conf`, the locations in `apps/website/theme.conf` (a key of ConfigMap `website-nginx`), included by each server block |
+| `nedsi.io`, `blog.nedsi.io`, `techradar.nedsi.io`, `charts.nedsi.io` | nginx: the maps `$theme`, `$theme_click` and `$theme_cookie` in `apps/website/nginx.conf`, the locations in `apps/website/theme.conf` (a key of ConfigMap `website-nginx`), included by each server block |
 | `homelab.nedsi.io` | Go: `route` and `setTheme` in `dashboard/internal/web/public.go`, over the embedded palette copies |
 
 The cookie is `theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000;

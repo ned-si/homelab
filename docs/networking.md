@@ -153,8 +153,9 @@ The public sites have their own listeners on the same Gateway, one pair
 | `blog.nedsi.io` | `website/website`, nginx, the Hugo blog | `nedsi-io-tls` | `/homelab`, `/homelab/<path>`: `301` to `https://homelab.nedsi.io/<path>` |
 | `homelab.nedsi.io` | `homelab-dashboard/homelab-dashboard`, the web role ([homelab-dashboard.md](homelab-dashboard.md)) | `homelab-nedsi-io-tls` | - |
 | `techradar.nedsi.io` | `website/website`, nginx, the tech radar ([techradar.md](techradar.md)) | `techradar-nedsi-io-tls` | - |
+| `charts.nedsi.io` | `website/website`, nginx, the drum charts ([drum-charts.md](drum-charts.md)) | `charts-nedsi-io-tls` | - |
 
-Plain HTTP on all five goes to the `website-http` route, nginx port 8081,
+Plain HTTP on all six goes to the `website-http` route, nginx port 8081,
 which answers `301` to `https://<name>/<path>` (`www` folds into the apex).
 The redirects live in `apps/website/nginx.conf`, not on the Gateway, because
 Cilium writes `:443` into a `RequestRedirect`'s `Location`.
