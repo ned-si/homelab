@@ -1488,7 +1488,8 @@ def test_argo_stated_defaults(tmp_path):
     # Fields a webhook defaults kept the app OutOfSync: #64 backendRefs, #267 CNPG plugins,
     # #319 CNPG externalClusters plugin, #282 Probe prober.path and relabeling action.
     rt = route("app", "app", [{"backendRefs": [{"name": "app", "port": 80}]}])
-    cl = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "db", "namespace": "app"},
+    # immich-db has no exemption (#1845).
+    cl = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "immich-db", "namespace": "immich"},
           "spec": {"plugins": [{"name": "barman-cloud.cloudnative-pg.io", "isWALArchiver": True}],
                    "externalClusters": [{"name": "origin", "plugin": {"name": "barman-cloud.cloudnative-pg.io"}}]}}
     pr = {"apiVersion": "monitoring.coreos.com/v1", "kind": "Probe", "metadata": {"name": "p", "namespace": "app"},

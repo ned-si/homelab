@@ -390,8 +390,6 @@ ROUTER_FORWARDS = {("theater", "qbittorrent-seed"): "192.168.1.200",
                    ("syncthing", "syncthing-protocol"): "192.168.1.201"}
 BOOTSTRAP_VARIABLES = "bootstrap/variables.tf"
 KEYCLOAK_SERVICE = ("keycloak", "keycloak")
-# immich-db changes only through a spec with a fresh backup (#1845).
-STATED_DEFAULTS_EXEMPT = {("immich", "immich-db")}
 
 
 class Policy:
@@ -1838,8 +1836,6 @@ class Policy:
                             self.fail(rule, f"{where}: plugin {p.get('name')} must state enabled (#267)")
                     for x in spec.get("externalClusters") or []:
                         p = x.get("plugin")
-                        if (self.ns_of(d, e), self.name_of(d)) in STATED_DEFAULTS_EXEMPT:
-                            continue
                         if p is not None and not {"enabled", "isWALArchiver"} <= set(p):
                             self.fail(rule, f"{where}: externalClusters {x.get('name')} plugin must state enabled "
                                             "and isWALArchiver (#319)")
