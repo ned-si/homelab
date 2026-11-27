@@ -74,8 +74,9 @@ that song only, so each song has its own history.
    after this change publishes every chart once, since none has a song
    release yet.
 3. A SONG release SHALL hold `<slug>.pdf` and `<slug>.mp3` of one build
-   (the legend: `legend.pdf`), point its tag at the version commit and be
-   titled with its tag. It SHALL become public only once every asset is
+   (the legend: `legend.pdf`), point its tag at the head of `main` that
+   published it, name the version commit in its notes and be titled with
+   its tag ([design, The tag's commit](design.md#the-tags-commit)). It SHALL become public only once every asset is
    uploaded.
 4. A RUN that is not for the head of `main` (an older commit finishing
    last, a rerun of an older run) SHALL publish nothing: no release, no
