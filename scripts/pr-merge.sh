@@ -1,93 +1,51 @@
 #!/bin/bash
 # pr-merge.sh [--dry-run] [--ff] <pr-number>
 #
-# The only way code lands on `main`. It refuses (exit 2, one line per failed
-# guard) unless every guard holds:
+# Merges a pull request through GitHub auto-merge. It refuses (exit 2) a
+# closed, draft or non-main pull request, a set or unreadable MERGE_FREEZE
+# (unless its value ends with "(allow #<n>)" for this pull request) and a `ci`
+# that completed without success. Then, inside the merge lock
+# (scripts/lib/merge_lock.sh), it waits while an auto-rollback revert younger
+# than PR_MERGE_REVERT_STALE_MIN is open, rebases the branch locally when it is
+# behind main (signed with the operator's key; never update-branch), turns on
+# `gh pr merge --auto --squash --match-head-commit` and polls until GitHub has
+# merged it. GitHub is read only through `gh api --jq`, every value validated.
+# Why it works this way: docs/decisions.md#squash-merge.
 #
-#   checks         every required check reports SUCCESS for the PR head SHA
-#   title          the PR title passes scripts/ci/check-title.sh
-#   subjects       every commit subject passes scripts/ci/check-title.sh
-#   verified       every commit is signed and verified by GitHub
-#   up-to-date     origin/main is an ancestor of the PR head
-#   mergeable      the PR is open, not a draft, targets main, and is MERGEABLE
-#   merge-freeze   gh_var_state MERGE_FREEZE prints `absent`; `present` prints
-#                  the variable's value as the reason, `error` refuses with
-#                  "variables API unavailable" (fail closed)
-#   ff-protected   (--ff only) main has no branch protection (HTTP 200 on the
-#                  protection endpoint refuses; 403/404 = none)
+# --dry-run prints "would merge (squash) PR #<n> at <sha>" and changes nothing.
+# --ff always refuses: main is protected.
 #
-# Then it squash-merges (`gh pr merge --squash --delete-branch
-# --match-head-commit <sha>`), or with --ff pushes the verified head SHA to main
-# as a fast-forward. --dry-run prints "would merge (<mode>) PR #<n> at <sha>"
-# and changes nothing.
-# Merge lock (not with --dry-run). `main` requires a strict, up-to-date `ci`
-# and runs on this Mac merge from different worktrees, so merges are
-# serialised:
-#   1. Every guard runs once without the lock. Any refusal other than
-#      up-to-date exits 2 at once; a pending `ci` is waited for.
-#   2. It takes a ticket in the FIFO queue
-#      `$(git rev-parse --git-common-dir)/pr-merge.queue/` (one file per
-#      waiter, numbered from the `seq` counter, which only grows), then the
-#      lock `pr-merge.lock` next to it (an atomic mkdir; `owner` records pid,
-#      PR, branch and start time). Only the oldest ticket may take the lock,
-#      so runs merge in the order they queued. A waiter refreshes its ticket
-#      every poll, logs the holder and its place at most once a minute and
-#      gives up 60 min after it took its ticket (exit 1). A ticket is
-#      removed when its pid is gone or it was not refreshed for 30 min. A
-#      lock is broken when its owner pid is gone or its owner file was not
-#      refreshed for 30 min (the holder refreshes it while it waits for
-#      `ci`). EXIT, INT and TERM drop the ticket and release the lock.
-#   3. Inside the lock it re-runs every guard. If the head does not contain
-#      origin/main, it rebases the head locally onto origin/main in a
-#      throwaway worktree, pushes it with --force-with-lease (only a branch of
-#      this repository authored by the gh user; never update-branch) and
-#      waits for `ci` on the new head. Then it merges. If main moved again
-#      (Renovate), it starts over inside the same lock, at most 3 times.
-#   4. While it holds the lock it pauses the Renovate train: it sets the
-#      repository variable RENOVATE_TRAIN_PAUSED to "<pr> <utc time>",
-#      re-sets it every 10 min, deletes it before it releases the lock, and
-#      starts the renovate-next workflow after each change.
-#      scripts/ci/renovate-next.sh then ticks nothing; it cannot turn GitHub
-#      auto-merge off (#960), so a Renovate pull request rebased just before
-#      the pause can still merge, and step 3 starts over. A pause older than
-#      90 min is ignored.
-#
-# Exit codes: 0 merged / would merge, 2 refused, 1 operational error (lock or
-# ci wait timed out, main kept moving), 64 usage.
-# Environment: GH_VAR_REPO / PR_MERGE_REPO (default ned-si/homelab),
-# PR_MERGE_REMOTE (default origin), PR_MERGE_POLL (seconds between polls, 30),
-# PR_MERGE_LOCK_WAIT (seconds, 3600), PR_MERGE_LOCK_STALE_MIN (minutes, 30),
-# PR_MERGE_CI_TIMEOUT (seconds, 2700), PR_MERGE_PAUSE_REFRESH (seconds, 600).
+# Exit codes: 0 merged / would merge, 2 refused, 1 operational error, 64 usage.
+# Environment (defaults): PR_MERGE_REPO / GH_VAR_REPO (ned-si/homelab),
+# PR_MERGE_REMOTE (origin), PR_MERGE_POLL (30 s), PR_MERGE_LOCK_WAIT (3600 s),
+# PR_MERGE_LOCK_STALE_MIN (30), PR_MERGE_CI_TIMEOUT (2700 s),
+# PR_MERGE_READ_RETRIES (5), PR_MERGE_REVERT_STALE_MIN (70) and
+# PR_MERGE_NOW_EPOCH (tests only).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/gh_var.sh
 . "$HERE/lib/gh_var.sh"
-CHECK_TITLE="$HERE/ci/check-title.sh"
+# shellcheck source=scripts/lib/merge_lock.sh
+. "$HERE/lib/merge_lock.sh"
+export GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1
 
-REPO=${PR_MERGE_REPO:-${GH_VAR_REPO:-ned-si/homelab}}
-export GH_VAR_REPO=$REPO
-REMOTE=${PR_MERGE_REMOTE:-origin}
-# ci.yaml's aggregate `ci` job needs every other job and fails if any of them
-# failed or did not run.
-REQUIRED_CHECKS="ci"
-POLL=${PR_MERGE_POLL:-30}
-LOCK_WAIT=${PR_MERGE_LOCK_WAIT:-3600}
-LOCK_STALE_MIN=${PR_MERGE_LOCK_STALE_MIN:-30}
-CI_TIMEOUT=${PR_MERGE_CI_TIMEOUT:-2700}
-PAUSE_REFRESH=${PR_MERGE_PAUSE_REFRESH:-600}
-PAUSE_VAR=RENOVATE_TRAIN_PAUSED
-MAX_RETRIES=3
+usage() { echo "usage: $0 [--dry-run] [--ff] <pr-number>" >&2; exit 64; }
+knob() { # <name> <value> <min> [max]: exit 64 unless an integer in range
+  if ! [[ "$2" =~ ^[0-9]{1,12}$ ]] || [ "$((10#$2))" -lt "$3" ] \
+     || { [ -n "${4:-}" ] && [ "$((10#$2))" -gt "$4" ]; }; then
+    echo "pr-merge: $1 must be an integer >= $3${4:+ and <= $4}, not '$2'" >&2
+    usage
+  fi
+}
 
 dry_run=0
-mode=squash
+ff=0
 pr=""
-usage() { echo "usage: $0 [--dry-run] [--ff] <pr-number>" >&2; exit 64; }
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) dry_run=1 ;;
-    --ff) mode=ff ;;
-    -h|--help) usage ;;
+    --ff) ff=1 ;;
     -*) usage ;;
     *) [ -z "$pr" ] || usage; pr=$1 ;;
   esac
@@ -95,21 +53,49 @@ while [ "$#" -gt 0 ]; do
 done
 [[ "$pr" =~ ^[0-9]+$ ]] || usage
 
+RE_REPO='^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'
+RE_REF='^[A-Za-z0-9._/-]+$'
+RE_SHA='^[0-9a-f]{40}$'
+RE_LOGIN='^[A-Za-z0-9-]+(\[bot\])?$'
+RE_TIME='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+RE_ALLOW='\(allow #([0-9]+)\)$'
+
+REPO=${PR_MERGE_REPO:-${GH_VAR_REPO:-ned-si/homelab}}
+[[ "$REPO" =~ $RE_REPO ]] || { echo "pr-merge: PR_MERGE_REPO must be owner/name, not '$REPO'" >&2; usage; }
+export GH_VAR_REPO=$REPO
+REMOTE=${PR_MERGE_REMOTE:-origin}
+POLL=${PR_MERGE_POLL:-30}
+LOCK_WAIT=${PR_MERGE_LOCK_WAIT:-3600}
+LOCK_STALE_MIN=${PR_MERGE_LOCK_STALE_MIN:-30}
+CI_TIMEOUT=${PR_MERGE_CI_TIMEOUT:-2700}
+READ_RETRIES=${PR_MERGE_READ_RETRIES:-5}
+REVERT_STALE_MIN=${PR_MERGE_REVERT_STALE_MIN:-70}
+knob PR_MERGE_POLL "$POLL" 0 600
+knob PR_MERGE_LOCK_WAIT "$LOCK_WAIT" 0
+knob PR_MERGE_LOCK_STALE_MIN "$LOCK_STALE_MIN" 1
+knob PR_MERGE_CI_TIMEOUT "$CI_TIMEOUT" 0
+knob PR_MERGE_READ_RETRIES "$READ_RETRIES" 1
+knob PR_MERGE_REVERT_STALE_MIN "$REVERT_STALE_MIN" 1
+[ -z "${PR_MERGE_NOW_EPOCH:-}" ] || knob PR_MERGE_NOW_EPOCH "$PR_MERGE_NOW_EPOCH" 0
+MAX_RETRIES=3
+
 refusals=0
-behind=0
-pending=0
 refuse() { # guard reason
   echo "refused: $1: $2"
   refusals=$((refusals + 1))
 }
-log() { echo "pr-merge: $*"; }
-now() { date +%s; }
-
-status_of() { # <gh api --include output> -> status or empty
-  local first
-  first=$(printf '%s\n' "$1" | head -n 1 | tr -d '\r')
-  if [[ "$first" =~ ^HTTP/[0-9.]+\ ([0-9]{3}) ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
+refused_exit() {
+  log "REFUSED PR #$pr ($refusals guard failure(s)); nothing merged"
+  exit 2
 }
+log() { echo "pr-merge: $*"; }
+fail() { echo "pr-merge: $*" >&2; exit 1; }
+now() { date +%s; }
+epoch_now() { if [ -n "${PR_MERGE_NOW_EPOCH:-}" ]; then echo "$PR_MERGE_NOW_EPOCH"; else date +%s; fi; }
+
+if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
+  fail "PR_MERGE_REMOTE '$REMOTE' is not a git remote here"
+fi
 
 # --- cleanup ------------------------------------------------------------------
 LOCK_DIR=""
@@ -118,6 +104,8 @@ QUEUE_DIR=""
 ticket=""
 rebase_wt=""
 nap_pid=""
+errlog=$(mktemp "${TMPDIR:-/tmp}/pr-merge-err.XXXXXX")
+rebase_log=$(mktemp "${TMPDIR:-/tmp}/pr-merge-rebase-err.XXXXXX")
 nap() { # seconds; interruptible by INT/TERM
   sleep "$1" &
   nap_pid=$!
@@ -132,6 +120,7 @@ cleanup() {
     git worktree prune >/dev/null 2>&1 || true
     rebase_wt=""
   fi
+  rm -f "$errlog" "$rebase_log"
   ticket_drop
   lock_release
 }
@@ -139,477 +128,386 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# --- Renovate train pause ---------------------------------------------------------
-paused=0
-paused_at=0
-train_kick() {
-  gh workflow run renovate-next.yaml --repo "$REPO" >/dev/null 2>&1 \
-    || log "warning: cannot start the renovate-next workflow"
+# --- reading GitHub -------------------------------------------------------------
+# stdout is the value, stderr goes to $errlog (this call only); `why` is its
+# last line that is not part of a gh hint (#1793).
+out=""
+rc=0
+why=""
+gh_err() {
+  why=$({ grep -v -e '^hint:' -e '^[[:space:]]' "$errlog" || true; } | tail -n 1 | cut -c1-200)
 }
-train_pause() {
-  if gh variable set "$PAUSE_VAR" --repo "$REPO" \
-       --body "$pr $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1; then
-    paused_at=$(now)
-    if [ "$paused" = 0 ]; then
-      paused=1
-      log "paused the Renovate train ($PAUSE_VAR)"
-      train_kick
-    fi
-  else
-    log "warning: cannot set $PAUSE_VAR; the Renovate train is not paused"
-  fi
+api() { # <route> <jq>
+  : > "$errlog"
+  rc=0
+  out=$(gh api "$1" --jq "$2" 2>"$errlog") || rc=$?
+  gh_err
+  [ -n "$why" ] || why="gh exited $rc"
 }
-train_resume() {
-  [ "$paused" = 1 ] || return 0
-  paused=0
-  if gh variable delete "$PAUSE_VAR" --repo "$REPO" >/dev/null 2>&1; then
-    log "resumed the Renovate train"
-  else
-    log "warning: cannot delete $PAUSE_VAR; the train ignores it after 90 min"
-  fi
-  train_kick
-}
-
-# --- merge lock -----------------------------------------------------------------
-owner_field() { # name -> value from the lock's owner file
-  sed -n "s/^$1=//p" "$LOCK_DIR/owner" 2>/dev/null | head -n 1
-}
-lock_holder() {
-  if [ -f "$LOCK_DIR/owner" ]; then
-    printf 'PR #%s (%s, pid %s, since %s)' "$(owner_field pr)" "$(owner_field branch)" \
-      "$(owner_field pid)" "$(owner_field started)"
-  else
-    printf 'an unknown holder'
-  fi
-}
-stale_reason=""
-lock_stale() { # 0 when the current lock may be broken
-  local pid
-  if [ ! -f "$LOCK_DIR/owner" ]; then
-    # mkdir and the owner write are microseconds apart: only an old dir is stale.
-    if [ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
-      stale_reason="it has no owner file"
-      return 0
-    fi
-    return 1
-  fi
-  pid=$(owner_field pid)
-  if ! [[ "$pid" =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
-    stale_reason="pid ${pid:-?} is gone"
-    return 0
-  fi
-  if [ -n "$(find "$LOCK_DIR/owner" -mmin +"$LOCK_STALE_MIN" 2>/dev/null)" ]; then
-    stale_reason="not refreshed for over $LOCK_STALE_MIN min"
-    return 0
-  fi
+read_what=""
+read_why=""
+unreadable() { # <what>: a read error
+  read_what=$1
+  if [ "$rc" != 0 ]; then read_why=$why; else read_why="unexpected value '${out:0:80}'"; fi
   return 1
 }
-lock_try_break() {
-  # A second mkdir lock makes check-and-remove atomic between waiters.
-  local brk="$LOCK_DIR.break"
-  if [ -n "$(find "$brk" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rmdir "$brk" 2>/dev/null || true; fi
-  mkdir "$brk" 2>/dev/null || return 0
-  if lock_stale; then
-    log "breaking the merge lock held by $(lock_holder): $stale_reason"
-    rm -rf "$LOCK_DIR"
-  fi
-  rmdir "$brk" 2>/dev/null || true
-}
-# --- merge queue ------------------------------------------------------------------
-# Ticket names are the counter value, zero-padded, so a sorted glob is the
-# queue order.
-TICKET_GLOB='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
-ticket_branch=""
-ticket_started=""
-ahead=0
-ahead_pr=""
-ticket_field() { # file name -> value
-  sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n 1
-}
-ticket_write() {
-  local tmp="$QUEUE_DIR/.$ticket.$$"
-  mkdir -p "$QUEUE_DIR"
-  printf 'pid=%s\npr=%s\nbranch=%s\nticket=%s\n' "$$" "$pr" "$ticket_branch" \
-    "$ticket_started" > "$tmp"
-  mv -f "$tmp" "$QUEUE_DIR/$ticket"
-}
-ticket_take() { # branch
-  local mutex="$QUEUE_DIR/seq.lock" n t last
-  mkdir -p "$QUEUE_DIR"
-  # The counter is read and bumped under a short mkdir mutex.
-  while ! mkdir "$mutex" 2>/dev/null; do
-    if [ -n "$(find "$mutex" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
-      rmdir "$mutex" 2>/dev/null || true
-    else
-      sleep 0.2
-    fi
-  done
-  n=$(cat "$QUEUE_DIR/seq" 2>/dev/null || true)
-  [[ "$n" =~ ^[0-9]+$ ]] || n=0
-  n=$((10#$n))
-  # Never below a ticket still queued, even if `seq` was lost.
-  last=""
-  for t in "$QUEUE_DIR"/$TICKET_GLOB; do [ -f "$t" ] && last=$(basename "$t"); done
-  if [ -n "$last" ] && [ $((10#$last)) -gt "$n" ]; then n=$((10#$last)); fi
-  n=$((n + 1))
-  echo "$n" > "$QUEUE_DIR/seq"
-  ticket=$(printf '%010d' "$n")
-  ticket_branch=$1
-  ticket_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  ticket_write
-  rmdir "$mutex" 2>/dev/null || true
-}
-ticket_refresh() {
-  if [ -f "$QUEUE_DIR/$ticket" ]; then
-    touch "$QUEUE_DIR/$ticket" 2>/dev/null || true
-  else
-    log "ticket $ticket was removed from the queue; restoring it"
-    ticket_write
-  fi
-}
-ticket_drop() {
-  if [ -n "$ticket" ]; then
-    rm -f "$QUEUE_DIR/$ticket"
-    ticket=""
-  fi
-}
-queue_clean() { # removes the stale tickets of other runs
-  local t name pid reason
-  for t in "$QUEUE_DIR"/$TICKET_GLOB; do
-    [ -f "$t" ] || continue
-    name=$(basename "$t")
-    [ "$name" != "$ticket" ] || continue
-    pid=$(ticket_field "$t" pid)
-    reason=""
-    if ! [[ "$pid" =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
-      reason="pid ${pid:-?} is gone"
-    elif [ -n "$(find "$t" -mmin +"$LOCK_STALE_MIN" 2>/dev/null)" ]; then
-      reason="not refreshed for over $LOCK_STALE_MIN min"
-    fi
-    if [ -n "$reason" ]; then
-      log "removing the stale ticket $name of PR #$(ticket_field "$t" pr) ($(ticket_field "$t" branch)): $reason"
-      rm -f "$t"
-    fi
-  done
-}
-queue_scan() { # sets ahead (tickets before ours) and ahead_pr (the oldest one's PR)
-  local t
-  ahead=0
-  ahead_pr=""
-  for t in "$QUEUE_DIR"/$TICKET_GLOB; do
-    [ -f "$t" ] || continue
-    [[ "$(basename "$t")" < "$ticket" ]] || break
-    [ "$ahead" -gt 0 ] || ahead_pr=$(ticket_field "$t" pr)
-    ahead=$((ahead + 1))
-  done
-}
-queue_status() {
-  local held="not held"
-  [ ! -d "$LOCK_DIR" ] || held="held by $(lock_holder)"
-  printf '%s; ticket %s, %s ahead' "$held" "$ticket" "$ahead"
-  [ "$ahead" -eq 0 ] || printf ' (next PR #%s)' "${ahead_pr:-?}"
-}
-
-lock_acquire() { # branch
-  local common start t last_log=0
-  if ! common=$(git rev-parse --git-common-dir 2>/dev/null); then
-    echo "pr-merge: run from inside the repository (the merge lock lives in its git dir)" >&2
-    exit 1
-  fi
-  common=$(cd "$common" && pwd)
-  LOCK_DIR="$common/pr-merge.lock"
-  QUEUE_DIR="$common/pr-merge.queue"
-  ticket_take "$1"
-  # The wait counts from the ticket.
-  start=$(now)
-  log "took ticket $ticket in the merge queue $QUEUE_DIR"
+got() { [ "$rc" = 0 ] && [ -n "$out" ] && [[ "$out" != *$'\n'* ]]; } # one value read
+read_errors=0
+reader() { # <read function> [args]: a read error is retried, READ_RETRIES in a row
   while :; do
-    ticket_refresh
-    queue_clean
-    queue_scan
-    if [ "$ahead" -eq 0 ] && mkdir "$LOCK_DIR" 2>/dev/null; then
-      lock_held=1
-      printf 'pid=%s\npr=%s\nbranch=%s\nstarted=%s\n' "$$" "$pr" "$1" \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$LOCK_DIR/owner"
-      ticket_drop
-      log "took the merge lock $LOCK_DIR"
-      train_pause
+    if "$@"; then
+      read_errors=0
       return 0
     fi
-    if [ -d "$LOCK_DIR" ] && lock_stale; then
-      lock_try_break
-      [ -d "$LOCK_DIR" ] || continue
+    read_errors=$((read_errors + 1))
+    if [ "$read_errors" -ge "$READ_RETRIES" ]; then
+      fail "cannot read $read_what: $read_why"
     fi
-    t=$(now)
-    if [ $((t - start)) -ge "$LOCK_WAIT" ]; then
-      echo "pr-merge: gave up after $(( (t - start) / 60 )) min waiting for the merge lock, $(queue_status); nothing merged" >&2
-      exit 1
-    fi
-    if [ $((t - last_log)) -ge 60 ]; then
-      log "waiting for the merge lock, $(queue_status); waited $(( (t - start) / 60 )) min"
-      last_log=$t
-    fi
+    log "read error $read_errors/$READ_RETRIES: $read_what: $read_why; retrying"
     nap "$POLL"
   done
 }
-lock_refresh() {
-  if [ "$lock_held" = 1 ]; then
-    touch "$LOCK_DIR/owner" 2>/dev/null || true
-    if [ "$paused" = 1 ] && [ $(( $(now) - paused_at )) -ge "$PAUSE_REFRESH" ]; then train_pause; fi
-  fi
-}
-lock_release() {
-  if [ "$lock_held" = 1 ]; then
-    # Never remove a lock (or the pause) another run took after breaking ours.
-    # The pause goes first, so the next holder's pause is not deleted.
-    if [ "$(owner_field pid)" = "$$" ]; then
-      train_resume
-      rm -rf "$LOCK_DIR"
-      log "released the merge lock"
-    fi
-    lock_held=0
+
+read_pr() { # sets pr_state pr_merged pr_draft pr_base pr_ref pr_head pr_repo pr_user pr_am pr_merge_sha
+  local rest
+  api "repos/$REPO/pulls/$pr" '[.state, (.merged | tostring), (.draft | tostring), .base.ref, .head.ref, .head.sha,
+    (.head.repo.full_name // "-"), .user.login, (if .auto_merge == null then "off" else "on" end),
+    (.merge_commit_sha // "-")] | map(if . == null or . == "" then "-" else . end) | @tsv'
+  got || { unreadable "PR #$pr"; return 1; }
+  IFS=$'\t' read -r pr_state pr_merged pr_draft pr_base pr_ref pr_head pr_repo pr_user pr_am pr_merge_sha rest <<<"$out"
+  if [ -n "$rest" ] \
+     || ! [[ "$pr_state" =~ ^(open|closed)$ ]] || ! [[ "$pr_merged" =~ ^(true|false)$ ]] \
+     || ! [[ "$pr_draft" =~ ^(true|false)$ ]] || ! [[ "$pr_base" =~ $RE_REF ]] \
+     || ! [[ "$pr_ref" =~ $RE_REF ]] || ! [[ "$pr_head" =~ $RE_SHA ]] \
+     || { [ "$pr_repo" != - ] && ! [[ "$pr_repo" =~ $RE_REPO ]]; } \
+     || ! [[ "$pr_user" =~ $RE_LOGIN ]] || ! [[ "$pr_am" =~ ^(on|off)$ ]] \
+     || { [ "$pr_merged" = true ] && ! [[ "$pr_merge_sha" =~ $RE_SHA ]]; }; then
+    unreadable "PR #$pr"
+    return 1
   fi
 }
 
-# --- PR metadata ------------------------------------------------------------
-load_pr() {
-  local tries=0
-  while :; do
-    # stderr stays out of the JSON: gh prints hints there (gh 2.105, #1480).
-    if ! view=$(gh pr view "$pr" --repo "$REPO" \
-          --json number,title,state,isDraft,baseRefName,headRefName,headRefOid,mergeable,isCrossRepository,author); then
-      echo "pr-merge: cannot read PR #$pr" >&2
-      exit 1
-    fi
-    # GitHub computes mergeability lazily after a push.
-    if [ "$dry_run" -eq 1 ] || [ "$tries" -ge 5 ] \
-       || [ "$(jq -r '.mergeable' <<<"$view")" != "UNKNOWN" ]; then
-      break
-    fi
-    tries=$((tries + 1))
-    nap 3
-  done
-  title=$(jq -r '.title' <<<"$view")
-  head=$(jq -r '.headRefOid' <<<"$view")
-  branch=$(jq -r '.headRefName' <<<"$view")
-  log "PR #$pr ($mode) head $head: $title"
-  [[ "$head" =~ ^[0-9a-f]{40}$ ]] || { echo "pr-merge: bad head SHA" >&2; exit 1; }
+ci="" # missing, pending, or a conclusion
+ci_state() { # <sha>: pending from the workflow run, the conclusion from the check run
+  local st concl rest
+  api "repos/$REPO/actions/workflows/ci.yaml/runs?head_sha=$1&event=pull_request&per_page=1" \
+    '.workflow_runs[0] | if . == null then "missing" else "\(.status)\t\(.conclusion // "-")" end'
+  got || { unreadable "the ci workflow run on ${1:0:7}"; return 1; }
+  if [ "$out" = missing ]; then ci=missing; return 0; fi
+  IFS=$'\t' read -r st concl rest <<<"$out"
+  [ -z "$rest" ] || { unreadable "the ci workflow run on ${1:0:7}"; return 1; }
+  case "$st" in
+    queued | in_progress | waiting | requested | pending) ci=pending; return 0 ;;
+    completed) ;;
+    *) unreadable "the ci workflow run on ${1:0:7}"; return 1 ;;
+  esac
+  api "repos/$REPO/commits/$1/check-runs?check_name=ci&per_page=100" \
+    '[.check_runs[]? | select(.name == "ci")] | sort_by(.started_at // "") | last
+     | if . == null then "none" elif .status != "completed" then "pending" else (.conclusion // "-") end'
+  got || { unreadable "the ci check run on ${1:0:7}"; return 1; }
+  [ "$out" != none ] || out=$concl
+  case "$out" in
+    pending | success | failure | cancelled | timed_out | action_required | neutral | skipped | stale | startup_failure)
+      ci=$out ;;
+    *) unreadable "the ci check run on ${1:0:7}"; return 1 ;;
+  esac
+}
+
+behind=0
+main_tip=""
+behind_by() { # <sha>: sets behind and main_tip
+  api "repos/$REPO/compare/main...$1" '"\(.behind_by) \(.base_commit.sha)"'
+  got && [[ "$out" =~ ^[0-9]+\ [0-9a-f]{40}$ ]] \
+    || { unreadable "how far ${1:0:7} is behind main"; return 1; }
+  behind=${out%% *}
+  main_tip=${out##* }
+}
+
+reverts="" # lines "<number> <created_at>"
+open_reverts() {
+  local line n t
+  api "repos/$REPO/issues?state=open&labels=auto-rollback&per_page=20" \
+    '.[] | select(.pull_request != null) | "\(.number)\t\(.created_at)"'
+  [ "$rc" = 0 ] || { unreadable "the open auto-rollback reverts"; return 1; }
+  reverts=""
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    IFS=$'\t' read -r n t <<<"$line"
+    [[ "$n" =~ ^[0-9]+$ ]] && [[ "$t" =~ $RE_TIME ]] || { unreadable "the open auto-rollback reverts"; return 1; }
+    [ "$n" = "$pr" ] || reverts="$reverts$n $t"$'\n'
+  done <<<"$out"
+}
+
+me=""
+read_me() {
+  api user '.login'
+  got && [[ "$out" =~ $RE_LOGIN ]] || { unreadable "the gh user"; return 1; }
+  me=$out
+}
+
+freeze_reason=""
+freeze_logged=0
+freeze_ok() { # 0 when no freeze holds this pull request; else sets freeze_reason
+  local val
+  case "$(gh_var_state MERGE_FREEZE)" in
+    absent) return 0 ;;
+    present) ;;
+    *) freeze_reason="MERGE_FREEZE unreadable"; return 1 ;;
+  esac
+  api "repos/$REPO/actions/variables/MERGE_FREEZE" '.value // ""'
+  if [ "$rc" != 0 ] || [ -z "$out" ]; then freeze_reason="MERGE_FREEZE unreadable"; return 1; fi
+  val=$out
+  if [[ "$val" =~ $RE_ALLOW ]] && [ "${BASH_REMATCH[1]}" = "$pr" ]; then
+    [ "$freeze_logged" = 1 ] || log "MERGE_FREEZE is set ($val); PR #$pr is allowed"
+    freeze_logged=1
+    return 0
+  fi
+  freeze_reason="MERGE_FREEZE is set: ${val:0:200}"
+  return 1
 }
 
 # --- guards -------------------------------------------------------------------
-# Sets refusals, and for a real merge behind (head lacks main) and pending
-# (`ci` not finished) instead of refusing for them.
-run_guards() {
-  local state draft base mergeable checks c st reason commits n sha verified subject val out
+head=""
+am_seen=0
+pushed=0
+check_pr() { # read the PR, ci and behind; exit on a refusal or when merged
   refusals=0
-  behind=0
-  pending=0
-
-  # mergeable
-  state=$(jq -r '.state' <<<"$view")
-  draft=$(jq -r '.isDraft' <<<"$view")
-  base=$(jq -r '.baseRefName' <<<"$view")
-  mergeable=$(jq -r '.mergeable' <<<"$view")
-  [ "$state" = "OPEN" ] || refuse mergeable "state is $state"
-  [ "$draft" = "false" ] || refuse mergeable "PR is a draft"
-  [ "$base" = "main" ] || refuse mergeable "base is $base, not main"
-  [ "$mergeable" = "MERGEABLE" ] || refuse mergeable "GitHub reports $mergeable"
-
-  # checks
-  if checks=$(gh pr checks "$pr" --repo "$REPO" --json name,state,startedAt,link 2>/dev/null) \
-     || [ -n "${checks:-}" ]; then
-    for c in $REQUIRED_CHECKS; do
-      # The most recent run of each check name decides (older cancelled runs of
-      # the same SHA are superseded).
-      st=$(jq -r --arg n "$c" '[.[] | select(.name == $n)] | sort_by(.startedAt // "") | last | .state // "MISSING"' <<<"$checks" 2>/dev/null || echo MISSING)
-      case "$st" in
-        SUCCESS) ;;
-        PENDING|QUEUED|IN_PROGRESS|WAITING|REQUESTED|EXPECTED|MISSING)
-          if [ "$dry_run" -eq 1 ]; then refuse checks "$c is $st"; else pending=1; fi ;;
-        *) refuse checks "$c is $st" ;;
-      esac
-    done
-  else
-    refuse checks "cannot read the PR checks"
+  reader read_pr
+  if [ "$pr_merged" = true ]; then
+    log "PR #$pr already merged as $pr_merge_sha"
+    exit 0
   fi
-
-  # title and subjects
-  if ! reason=$("$CHECK_TITLE" "$title" 2>&1); then
-    refuse title "$reason"
-  fi
-  if commits=$(gh api --paginate "repos/$REPO/pulls/$pr/commits" 2>/dev/null); then
-    n=$(jq -s 'add | length' <<<"$commits")
-    [ "$n" -gt 0 ] || refuse subjects "PR has no commits"
-    while IFS=$'\t' read -r sha verified subject; do
-      [ -n "$sha" ] || continue
-      if ! reason=$("$CHECK_TITLE" "$subject" 2>&1); then
-        refuse subjects "${sha:0:7} $reason"
-      fi
-      [ "$verified" = "true" ] || refuse verified "${sha:0:7} is not a verified signed commit"
-    done < <(jq -rs 'add | .[] | [.sha, (.commit.verification.verified | tostring), (.commit.message | split("\n")[0])] | @tsv' <<<"$commits")
-  else
-    refuse subjects "cannot read the PR commits"
-  fi
-
-  # up-to-date
-  main_sha=""
-  if git fetch --quiet "$REMOTE" main "$head" 2>/dev/null; then
-    main_sha=$(git rev-parse "refs/remotes/$REMOTE/main" 2>/dev/null || true)
-    if [ -z "$main_sha" ]; then
-      refuse up-to-date "cannot resolve $REMOTE/main"
-    elif ! git merge-base --is-ancestor "$main_sha" "$head" 2>/dev/null; then
-      if [ "$dry_run" -eq 1 ]; then
-        refuse up-to-date "head does not contain $REMOTE/main ${main_sha:0:7}; rebase first"
-      else
-        behind=1
-      fi
+  if [ "$pr_head" != "$head" ]; then
+    # Our own push or auto-merge pins the head; before that, follow it.
+    if [ -n "$head" ] && { [ "$am_seen" = 1 ] || [ "$pushed" = 1 ]; }; then
+      fail "head moved to ${pr_head:0:7} by someone else; nothing merged"
     fi
-  else
-    refuse up-to-date "cannot fetch $REMOTE main and the head commit"
+    head=$pr_head
+    log "PR #$pr ($pr_ref) head $head"
   fi
-
-  # merge-freeze
-  case "$(gh_var_state MERGE_FREEZE)" in
-    absent) ;;
-    present)
-      val=$(gh api "repos/$REPO/actions/variables/MERGE_FREEZE" --jq '.value' 2>/dev/null || echo "?")
-      refuse merge-freeze "MERGE_FREEZE is set: ${val:0:200}" ;;
-    *) refuse merge-freeze "variables API unavailable" ;;
+  if [ "$am_seen" = 1 ] && [ "$pr_am" = off ]; then
+    fail "auto-merge was turned off on PR #$pr; nothing merged"
+  fi
+  [ "$pr_state" = open ] || refuse mergeable "state is $pr_state"
+  [ "$pr_draft" = false ] || refuse mergeable "PR is a draft"
+  [ "$pr_base" = main ] || refuse mergeable "base is $pr_base, not main"
+  freeze_ok || refuse merge-freeze "$freeze_reason"
+  reader ci_state "$head"
+  case "$ci" in
+    success | pending | missing) ;;
+    *) refuse checks "ci is $ci on ${head:0:7}" ;;
   esac
-
-  # ff-protected
-  if [ "$mode" = "ff" ]; then
-    out=$(gh api --include "repos/$REPO/branches/main/protection" 2>/dev/null) || true
-    st=$(status_of "$out")
-    case "$st" in
-      200) refuse ff-protected "main is protected; a direct fast-forward push would be rejected (use squash)" ;;
-      403|404) ;;
-      *) refuse ff-protected "cannot determine branch protection (status '${st:-none}')" ;;
-    esac
-  fi
-
-  # Only rebase a branch of this repository that the gh user authored.
-  if [ "$behind" -eq 1 ]; then
-    local cross author me
-    cross=$(jq -r '.isCrossRepository' <<<"$view")
-    author=$(jq -r '.author.login // ""' <<<"$view")
-    me=$(gh api user --jq '.login' 2>/dev/null || true)
-    if [ "$cross" != "false" ] || [ -z "$me" ] || [ "$author" != "$me" ]; then
-      refuse up-to-date "head does not contain $REMOTE/main ${main_sha:0:7} and the branch is not ours to rebase (author ${author:-?}); rebase it by hand"
+  reader behind_by "$head"
+  if [ "$dry_run" = 0 ] && [ "$behind" -gt 0 ]; then
+    [ -n "$me" ] || reader read_me
+    if [ "$pr_repo" != "$REPO" ] || [ "$pr_user" != "$me" ]; then
+      refuse up-to-date "head does not contain main ${main_tip:0:7} and the branch is not ours to rebase (author $pr_user); rebase it by hand"
     fi
   fi
+  [ "$refusals" -eq 0 ] || refused_exit
 }
 
-refused_exit() {
-  log "REFUSED PR #$pr ($refusals guard failure(s)); nothing merged"
-  exit 2
+disable_auto() {
+  : > "$errlog"
+  if ! gh pr merge "$pr" --repo "$REPO" --disable-auto >/dev/null 2>"$errlog"; then
+    gh_err
+    log "warning: cannot turn auto-merge off on PR #$pr: $why"
+  fi
 }
 
-# --- rebase and ci ------------------------------------------------------------
+# --- rebase ---------------------------------------------------------------------
+main_sha=""
 rebase_and_push() { # sets head to the rebased head
   local old=$head new
+  git fetch --quiet "$REMOTE" main "$old" 2>/dev/null || fail "cannot fetch $REMOTE main and the head commit"
+  main_sha=$(git rev-parse "refs/remotes/$REMOTE/main")
   rebase_wt=$(mktemp -d "${TMPDIR:-/tmp}/pr-merge-rebase.XXXXXX")
   git worktree add --quiet --detach "$rebase_wt" "$old"
-  log "rebasing $branch onto $REMOTE/main ${main_sha:0:7}"
-  if ! git -C "$rebase_wt" rebase --quiet "$main_sha"; then
-    refuse up-to-date "rebase of $branch onto $REMOTE/main failed (conflict or signing); rebase it by hand"
+  log "rebasing $pr_ref onto $REMOTE/main ${main_sha:0:7}"
+  : > "$rebase_log"
+  if ! git -C "$rebase_wt" rebase --quiet "$main_sha" 2>"$rebase_log"; then
+    cat "$rebase_log" >&2
+    if grep -q 'agent refused operation' "$rebase_log"; then
+      refuse up-to-date "signing failed (Bitwarden locked?)"
+    else
+      refuse up-to-date "rebase onto main failed; rebase it by hand"
+    fi
     refused_exit
   fi
   new=$(git -C "$rebase_wt" rev-parse HEAD)
-  if ! git -C "$rebase_wt" push --quiet --force-with-lease="refs/heads/$branch:$old" \
-        "$REMOTE" "$new:refs/heads/$branch"; then
-    echo "pr-merge: cannot push the rebased $branch (it changed on $REMOTE?)" >&2
-    exit 1
+  if ! git -C "$rebase_wt" push --quiet --force-with-lease="refs/heads/$pr_ref:$old" \
+        "$REMOTE" "$new:refs/heads/$pr_ref"; then
+    fail "cannot push the rebased $pr_ref (it changed on $REMOTE?)"
   fi
   git worktree remove --force "$rebase_wt"
   rebase_wt=""
-  log "pushed $branch at $new"
+  log "pushed $pr_ref at $new"
   head=$new
+  pushed=1
 }
 
-wait_for_ci() { # sha
-  local sha=$1 deadline cur runs st
-  deadline=$(( $(now) + CI_TIMEOUT ))
-  log "waiting for ci on ${sha:0:7}"
+# GitHub updates the pull request a moment after a push.
+wait_head() { # <old head>
+  local deadline=$(( $(now) + CI_TIMEOUT ))
   while :; do
-    lock_refresh
-    cur=$(gh pr view "$pr" --repo "$REPO" --json headRefOid 2>/dev/null | jq -r '.headRefOid' 2>/dev/null || true)
-    if [ "$cur" = "$sha" ]; then
-      runs=$(gh api "repos/$REPO/commits/$sha/check-runs?check_name=ci&per_page=100" 2>/dev/null || true)
-      [ -n "$runs" ] || runs='{}'
-      st=$(jq -r '[.check_runs[]? | select(.name == "ci")] | sort_by(.started_at // "") | last
-                  | if . == null then "pending" elif .status != "completed" then "pending"
-                    else (.conclusion // "unknown") end' <<<"$runs" 2>/dev/null || echo pending)
-      case "$st" in
-        success) log "ci passed on ${sha:0:7}"; return 0 ;;
-        pending) ;;
-        *) refuse checks "ci is $st on ${sha:0:7}"; refused_exit ;;
-      esac
-    fi
-    if [ "$(now)" -ge "$deadline" ]; then
-      echo "pr-merge: timed out after $((CI_TIMEOUT / 60)) min waiting for ci on ${sha:0:7}; nothing merged" >&2
-      exit 1
-    fi
-    nap "$POLL"
+    reader read_pr
+    [ "$pr_head" != "$1" ] || [ "$pr_merged" = true ] || {
+      [ "$(now)" -lt "$deadline" ] || fail "PR #$pr still shows ${1:0:7} after the push"
+      nap "$POLL"
+      continue
+    }
+    return 0
   done
 }
 
-do_merge() {
-  if [ "$mode" = "ff" ]; then
-    log "fast-forwarding main to $head"
-    git push "$REMOTE" "$head:refs/heads/main"
-  else
-    log "squash-merging PR #$pr at $head"
-    gh pr merge "$pr" --repo "$REPO" --squash --delete-branch --match-head-commit "$head"
+# --- request the merge (flow step 6.4) ---------------------------------------
+request_merge() {
+  local mwhy
+  if [ "$pr_merged" = true ]; then log "merged PR #$pr as $pr_merge_sha"; exit 0; fi
+  if [ "$pr_head" != "$head" ]; then fail "head moved to ${pr_head:0:7} by someone else; nothing merged"; fi
+  if [ "$pr_am" = on ]; then
+    am_seen=1
+    log "auto-merge already on for PR #$pr"
+    return 0
   fi
+  [ "$am_seen" = 0 ] || fail "auto-merge was turned off on PR #$pr; nothing merged"
+  if ! freeze_ok; then refuse merge-freeze "$freeze_reason"; refused_exit; fi
+  : > "$errlog"
+  if gh pr merge "$pr" --repo "$REPO" --auto --squash --match-head-commit "$head" >/dev/null 2>"$errlog"; then
+    am_seen=1
+    log "auto-merge on for PR #$pr at ${head:0:7}"
+    return 0
+  fi
+  gh_err
+  mwhy=$why
+  reader read_pr
+  if [ "$pr_merged" = true ]; then log "merged PR #$pr as $pr_merge_sha"; exit 0; fi
+  if [ "$pr_am" = on ] && [ "$pr_head" = "$head" ]; then
+    am_seen=1
+    log "auto-merge on for PR #$pr at ${head:0:7}"
+    return 0
+  fi
+  reader ci_state "$head"
+  reader behind_by "$head"
+  if [ "$pr_head" = "$head" ] && [ "$behind" -eq 0 ] && [ "$ci" = success ]; then
+    if ! freeze_ok; then refuse merge-freeze "$freeze_reason"; refused_exit; fi
+    log "cannot enable auto-merge ($mwhy); squash-merging PR #$pr at ${head:0:7}"
+    : > "$errlog"
+    gh pr merge "$pr" --repo "$REPO" --squash --match-head-commit "$head" >/dev/null 2>"$errlog" || true
+    gh_err
+    reader read_pr
+    if [ "$pr_merged" = true ]; then log "merged PR #$pr as $pr_merge_sha"; exit 0; fi
+    fail "cannot merge PR #$pr: ${why:-not merged}"
+  fi
+  fail "cannot enable auto-merge: $mwhy"
 }
 
-# --- dry run: the decision only -----------------------------------------------
-load_pr
-run_guards
-if [ "$dry_run" -eq 1 ]; then
+# --- poll (flow step 7): returns when behind main again, else exits ---------------------------------
+poll() {
+  local deadline=$(( $(now) + CI_TIMEOUT ))
+  while :; do
+    nap "$POLL"
+    lock_refresh
+    reader read_pr
+    if [ "$pr_merged" = true ]; then log "merged PR #$pr as $pr_merge_sha"; exit 0; fi
+    if [ "$pr_state" != open ]; then refuse mergeable "state is $pr_state"; refused_exit; fi
+    if [ "$pr_head" != "$head" ]; then fail "head moved to ${pr_head:0:7} by someone else; nothing merged"; fi
+    if ! freeze_ok; then
+      disable_auto
+      refuse merge-freeze "$freeze_reason"
+      refused_exit
+    fi
+    reader ci_state "$head"
+    case "$ci" in
+      success | pending | missing) ;;
+      *) refuse checks "ci is $ci on ${head:0:7}"; refused_exit ;;
+    esac
+    [ "$pr_am" = on ] || fail "auto-merge was turned off on PR #$pr; nothing merged"
+    reader behind_by "$head"
+    [ "$behind" -eq 0 ] || return 0
+    if [ "$(now)" -ge "$deadline" ]; then
+      fail "timed out after $((CI_TIMEOUT / 60)) min waiting for ci on ${head:0:7}; auto-merge stays on"
+    fi
+  done
+}
+
+# --- the revert wait (flow step 6.2): 0 = waited one poll ----------------------
+stale_seen=" "
+revert_since=""
+revert_logged=0
+revert_wait() {
+  local n t age young=""
+  reader open_reverts
+  while read -r n t; do
+    [ -n "$n" ] || continue
+    age=$(( $(epoch_now) - $(jq -rn --arg t "$t" '$t | fromdateiso8601') ))
+    if [ "$age" -ge $((REVERT_STALE_MIN * 60)) ]; then
+      case "$stale_seen" in
+        *" $n "*) ;;
+        *) log "ignoring stale revert #$n (opened $t)"; stale_seen="$stale_seen$n " ;;
+      esac
+    elif [ -z "$young" ]; then
+      young=$n
+    fi
+  done <<<"$reverts"
+  if [ -z "$young" ]; then
+    revert_since=""
+    return 1
+  fi
+  [ -n "$revert_since" ] || revert_since=$(now)
+  if [ $(( $(now) - revert_since )) -ge "$CI_TIMEOUT" ]; then
+    fail "gave up after $((CI_TIMEOUT / 60)) min waiting for the revert #$young; nothing merged"
+  fi
+  if [ $(( $(now) - revert_logged )) -ge 60 ]; then
+    log "waiting for the revert #$young"
+    revert_logged=$(now)
+  fi
+  lock_refresh
+  nap "$POLL"
+  return 0
+}
+
+# --- flow -----------------------------------------------------------------------
+if [ "$ff" = 1 ]; then
+  refuse ff-protected "main is protected; squash only"
+  refused_exit
+fi
+
+check_pr
+if [ "$dry_run" = 1 ]; then
+  case "$ci" in success) ;; *) refuse checks "ci is $ci" ;; esac
+  [ "$behind" -eq 0 ] || refuse up-to-date "head does not contain main ${main_tip:0:7}; rebase first"
   [ "$refusals" -eq 0 ] || refused_exit
-  echo "would merge ($mode) PR #$pr at $head"
+  echo "would merge (squash) PR #$pr at $head"
   exit 0
 fi
 
-# --- merge: fail fast, then serialise -------------------------------------------
-[ "$refusals" -eq 0 ] || refused_exit
-if [ "$pending" -eq 1 ] && [ "$behind" -eq 0 ]; then
-  wait_for_ci "$head"
+# A failing ci refuses before the run queues for the lock.
+if [ "$behind" -eq 0 ] && [ "$ci" != success ]; then
+  deadline=$(( $(now) + CI_TIMEOUT ))
+  log "waiting for ci on ${head:0:7}"
+  while [ "$behind" -eq 0 ] && [ "$ci" != success ]; do
+    [ "$(now)" -lt "$deadline" ] || fail "timed out after $((CI_TIMEOUT / 60)) min waiting for ci on ${head:0:7}; nothing merged"
+    nap "$POLL"
+    check_pr
+  done
 fi
-lock_acquire "$branch"
+
+lock_acquire "$pr_ref"
 rebases=0
 while :; do
   lock_refresh
-  load_pr
-  run_guards
-  [ "$refusals" -eq 0 ] || refused_exit
-  if [ "$behind" -eq 1 ]; then
+  check_pr
+  if revert_wait; then continue; fi
+  if [ "$behind" -gt 0 ]; then
     if [ "$rebases" -gt "$MAX_RETRIES" ]; then
-      echo "pr-merge: main kept moving: $rebases rebases of PR #$pr inside the lock; giving up, nothing merged" >&2
-      exit 1
+      fail "main kept moving: $rebases rebases of PR #$pr inside the lock; giving up"
     fi
     rebases=$((rebases + 1))
+    old=$head
     rebase_and_push
-    wait_for_ci "$head"
-    continue
+    wait_head "$old"
   fi
-  if [ "$pending" -eq 1 ]; then
-    wait_for_ci "$head"
-    continue
-  fi
-  if do_merge; then
-    log "merged PR #$pr ($mode)"
-    exit 0
-  fi
-  before=$main_sha
-  git fetch --quiet "$REMOTE" main 2>/dev/null || true
-  after=$(git rev-parse "refs/remotes/$REMOTE/main" 2>/dev/null || true)
-  if [ -n "$after" ] && [ "$after" != "$before" ]; then
-    log "main moved to ${after:0:7} during the merge; starting over"
-    continue
-  fi
-  echo "pr-merge: merge of PR #$pr failed; nothing merged" >&2
-  exit 1
+  request_merge
+  poll
 done

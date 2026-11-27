@@ -17,8 +17,8 @@
 #   2. Otherwise tick the oldest pull request behind main whose `ci` did not
 #      fail.
 #
-# Paused while RENOVATE_TRAIN_PAUSED ("<pr> <utc time>", set by
-# scripts/pr-merge.sh during its merge lock) is younger than PAUSE_STALE_MIN
+# Paused while RENOVATE_TRAIN_PAUSED (a manual pause, "<pr> <utc time>"; no
+# time: until deleted) is younger than PAUSE_STALE_MIN
 # (90) minutes; GitHub auto-merge stays as it is (#960). Held the same way
 # while a pull request labelled `auto-rollback` is open (#1003), and while
 # another pull request is in flight: not Renovate's, not a draft, auto-merge

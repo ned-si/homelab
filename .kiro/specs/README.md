@@ -72,7 +72,7 @@ Change specs, active:
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 4: the app accounts and deleting `family` and `media` (operator) |
 | [image-provenance](image-provenance/) | 2026-11-18 | #725 | task 1: the image inventory and its read-only workflow |
-| [merge-through-github-queue](merge-through-github-queue/) | 2026-11-27 | #1832 | task 1: hold the Renovate train while a pull request is in flight |
+| [merge-through-github-queue](merge-through-github-queue/) | 2026-11-27 | #1832 | task 2: `scripts/pr-merge.sh` merges through GitHub auto-merge |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [public-website](public-website/) | 2026-11-13 | #971 | tasks 11-12: the Home and About text, one layout across the public pages |
 | [tech-radar](tech-radar/) | 2026-11-25 | #1671 | task 3: the nav link, the landing card and the layout check, after public-website task 12 |

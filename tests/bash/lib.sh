@@ -31,12 +31,15 @@ finish() {
 # the scripts make. Responses come from $FAKE_GH_DIR:
 #   api/<path with / ? = & replaced by _>.status   HTTP status, or one of:
 #       neterr (stderr only, exit 1), empty (no output, exit 1),
-#       nostatus (body without a status line, exit 0)
+#       nostatus (body without a status line, exit 0),
+#       stderr (the body on stderr, exit 1)
 #   api/<...>.body                                  JSON body
+#   api/<...>.seq/                                  successive answers (api_seq)
 #   pr-view.json, pr-checks.json                    for `gh pr view|checks`
 #   stderr-hint                                     printed on stderr first
 # Non-2xx responses print the status line, headers and body on stdout, an
 # error on stderr, and exit 1, as gh does. Every call is logged to calls.log.
+# `pr merge` prints `merged`; with --auto it exits $FAKE_MERGE_RC (default 0).
 install_fake_gh() {
   local bindir=$1
   mkdir -p "$bindir"
@@ -49,7 +52,10 @@ if [ -f "$d/stderr-hint" ]; then cat "$d/stderr-hint" >&2; fi
 case "$1 $2" in
   "pr view") cat "$d/pr-view.json"; exit 0 ;;
   "pr checks") cat "$d/pr-checks.json"; exit "$(cat "$d/pr-checks.exit" 2>/dev/null || echo 0)" ;;
-  "pr merge") echo "merged"; exit 0 ;;
+  "pr merge")
+    echo "merged"
+    case " $* " in *" --auto "*) exit "${FAKE_MERGE_RC:-0}" ;; esac
+    exit 0 ;;
 esac
 [ "$1" = "api" ] || { echo "fake gh: unsupported: $*" >&2; exit 2; }
 shift
@@ -65,10 +71,19 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 key=$(printf '%s' "$path" | tr '/?=&' '____')
-status=$(cat "$d/api/$key.status" 2>/dev/null || echo 404)
-body=$(cat "$d/api/$key.body" 2>/dev/null || echo '{"message":"Not Found","status":"404"}')
+src="$d/api/$key"
+if [ -d "$d/api/$key.seq" ]; then
+  # The next answer of the sequence; the last one repeats.
+  i=$(( $(cat "$d/api/$key.seq/n" 2>/dev/null || echo 0) + 1 ))
+  [ -f "$d/api/$key.seq/$i.status" ] || i=$((i - 1))
+  echo "$i" > "$d/api/$key.seq/n"
+  src="$d/api/$key.seq/$i"
+fi
+status=$(cat "$src.status" 2>/dev/null || echo 404)
+body=$(cat "$src.body" 2>/dev/null || echo '{"message":"Not Found","status":"404"}')
 case "$status" in
   neterr) echo "error connecting to api.github.com" >&2; exit 1 ;;
+  stderr) printf '%s\n' "$body" >&2; exit 1 ;;
   empty) exit 1 ;;
   nostatus) echo "$body"; exit 0 ;;
 esac
@@ -96,4 +111,21 @@ api_resp() {
   mkdir -p "$FAKE_GH_DIR/api"
   printf '%s\n' "$2" > "$FAKE_GH_DIR/api/$key.status"
   if [ "$#" -ge 3 ]; then printf '%s\n' "$3" > "$FAKE_GH_DIR/api/$key.body"; fi
+}
+
+# api_seq <path> <status> <body> [<status> <body>]...: successive answers,
+# the last one repeats.
+api_seq() {
+  local key dir i=0
+  key=$(printf '%s' "$1" | tr '/?=&' '____')
+  dir="$FAKE_GH_DIR/api/$key.seq"
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  shift
+  while [ "$#" -ge 2 ]; do
+    i=$((i + 1))
+    printf '%s\n' "$1" > "$dir/$i.status"
+    printf '%s\n' "$2" > "$dir/$i.body"
+    shift 2
+  done
 }

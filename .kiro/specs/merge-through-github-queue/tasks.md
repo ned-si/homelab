@@ -16,13 +16,13 @@ pass, a last PR `docs(spec): close merge-through-github-queue` ticks 4 and
 5, sets `status: done` and `closed:`, updates the `.kiro/specs/README.md`
 row, says `Closes #1832` and merges with the wrapper.
 
-- [ ] 1. Hold the Renovate train while a pull request is in flight:
+- [x] 1. Hold the Renovate train while a pull request is in flight:
       `scripts/ci/renovate-next.sh` (the hold right after the
       `auto-rollback` hold, its header comment) and the cases in
       `tests/bash/test_renovate_next.sh`
       ([design, The Renovate train](design.md#the-renovate-train)).
       Check: `ci` green; after the merge, the next `renovate-next` run
-      prints a decision line and no error. [3.2; AC 4, AC 8 before]
+      prints a decision line and no error. [3.2; AC 4, AC 8 before] (#1870)
 - [ ] 2. `scripts/pr-merge.sh` merges through GitHub auto-merge: the
       wrapper, `scripts/lib/merge_lock.sh`, the comment in
       `scripts/ci/check-title.sh`, the `RENOVATE_TRAIN_PAUSED` comments in
