@@ -49,17 +49,17 @@ type layout struct {
 
 type homeView struct {
 	layout
-	Heading, Lead                        string
-	Intro, Updated, Credits              template.HTML
-	Songs                                string
-	ColSong, ColArtist, ColPages, ColPDF string
-	PDF                                  string
-	Rows                                 []row
+	Heading, Lead           string
+	Intro, Updated, Credits template.HTML
+	Songs                   string
+	PDF                     string
+	Cards                   []card
 }
 
-type row struct {
-	Slug, Title, Artist, PDFLabel string
-	Pages                         int
+// card is one song on the home page: its first page as the thumbnail.
+type card struct {
+	Slug, Title, Artist, PDFLabel, Pages string
+	Thumb                                image
 }
 
 type songView struct {
@@ -88,16 +88,12 @@ func Render(d *Data) (Files, error) {
 	})
 	files := Files{}
 	home := homeView{
-		layout:    newLayout(m, m.text("home.title", nil), m.text("home.description", nil), "/"),
-		Heading:   m.text("home.heading", nil),
-		Lead:      m.text("home.lead", nil),
-		Intro:     m.html("home.intro", map[string]template.HTML{"legend": link("/legend/", m.text("home.legend_link", nil))}),
-		Songs:     m.text("home.songs", nil),
-		ColSong:   m.text("home.col_song", nil),
-		ColArtist: m.text("home.col_artist", nil),
-		ColPages:  m.text("home.col_pages", nil),
-		ColPDF:    m.text("home.col_pdf", nil),
-		PDF:       m.text("home.pdf", nil),
+		layout:  newLayout(m, m.text("home.title", nil), m.text("home.description", nil), "/"),
+		Heading: m.text("home.heading", nil),
+		Lead:    m.text("home.lead", nil),
+		Intro:   m.html("home.intro", map[string]template.HTML{"legend": link("/legend/", m.text("home.legend_link", nil))}),
+		Songs:   m.text("home.songs", nil),
+		PDF:     m.text("home.pdf", nil),
 		Updated: m.html(pluralKey("home.updated", len(songs)), map[string]template.HTML{
 			"count":   escape(strconv.Itoa(len(songs))),
 			"release": link("https://github.com/ned-si/drum-charts/releases/tag/"+d.Release, d.Release),
@@ -106,14 +102,16 @@ func Render(d *Data) (Files, error) {
 		Credits: m.html("home.credits", map[string]template.HTML{"github": link("https://github.com/ned-si/drum-charts", m.text("home.github_link", nil))}),
 	}
 	for _, s := range songs {
-		home.Rows = append(home.Rows, row{
+		song := args{"title": s.Title, "artist": s.Artist}
+		first := s.Pages[0]
+		home.Cards = append(home.Cards, card{
 			Slug:     s.Slug,
 			Title:    s.Title,
 			Artist:   s.Artist,
 			PDFLabel: m.text("home.pdf_label", args{"title": s.Title}),
-			Pages:    len(s.Pages),
+			Pages:    m.pages(len(s.Pages)),
+			Thumb:    image{Name: first.Name, Alt: m.text("home.card_alt", song), Width: first.Width, Height: first.Height},
 		})
-		song := args{"title": s.Title, "artist": s.Artist}
 		v := songView{
 			layout:     newLayout(m, m.text("song.title", song), m.text("song.description", song), "/"+s.Slug+"/"),
 			Slug:       s.Slug,

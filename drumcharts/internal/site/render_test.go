@@ -189,7 +189,7 @@ func TestWriteFails(t *testing.T) {
 	}
 }
 
-var rowRe = regexp.MustCompile(`<tr><td><a href="/([a-z0-9-]+)/">`)
+var cardRe = regexp.MustCompile(`<a class="card" href="/([a-z0-9-]+)/">`)
 
 func chart(slug, artist, title string, pages int) Chart {
 	c := Chart{Slug: slug, Artist: artist, Title: title, PDF: []byte("%PDF-")}
@@ -211,7 +211,7 @@ func TestOrder(t *testing.T) {
 		chart("korn-c", "Korn", "Did My Time", 1),
 	}
 	var got []string
-	for _, m := range rowRe.FindAllStringSubmatch(string(render(t, d)["index.html"]), -1) {
+	for _, m := range cardRe.FindAllStringSubmatch(string(render(t, d)["index.html"]), -1) {
 		got = append(got, m[1])
 	}
 	want := []string{"korn-c", "korn-a", "korn-b", "sum41-fat-lip", "soad-toxicity"}
@@ -265,5 +265,33 @@ func TestImages(t *testing.T) {
 				t.Errorf("%s: %s", name, tag)
 			}
 		}
+	}
+}
+
+// TestCards: one card per song in order, each one link holding the first
+// page as a lazy thumbnail, the title and the artist; the page count and the
+// PDF link after it; no table (drum-charts-song-cards Requirement 1).
+func TestCards(t *testing.T) {
+	home := string(render(t, load(t))["index.html"])
+	want := `<li>
+<a class="card" href="/sum41-fat-lip/">
+<img src="/pages/sum41-fat-lip-1.svg" width="595" height="842" alt="First page of Fat Lip by Sum 41" loading="lazy">
+<span class="card-title">Fat Lip</span>
+<span class="card-artist">Sum 41</span>
+</a>
+<p class="card-meta">2 pages · <a href="/pdf/sum41-fat-lip.pdf" download aria-label="Download the PDF of Fat Lip">PDF</a></p>
+</li>`
+	if !strings.Contains(home, want) {
+		t.Errorf("index.html has no card\n%s", want)
+	}
+	var got []string
+	for _, m := range cardRe.FindAllStringSubmatch(home, -1) {
+		got = append(got, m[1])
+	}
+	if order := []string{"sum41-fat-lip", "soad-toxicity", "underschool-element-petit-tom"}; !slices.Equal(got, order) {
+		t.Errorf("cards %q, want %q", got, order)
+	}
+	if strings.Contains(home, "<table") {
+		t.Error("index.html still has a table")
 	}
 }
