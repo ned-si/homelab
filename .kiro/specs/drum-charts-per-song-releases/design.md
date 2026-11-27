@@ -87,6 +87,15 @@ Rejected: the run date (a rerun on another day gives a new tag for the
 same files); the newest release per slug by creation date (needs
 ordering rules for reruns and two releases a day, and the run that
 creates a release cannot tell whether it is the newest).
+### The tag's commit
+The git tag points at the head of `main` the release was published from
+(`--target "$GITHUB_SHA"`), not at the version commit; the tag name and
+the release notes name the version commit. GITHUB_TOKEN cannot create a
+tag on a commit whose `.github/workflows/` differs from `main`'s (HTTP
+403, task 1's first `main` run), and every version commit from before
+task 1 has the old `build.yaml`. Nothing reads the tag's commit: the plan
+matches releases by tag name. Rejected: a GitHub App or a long-lived
+token with the `workflows` permission (operator, 2026-11-27).
 
 ## The plan
 
@@ -347,7 +356,7 @@ group: release, cancel-in-progress: false }` as today.
      if out=$(gh release view "$tag" --json isDraft 2>&1); then
        gh release upload "$tag" "${files[@]}" --clobber
      elif [[ $out == *"release not found"* ]]; then
-       gh release create "$tag" "${files[@]}" --draft --target "$commit" \
+       gh release create "$tag" "${files[@]}" --draft --target "$GITHUB_SHA" \
          --title "$tag" --notes "Chart of $commit, built by $run."
      else
        echo "$out" >&2; exit 1
