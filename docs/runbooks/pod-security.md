@@ -71,7 +71,18 @@ Both steps take under a minute.
 
    Expected: `✓ Disabled renovate-next`.
 
-2. Turn GitHub auto-merge off on every open pull request that has it:
+2. Set the merge freeze, then wait for running `scripts/pr-merge.sh` runs to
+   see it:
+
+   ```sh
+   gh variable set MERGE_FREEZE -R ned-si/homelab --body "<reason>"
+   sleep 60
+   ```
+
+   Expected: no output, exit 0. A running `pr-merge.sh` sees the freeze at
+   its next poll (30 s), turns its own auto-merge off and stops.
+
+3. Turn GitHub auto-merge off on every open pull request that has it:
 
    ```sh
    held=$(gh pr list -R ned-si/homelab --state open --json number,autoMergeRequest \
@@ -82,8 +93,9 @@ Both steps take under a minute.
 
    Write the `held:` numbers down.
 
-3. Tell every other runner (agent runs, `scripts/pr-merge.sh` loops) to stop
-   merging, or stop it.
+The freeze comes before the `--disable-auto` loop: in the other order, a
+`pr-merge.sh` run could rebase a pull request and turn its auto-merge on
+again between the two steps.
 
 ### Revert
 
@@ -99,10 +111,12 @@ Both steps take under a minute.
    gh pr create -R ned-si/homelab --head revert/psa-<ns> \
      --title "revert(namespaces): <ns> back to Pod Security baseline" \
      --body "$(printf '## Summary\nReverts #<flip-pr>: <what was rejected>.\n\n## Tested\nBreak-glass applied at <time>.\n\n## Blocked\nNothing.\n\nSpec: pod-security-restricted#<task>\n')"
+   gh variable set MERGE_FREEZE -R ned-si/homelab --body "<reason> (allow #<pr>)"
    bash scripts/pr-merge.sh <pr>
    ```
 
-   Expected: `pr-merge.sh` ends with the pull request merged.
+   Expected: `pr-merge.sh` logs `PR #<pr> is allowed` and ends with the pull
+   request merged; every other pull request is still refused.
 
 2. After the revert is on `main`, let Argo CD reconcile again:
 
@@ -118,12 +132,14 @@ Both steps take under a minute.
 ### Release the hold
 
 ```sh
+gh variable delete MERGE_FREEZE -R ned-si/homelab
 gh workflow enable renovate-next.yaml -R ned-si/homelab
 for n in <held-numbers>; do gh pr merge "$n" -R ned-si/homelab --auto --squash; done
 ```
 
-Expected: `✓ Enabled renovate-next`, and auto-merge on again for the pull
-requests held.
+Expected: `✓ Deleted variable MERGE_FREEZE from ned-si/homelab`,
+`✓ Enabled renovate-next`, and auto-merge on again for the pull requests
+held.
 
 ## Break-glass: Kyverno in Deny (#1021)
 

@@ -31,7 +31,9 @@ tracks carries a `# renovate:` comment that names its datasource.
 - Every update automerges on a green `ci`, at any time unless an exception
   below says otherwise ([decisions.md](decisions.md#no-human-gates)). The `renovate-next` train
   (`scripts/ci/renovate-next.sh`) rebases one pull request after each merge,
-  so CI runs on the one that merges next.
+  so CI runs on the one that merges next. It holds while another pull
+  request is in flight (auto-merge on, up to date with `main`, `ci`
+  running), and while an `auto-rollback` revert is open.
 - `automerge-weekdays`: Cilium and the Gateway API CRDs open 3 days after
   their release and merge Monday to Friday, 09:00 to 16:59 Zurich; the
   operators that build Pods in code (tuppr, CloudNativePG and its Barman

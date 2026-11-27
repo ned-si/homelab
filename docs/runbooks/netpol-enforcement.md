@@ -65,7 +65,18 @@ the delete, hold every merge and land the revert.
 
    Expected: `✓ Disabled renovate-next`.
 
-2. Turn GitHub auto-merge off on every open pull request that has it (the
+2. Set the merge freeze, then wait for running `scripts/pr-merge.sh` runs to
+   see it:
+
+   ```sh
+   gh variable set MERGE_FREEZE -R ned-si/homelab --body "<reason>"
+   sleep 60
+   ```
+
+   Expected: no output, exit 0. A running `pr-merge.sh` sees the freeze at
+   its next poll (30 s), turns its own auto-merge off and stops.
+
+3. Turn GitHub auto-merge off on every open pull request that has it (the
    train turns it on for its candidates; disabling the workflow does not stop
    a pull request that is up to date and running `ci`):
 
@@ -79,8 +90,9 @@ the delete, hold every merge and land the revert.
    Write the `held:` numbers down. Run the `gh pr list` line again: expected
    no number.
 
-3. Tell every other runner (agent runs, `scripts/pr-merge.sh` loops) to stop
-   merging, or stop it.
+The freeze comes before the `--disable-auto` loop: in the other order, a
+`pr-merge.sh` run could rebase a pull request and turn its auto-merge on
+again between the two steps.
 
 ### Revert
 
@@ -97,10 +109,12 @@ the delete, hold every merge and land the revert.
    gh pr create -R ned-si/homelab --head revert/netpol-<ns>-<direction> \
      --title "revert(network): <ns> <direction> default-deny off" \
      --body "$(printf '## Summary\nReverts #<flip-pr>: <what was dropped>.\n\n## Tested\nBreak-glass applied at <time>.\n\n## Blocked\nNothing.\n\nSpec: netpol-default-deny#<task>\n')"
+   gh variable set MERGE_FREEZE -R ned-si/homelab --body "<reason> (allow #<pr>)"
    bash scripts/pr-merge.sh <pr>
    ```
 
-   Expected: `pr-merge.sh` ends with the pull request merged.
+   Expected: `pr-merge.sh` logs `PR #<pr> is allowed` and ends with the pull
+   request merged; every other pull request is still refused.
 
 2. If another merge lands before the revert, wait for its sync, then check
    the switch and delete it again:
@@ -125,13 +139,15 @@ the delete, hold every merge and land the revert.
 ### Release the hold
 
 ```sh
+gh variable delete MERGE_FREEZE -R ned-si/homelab
 gh workflow enable renovate-next.yaml -R ned-si/homelab
 for n in <held-numbers>; do gh pr merge "$n" -R ned-si/homelab --auto --squash; done
 ```
 
-Expected: `✓ Enabled renovate-next`, and auto-merge on again for the pull
-requests noted in step 2 of the hold. The train turns it back on for
-Renovate's own pull requests at its next run.
+Expected: `✓ Deleted variable MERGE_FREEZE from ned-si/homelab`,
+`✓ Enabled renovate-next`, and auto-merge on again for the pull requests
+noted in step 3 of the hold. The train turns it back on for Renovate's own
+pull requests at its next run.
 
 ## Flip one namespace and direction
 

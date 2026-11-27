@@ -25,7 +25,8 @@ is held back by Renovate caps and done by hand.
 
 Why: with `selfHeal: true` on every Application, the desired state in git is the
 only lever that sticks; one branch keeps "what is merged" and "what runs" the
-same thing. CI on every pull request and `scripts/pr-merge.sh` are the gate.
+same thing. The required `ci` check on every pull request is the gate, and
+GitHub auto-merge merges on it.
 
 Rejected: a `deployed` tag that a CD workflow moved forward after a health
 check. It needed a runner with access to the cluster and a second notion of
@@ -99,12 +100,27 @@ during an incident.
 
 ## Squash merge
 
-`scripts/pr-merge.sh <pr>` squash-merges: one pull request is one commit on
-`main` and one revert. `--ff` fast-forwards instead, for a pull request whose
-commits must stay separate; it refuses when `main` is protected.
+GitHub squash-merges every pull request through auto-merge, requested by
+`scripts/pr-merge.sh <pr>` for agent pull requests: one pull request is one
+commit on `main` and one revert. GitHub signs the squash commit.
 
 Why: with `main` deployed on merge, the unit of review, deployment and rollback
 should be the same.
+
+There is no merge queue: GitHub offers it only to repositories owned by an
+organization, and this one belongs to a user account. Moving it would change
+the image owner on `ghcr.io`, the OIDC trust and every Argo CD `repoURL`.
+
+The rebase of a branch that is behind `main` stays local, in
+`pr-merge.sh`, with the operator's signing key. GitHub's update-branch API
+either adds a merge commit that `pr-metadata` rejects or rebases into
+unsigned commits; a workflow rebuilding the branch would need a token other
+than `GITHUB_TOKEN`, or a GitHub App.
+
+The merge lock stays: strict protection lets one pull request merge per move
+of `main`, and without the lock N concurrent runs would start up to
+N + (N-1) + ... + 1 `ci` runs instead of N, against GitHub's limit of 20
+concurrent jobs.
 
 Rejected for now: rebase-merge, which keeps atomic commits on `main` but makes
 every commit a deployment and every rollback a multi-commit revert.

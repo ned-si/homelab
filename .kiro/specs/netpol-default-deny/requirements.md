@@ -228,11 +228,12 @@ documented, tested procedure, so a mistake is an incident and not an outage.
    of a namespace (`kubectl -n <ns> delete ciliumnetworkpolicy --all`), the
    git revert through `scripts/pr-merge.sh`, and the merge hold while the
    revert is pending (decision D6): disable the `renovate-next` workflow,
-   turn GitHub auto-merge off on every open pull request that has it
-   (`gh pr list --json number,autoMergeRequest`, then
-   `gh pr merge <n> --disable-auto`), tell or stop every other active runner,
-   and after any merge that still lands before the revert, check that the
-   switch is gone and delete it again. (repo-policy runbook link check)
+   set `MERGE_FREEZE`, wait 60 s, then turn GitHub auto-merge off on every
+   open pull request that has it (`gh pr list --json
+   number,autoMergeRequest`, then `gh pr merge <n> --disable-auto`); the
+   revert is allowed with `(allow #<n>)`; and after any merge that still
+   lands before the revert, check that the switch is gone and delete it
+   again. (repo-policy runbook link check)
 2. THE break-glass SHALL be tested live once before the first flip, on a
    scratch namespace that is not in git, and the result (drop seen, delete,
    flow restored, time taken) recorded in the runbook's pull request.

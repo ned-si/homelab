@@ -7,7 +7,7 @@ flowchart LR
   B[branch / Renovate PR] --> RR[renovate-render: commit deploy/]
   B --> CI[ci: lint, render, security, talos, talos-upgrade, pr-metadata, preprod]
   RR --> CI
-  CI -->|green: automerge or pr-merge.sh| M[main]
+  CI -->|green: GitHub auto-merge| M[main]
   M -->|Argo CD, 3 min| L[root -> 3 layers -> one app each]
   L --> S[PostSync smoke]
   S -->|fails / Degraded| N[Argo CD Notifications]
@@ -32,7 +32,7 @@ check, policies, merge, revert) is a script with fixed inputs, run in CI.
 | `.github/workflows/renovate-render.yaml`, `scripts/ci/commit-render.sh` | Re-render on Renovate branches |
 | `components/postsync-smoke` | Deploy-time probe Job per user-facing app |
 | `.github/workflows/auto-rollback.yaml`, `scripts/ci/auto-rollback-{decide,guard,act,keep}.sh` | Revert decision, outage guard, revert PR, kept on top of `main` until it merges |
-| `scripts/pr-merge.sh` | Squash merge on green `ci` |
+| `scripts/pr-merge.sh`, `scripts/lib/merge_lock.sh` | Auto-merge on a green `ci`, requested inside the merge lock after a signed rebase |
 | `bootstrap/argocd-values.yaml` (notifications) | Trigger `on-deployed`, template `argocd-commit-status`: an `argocd/<app>` commit status once per revision, when a sync succeeds and the Application is Healthy, read by the homelab dashboard's lead time ([homelab-dashboard.md](../../../docs/homelab-dashboard.md#dora-figures)) |
 | `.github/workflows/codeql.yaml`, `scorecard.yaml`, `dast.yaml` | SAST, OpenSSF Scorecard, weekly DAST |
 

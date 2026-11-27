@@ -166,7 +166,9 @@ changing one is an edit here in its own pull request.
   merge until the revert lands:
   1. `gh workflow disable renovate-next.yaml`, so the train neither rebases
      nor turns auto-merge back on;
-  2. turn GitHub auto-merge off on every open pull request that has it
+  2. set `MERGE_FREEZE` and wait 60 s, so every running
+     `scripts/pr-merge.sh` turns its own auto-merge off and stops;
+  3. turn GitHub auto-merge off on every open pull request that has it
      (`gh pr list --state open --json number,autoMergeRequest`, then
      `gh pr merge <n> --disable-auto` for each with a non-null
      `autoMergeRequest`), noting the numbers: `.github/renovate.json5` sets
@@ -174,14 +176,15 @@ changing one is an edit here in its own pull request.
      candidate, so a pull request already up to date with `main` and with
      `ci` running merges on its own when `ci` passes, and disabling the
      workflow does not stop that;
-  3. tell every other active runner to stop merging, or stop it;
-  4. merge the revert with `bash scripts/pr-merge.sh <n>`; if any other
+  4. allow the revert in the freeze (`<reason> (allow #<n>)`) and merge it
+     with `bash scripts/pr-merge.sh <n>`; if any other
      merge lands first, wait for `network-policies` to sync it, check
      `kubectl -n <ns> get ciliumnetworkpolicy enforce-default-deny`, and
      delete the switch again;
-  5. after the revert merges, `gh workflow enable renovate-next.yaml` (the
-     train turns auto-merge back on for the Renovate pull requests) and turn
-     it back on by hand for the non-Renovate pull requests noted in step 2.
+  5. after the revert merges, delete `MERGE_FREEZE`, `gh workflow enable
+     renovate-next.yaml` (the train turns auto-merge back on for the
+     Renovate pull requests) and turn it back on by hand for the
+     non-Renovate pull requests noted in step 3.
 
   Rejected:
   `cilium-dbg` per-endpoint policy changes (not in git, lost on restart,
@@ -275,7 +278,7 @@ Written out with commands and expected output in
 | The switch | an app in the flipped namespace loses a flow | `kubectl -n <ns> delete ciliumnetworkpolicy enforce-default-deny` | the next revision of `main` syncs `network-policies`; hold merges, merge the revert |
 | The allow-lists of a namespace | a wrong allow-list rule (an `ingressDeny` or `egressDeny` added by mistake drops traffic even without default-deny) | `kubectl -n <ns> delete ciliumnetworkpolicy --all` | same |
 | Git | any of the above, permanently | `git revert <sha>` on a branch from `origin/main`, pull request, `bash scripts/pr-merge.sh <n>` | permanent |
-| Merges to `main` | another merge would re-create the deleted policy | the hold of D6: `gh workflow disable renovate-next.yaml`; `gh pr merge <n> --disable-auto` on every open pull request with auto-merge; other runners told or stopped; after any merge that lands first, check the switch and delete it again; after the revert, `gh workflow enable renovate-next.yaml` and auto-merge back on where it was | the revert |
+| Merges to `main` | another merge would re-create the deleted policy | the hold of D6: `gh workflow disable renovate-next.yaml`; `MERGE_FREEZE` set and 60 s waited; `gh pr merge <n> --disable-auto` on every open pull request with auto-merge; the revert allowed with `(allow #<n>)`; after any merge that lands first, check the switch and delete it again; after the revert, `MERGE_FREEZE` deleted, `gh workflow enable renovate-next.yaml` and auto-merge back on where it was | the revert |
 | Cilium | not changed by this spec; a Cilium fault is handled by [cilium-upgrades](../cilium-upgrades/) and `kubectl -n kube-system rollout undo ds/cilium` | | |
 | Talos and the API server | not reachable by a pod policy; a fault there is `talos-ops` (re-apply the previous config from the etcd snapshot's era) | | |
 

@@ -59,7 +59,8 @@ to deploy", so that merging needs no person.
    `pr-metadata` and `preprod`.
    (`.github/workflows/ci.yaml`)
 3. WHEN a pull request is merged by hand, THE merge SHALL go through
-   `scripts/pr-merge.sh`, which squash-merges only on a green `ci`.
+   `scripts/pr-merge.sh`, which turns on GitHub auto-merge (squash) on a
+   green `ci`, requested inside the merge lock.
    (`tests/bash/test_pr_merge.sh`)
 4. THE `render` job SHALL validate `deploy/` with kubeconform at the cluster's
    Kubernetes minor and with the Kyverno policies; the `preprod` job SHALL
