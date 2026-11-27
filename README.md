@@ -3,6 +3,7 @@
 [![ci](https://github.com/ned-si/homelab/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/ned-si/homelab/actions/workflows/ci.yaml?query=branch%3Amain)
 [![dast](https://github.com/ned-si/homelab/actions/workflows/dast.yaml/badge.svg)](https://github.com/ned-si/homelab/actions/workflows/dast.yaml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ned-si/homelab/badge)](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15546/badge)](https://www.bestpractices.dev/projects/15546)
 [![SLSA Build L2](https://slsa.dev/images/gh-badge-level2.svg)](https://slsa.dev/spec/v1.0/levels#build-l2)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](.github/renovate.json5)
 [![last commit](https://img.shields.io/github/last-commit/ned-si/homelab/main)](https://github.com/ned-si/homelab/commits/main)
