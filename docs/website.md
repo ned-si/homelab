@@ -152,8 +152,9 @@ their next image deploys.
 English stays at the existing URLs. French is the same path under
 `/fr/`: `https://blog.nedsi.io/fr/about/`, `https://nedsi.io/fr/`,
 `https://homelab.nedsi.io/fr/`, `https://techradar.nedsi.io/fr/`. The
-language toggle ("EN", "FR") links the same page in the other language,
-so the language needs no cookie and nothing redirects by
+language switch shows only the other language ("FR" on English pages,
+"EN" on French ones, named "Français" or "English" for screen readers)
+and links the same page in it, so the language needs no cookie and nothing redirects by
 `Accept-Language`.
 
 Every page has `<html lang="en-GB">` or `lang="fr-CH"`, a canonical to
