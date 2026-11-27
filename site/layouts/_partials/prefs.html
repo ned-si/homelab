@@ -1,12 +1,12 @@
 {{- /* The preferences (.kiro/specs/site-theme-language/design.md#markup); the
    same markup as the landing page. The context holds the page's own path, its
-   language and the URL of the same page in the other language; theme-*.css
-   hides the link to the current theme. */ -}}
+   language and the URL of the same page in the other language, the only
+   language shown; theme-*.css hides the link to the current theme. */ -}}
 <p class="prefs">
 {{- if eq .lang "fr" }}
-<span class="lang"><a href="{{ .other }}" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>
+<a class="lang" href="{{ .other }}" hreflang="en" lang="en-GB" aria-label="English">EN</a>
 {{- else }}
-<span class="lang"><span aria-current="true">EN</span> <a href="{{ .other }}" hreflang="fr" lang="fr-CH">FR</a></span>
+<a class="lang" href="{{ .other }}" hreflang="fr" lang="fr-CH" aria-label="Français">FR</a>
 {{- end }}
 <a class="to-light" href="/set-theme/light{{ .path }}" rel="nofollow" title="{{ T "light_theme_title" }}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">{{ T "light_theme" }}</span></a>
 <a class="to-dark" href="/set-theme/dark{{ .path }}" rel="nofollow" title="{{ T "dark_theme_title" }}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">{{ T "dark_theme" }}</span></a>

@@ -316,7 +316,7 @@ focus ring of `nav.site a`, and a `.vh` visually-hidden class.
 <header class="site">
 <nav class="site" aria-label="Site">...</nav>
 <p class="prefs">
-<span class="lang"><span aria-current="true">EN</span> <a href="https://blog.nedsi.io/fr/about/" hreflang="fr" lang="fr-CH">FR</a></span>
+<a class="lang" href="https://blog.nedsi.io/fr/about/" hreflang="fr" lang="fr-CH" aria-label="Français">FR</a>
 <a class="to-light" href="/set-theme/light/about/" rel="nofollow" title="Light theme, remembered with a cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">...</svg><span class="vh">Light theme</span></a>
 <a class="to-dark" href="/set-theme/dark/about/" rel="nofollow" title="Dark theme"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">...</svg><span class="vh">Dark theme</span></a>
 </p>
@@ -329,9 +329,14 @@ focus ring of `nav.site a`, and a `.vh` visually-hidden class.
 - `display: none` removes the hidden link from the accessibility tree.
   A screen reader hears one link, "Light theme" or "Dark theme".
 - Without CSS, both links show and both work.
+- The language switch shows only the other language. Its `aria-label`
+  is that language's name in that language, so a screen reader says
+  "Français" in French; the visible "FR" starts the name (WCAG 2.5.3).
+  `.prefs a` has no underline, and the focus ring of `nav.site a`
+  marks it on the keyboard.
 - French: "Thème clair, mémorisé dans un cookie", "Thème sombre", and
-  the language block `<a href=".../about/" hreflang="en" lang="en-GB">EN</a>
-  <span aria-current="true">FR</span>`.
+  the language switch `<a class="lang" href=".../about/" hreflang="en"
+  lang="en-GB" aria-label="English">EN</a>`.
 
 ## Cookie
 
@@ -625,7 +630,7 @@ Conventions:
 
 | Check | Where | What |
 | --- | --- | --- |
-| `site_markup.py` | `site` job, dashboard golden pages, radar page | the preferences markup and its targets; `lang`, canonical, `hreflang` per Requirement 4.5; `NAV` per language; no colour literal outside the palette files; the text rules on French pages too |
+| `site_markup.py` | `site` job, dashboard golden pages, radar page | the preferences markup and its targets, the language switch as one `a.lang` and no `aria-current` in `.prefs`; `lang`, canonical, `hreflang` per Requirement 4.5; `NAV` per language; no colour literal outside the palette files; the text rules on French pages too |
 | Translation check (`site_markup.py --content`) | `site` job | every English page has a `.fr.md` translation or (articles only) a stub; every French file has an English original; stub fields equal |
 | `site_contrast.py` | `site` job | [Contrast](#contrast) |
 | `site-check.sh` copy check | `site` job | the palette copies (landing, radar assets and output, dashboard assets) equal `site/assets/css/theme-*.css` |

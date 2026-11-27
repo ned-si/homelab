@@ -25,9 +25,10 @@ stylesheet.
 
 On the LANGUAGES hosts (site-theme-language Requirement 4) a page under /fr/
 is French, any other English: <html lang> is fr-CH or en-GB, the nav is
-NAV[lang], and the preferences start with the language toggle, the current
-language as <span aria-current="true"> and a link to the same page in the
-other language (its home on a 404 page) with hreflang and lang. The
+NAV[lang], and the preferences hold the language switch: one <a
+class="lang"> with the other language only (FR on English pages, EN on
+French ones), to the same page in that language (its home on a 404 page),
+with hreflang, lang and the language's name as aria-label. The
 canonical is the page's own URL (an English article may point to its
 original, a fallback page to the English article). A page with a
 translation carries the hreflang en, fr and x-default links, absolute. A
@@ -88,6 +89,8 @@ THEMED = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io",
 # The hosts that serve French (site-theme-language tasks 4-6).
 LANGUAGES = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
 LOCALE = {"en": "en-GB", "fr": "fr-CH"}
+# The accessible name of the language switch, in its own language.
+LANG_NAME = {"en": "English", "fr": "Français"}
 PREFS = {
     "en": [
         ("to-light", "light", "Light theme, remembered with a cookie", "Light theme"),
@@ -157,7 +160,6 @@ class Checker(HTMLParser):
         self.html_lang = None
         self.canonical = None
         self.hreflang = []
-        self.in_lang = False
         self.lang_items = []
         self.lang_item = None
         self.fallback = False
@@ -197,11 +199,10 @@ class Checker(HTMLParser):
             self.in_prefs = True
             if self.navs == 0 or self.in_nav:
                 self.bad('<p class="prefs"> before the end of <nav class="site">')
-        if self.in_prefs and tag == "span" and "lang" in (a.get("class") or "").split():
-            self.in_lang = True
-        elif self.in_lang:
-            if tag in ("a", "span"):
-                self.lang_item = {"tag": tag, "text": "", **{k: a[k] for k in a}}
+        if self.in_prefs and "aria-current" in a:
+            self.bad("aria-current in the preferences, want only the other language's link")
+        if self.in_prefs and tag == "a" and "lang" in (a.get("class") or "").split():
+            self.lang_item = {"tag": tag, "text": "", **a}
         elif self.in_prefs:
             if tag == "a":
                 self.pref = {k: a.get(k) for k in ("class", "href", "rel", "title")}
@@ -269,11 +270,9 @@ class Checker(HTMLParser):
             self.link = None
         if tag == "nav":
             self.in_nav = False
-        if tag in ("a", "span") and self.lang_item is not None:
+        if tag == "a" and self.lang_item is not None:
             self.lang_items.append(self.lang_item)
             self.lang_item = None
-        elif tag == "span" and self.in_lang:
-            self.in_lang = False
         if tag == "span":
             self.vh = False
         if tag == "a" and self.pref is not None:
@@ -370,12 +369,11 @@ class Checker(HTMLParser):
             if self.hreflang != want_alt:
                 self.problems.append((0, f"hreflang {self.hreflang}, want {want_alt}"))
         targets = [home] if not_found else [target] if self.hreflang or self.fallback else [target, home]
-        current = {"tag": "span", "text": lang.upper(), "aria-current": "true"}
         got = [{**item, "text": item["text"].strip()} for item in self.lang_items]
-        wants = []
-        for t in targets:
-            link = {"tag": "a", "text": other.upper(), "href": t, "hreflang": other, "lang": LOCALE[other]}
-            wants.append([current, link] if lang == "en" else [link, current])
+        wants = [
+            [{"tag": "a", "class": "lang", "text": other.upper(), "href": t, "hreflang": other, "lang": LOCALE[other], "aria-label": LANG_NAME[other]}]
+            for t in targets
+        ]
         if got not in wants:
             self.problems.append((0, f"language toggle {got}, want {wants[0]}"))
         if not_found:

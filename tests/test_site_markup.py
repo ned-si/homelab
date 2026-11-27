@@ -27,8 +27,8 @@ def nav(current=None, links=None):
 def toggle(lang, other_url):
     """The language toggle of a page in lang whose other version is other_url."""
     if lang == "fr":
-        return f'<span class="lang"><a href="{other_url}" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>'
-    return f'<span class="lang"><span aria-current="true">EN</span> <a href="{other_url}" hreflang="fr" lang="fr-CH">FR</a></span>'
+        return f'<a class="lang" href="{other_url}" hreflang="en" lang="en-GB" aria-label="English">EN</a>'
+    return f'<a class="lang" href="{other_url}" hreflang="fr" lang="fr-CH" aria-label="Français">FR</a>'
 
 
 def prefs(path="/", lang_toggle=""):
@@ -326,10 +326,12 @@ def test_french_pages_pass(tmp_path):
         ("index.html", 'hreflang="x-default"', 'hreflang="de"', "hreflang"),
         ("index.html", '<link rel="alternate" hreflang="fr" href="https://blog.nedsi.io/fr/">', "", "hreflang"),
         ("index.html", 'href="https://blog.nedsi.io/fr/" hreflang="fr"', 'href="/fr/" hreflang="fr"', "language toggle"),
-        ("index.html", '<span aria-current="true">EN</span>', "<span>EN</span>", "language toggle"),
+        ("index.html", 'aria-label="Français">FR</a>', 'aria-label="Français">EN</a>', "language toggle"),
+        ("index.html", ' aria-label="Français"', "", "language toggle"),
+        ("index.html", '<a class="lang"', '<span aria-current="true">EN</span> <a class="lang"', "aria-current in the preferences"),
         ("fr/index.html", '<link rel="canonical" href="https://blog.nedsi.io/fr/">', '<link rel="canonical" href="https://blog.nedsi.io/">', "canonical"),
         ("fr/index.html", "Accueil", "Home", "site nav"),
-        ("fr/404.html", '<span class="lang"><a href="https://blog.nedsi.io/"', '<span class="lang"><a href="https://blog.nedsi.io/404.html"', "language toggle"),
+        ("fr/404.html", '<a class="lang" href="https://blog.nedsi.io/"', '<a class="lang" href="https://blog.nedsi.io/404.html"', "language toggle"),
     ],
 )
 def test_language_fails(tmp_path, rel, old, new, msg):

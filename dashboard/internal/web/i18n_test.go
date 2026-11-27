@@ -154,7 +154,7 @@ func TestLanguages(t *testing.T) {
 		{"/", []string{
 			`<html lang="en-GB">`, hreflang,
 			`<link rel="canonical" href="https://homelab.nedsi.io/">`,
-			`<span class="lang"><span aria-current="true">EN</span> <a href="https://homelab.nedsi.io/fr/" hreflang="fr" lang="fr-CH">FR</a></span>`,
+			`<a class="lang" href="https://homelab.nedsi.io/fr/" hreflang="fr" lang="fr-CH" aria-label="Français">FR</a>`,
 			`<a href="/" aria-current="page">Homelab</a>`,
 			`href="/set-theme/light/"`,
 			`<h2 id="availability">Availability</h2>`,
@@ -162,7 +162,7 @@ func TestLanguages(t *testing.T) {
 		{"/fr/", []string{
 			`<html lang="fr-CH">`, hreflang,
 			`<link rel="canonical" href="https://homelab.nedsi.io/fr/">`,
-			`<span class="lang"><a href="https://homelab.nedsi.io/" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>`,
+			`<a class="lang" href="https://homelab.nedsi.io/" hreflang="en" lang="en-GB" aria-label="English">EN</a>`,
 			`<a href="https://nedsi.io/fr/">Accueil</a>`,
 			`<a href="/fr/" aria-current="page">Homelab</a>`,
 			`<a href="https://blog.nedsi.io/fr/about/">À propos</a>`,
