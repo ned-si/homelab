@@ -96,6 +96,7 @@ its task 6.
       `fr/` tree, the toggle, `hreflang` and canonical, `TestCatalogue`,
       the golden pages in French, the French `NAV` target for Charts.
       Check: acceptance criterion 14 live. [7]
+      #1894.
 - [x] 8. Docs (**ned-si/homelab**): `docs/drum-charts.md`;
       `docs/website.md` (the host, the copies, the generator); the README
       Services table, the public pages line and the layout table;
