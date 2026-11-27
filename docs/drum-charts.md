@@ -8,6 +8,13 @@ No MP3 is served. The pages are static HTML rendered by the Go generator in
 the `website` nginx pod like the tech radar. The design and its decisions
 are in [spec drum-charts-site](../.kiro/specs/drum-charts-site/design.md).
 
+The French pages are the same tree under `/fr/`, sharing the page images
+and PDFs, with their words in the `fr` catalogue of
+[`drumcharts/internal/site/i18n.go`](../drumcharts/internal/site/i18n.go).
+A new French string goes to the operator before it is published, and
+follows the
+[translation conventions](website.md#translation-conventions).
+
 ## How a chart reaches the site
 
 A merge to `main` in drum-charts reaches the site in two automerged

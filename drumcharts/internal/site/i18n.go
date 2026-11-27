@@ -152,7 +152,7 @@ func fill(msg string, a args) string {
 var frMonths = [12]string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
 
 // formatDate writes d as en-GB or fr-CH does: 26 November 2026, 26 novembre
-// 2026.
+// 2026. The 1st is "1", as on the tech radar (the dashboard writes "1er").
 func formatDate(code string, d time.Time) string {
 	if code == "fr" {
 		return strconv.Itoa(d.Day()) + " " + frMonths[d.Month()-1] + " " + strconv.Itoa(d.Year())
