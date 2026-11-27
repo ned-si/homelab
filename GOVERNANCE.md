@@ -31,7 +31,7 @@ writes the reason there.
 | Role | Who | Responsibilities |
 | --- | --- | --- |
 | Maintainer | `@ned-si` | Priorities and roadmap; approves specs; merges; holds the credentials and keys (GitHub, the age key, the cloud and DNS accounts); handles security reports ([SECURITY.md](SECURITY.md)); enforces the [Code of Conduct](CODE_OF_CONDUCT.md) |
-| AI agents | Run by the maintainer | Work from the maintainer's briefs and specs; open pull requests; merge only through `scripts/pr-merge.sh`, only on a green `ci` |
+| AI agents | Run by the maintainer | Work from the maintainer's briefs and specs; open pull requests; merge only through `scripts/pr-merge.sh` (GitHub auto-merge), only on a green `ci` |
 | Designated successor | A trusted person with write access, chosen by the maintainer | Takes over the project and its accounts if the maintainer cannot act ([Continuity](#continuity)); no maintainer duties until then |
 | Trusted collaborator | A trusted person with write access, chosen by the maintainer | Issues and pull requests like any contributor; no maintainer duties |
 | Renovate | The hosted Renovate app | Opens update pull requests; automerges on a green `ci` ([docs/dependencies.md](docs/dependencies.md)) |

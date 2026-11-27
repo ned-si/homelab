@@ -261,25 +261,21 @@ From an idea to the cluster, every step leaves a record
 
 1. Branch from `main`, commit signed Conventional Commits.
 2. Open a pull request. CI must be green.
-3. Squash-merge with `scripts/pr-merge.sh <pr-number>`. It refuses unless
-   every required check is green, the title and commits pass, every commit is
-   verified, the branch is up to date with `main` and no merge freeze is set.
+3. Merge with `scripts/pr-merge.sh <pr-number>`, which squash-merges
+   through GitHub auto-merge. It refuses a closed, draft or red pull
+   request, and any pull request while the `MERGE_FREEZE` variable is set.
    Merges from this machine are serialised by a lock in the git common dir
    (`.git/pr-merge.lock`): inside it the script rebases a branch that is
-   behind `main`, pushes it with `--force-with-lease`, waits for `ci` and
-   merges, retrying up to 3 times if `main` moves again. A waiting run logs
-   the holder once a minute and gives up after 60 minutes; a lock whose
-   process is gone, or that was not refreshed for 30 minutes, is broken.
-   While it holds the lock it pauses the Renovate train
-   ([`renovate-next`](.github/workflows/renovate-next.yaml)) with the
-   repository variable `RENOVATE_TRAIN_PAUSED` (`<pr> <utc time>`): the
-   train then rebases nothing, so no new update moves `main` under the merge.
-   GitHub auto-merge stays on: the workflow token cannot turn it off, so a
-   Renovate pull request rebased just before the pause can still merge, and
-   `pr-merge.sh` rebases again (its retries). The variable is deleted when
-   the lock is released, on failure too, and the next train run ticks the
-   next pull request. The train ignores a pause older than 90 minutes (its
-   `pr-merge.sh` died).
+   behind `main` with the operator's signing key, pushes it with
+   `--force-with-lease`, turns on auto-merge
+   (`gh pr merge --auto --squash --match-head-commit <sha>`) and polls the
+   REST API until GitHub has merged it, rebasing again (3 times at most) if
+   `main` moves first. A waiting run logs the holder once a minute and gives
+   up after 60 minutes; a lock whose process is gone, or that was not
+   refreshed for 30 minutes, is broken. The Renovate train
+   ([`renovate-next`](.github/workflows/renovate-next.yaml)) rebases
+   nothing while another pull request with auto-merge on is up to date and
+   running `ci`, so no new update moves `main` under the merge.
 4. That is the deployment. Every Application tracks `main`, so Argo CD
    applies the merge within its sync interval (3 minutes), Argo CD's own
    release included. Rollback is a revert pull request, opened automatically
