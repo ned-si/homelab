@@ -1,8 +1,8 @@
 #!/bin/bash
-# scripts/pr-merge.sh merge lock: acquire/release, stale-lock breaks, a bounded
-# wait, two concurrent runs serialising, the FIFO ticket queue (order, stale
-# tickets, the wait counted from the ticket), and the rebase inside the lock.
-# Fake gh, a local git origin.
+# scripts/pr-merge.sh merge lock (scripts/lib/merge_lock.sh): acquire/release,
+# stale-lock breaks, a bounded wait, two concurrent runs serialising, the FIFO
+# ticket queue (order, stale tickets, the wait counted from the ticket), and
+# the rebase inside the lock. Fake gh on the REST routes, a local git origin.
 set -euo pipefail
 # shellcheck source=tests/bash/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -16,46 +16,54 @@ export ORIGIN="$tmp/origin.git" LIBGH="$tmp/libbin/gh"
 export FAKE_GH_DIR="$tmp/gh" FAKE_AUTHOR=ned-si FAKE_MERGE_SLEEP=0
 mkdir -p "$FAKE_GH_DIR"
 
-# gh wrapper: `pr view` reads the PR head from the origin, `pr merge` records
-# begin/end, ci check runs succeed; the rest goes to the shared fake.
+# gh wrapper: `pulls/7` is built from the origin's feature head, `compare`
+# from the origin, `ci` succeeds; `pr merge` records begin/end and marks the
+# PR merged for the next `pulls/7` read of the same run ($FAKE_RUN). The
+# rest goes to the shared fake.
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<'FAKE'
 #!/bin/bash
 d=$FAKE_GH_DIR
+answer() { printf '%s\n' "$1" | jq -r "$5"; exit 0; } # <json> api <route> --jq <expr>
 case "$1 $2" in
-  "pr view")
-    echo "pr view" >> "$d/calls.log"
-    h=$(git --git-dir="$ORIGIN" rev-parse refs/heads/feature)
-    printf '{"number":7,"title":"ci: add pinned CI gates for both repository layouts","state":"OPEN","isDraft":false,"baseRefName":"main","headRefName":"feature","headRefOid":"%s","mergeable":"MERGEABLE","isCrossRepository":false,"author":{"login":"%s"}}\n' "$h" "$FAKE_AUTHOR"
-    exit 0 ;;
   "pr merge")
+    echo "$*" >> "$d/calls.log"
     echo "begin${FAKE_RUN:+ $FAKE_RUN}" >> "$d/merges.log"
     sleep "$FAKE_MERGE_SLEEP"
     echo "end${FAKE_RUN:+ $FAKE_RUN}" >> "$d/merges.log"
     [ "${FAKE_MERGE_RC:-0}" = 0 ] || exit "$FAKE_MERGE_RC"
+    touch "$d/merged-${FAKE_RUN:-}"
     echo "merged"; exit 0 ;;
-  "variable set"|"variable delete"|"workflow run")
-    echo "$*" >> "$d/train.log"
-    exit "${FAKE_VAR_RC:-0}" ;;
-esac
-case "$*" in
-  "api --paginate repos/ned-si/homelab/pulls/7/commits")
-    sleep "${FAKE_GUARD_SLEEP:-0}" ;;
-  "api repos/ned-si/homelab/commits/"*"/check-runs"*)
-    echo '{"check_runs":[{"name":"ci","status":"completed","conclusion":"success","started_at":"2026-10-16T00:00:00Z"}]}'
-    exit 0 ;;
+  "api repos/ned-si/homelab/pulls/7")
+    echo "pulls/7" >> "$d/calls.log"
+    if [ -n "${FAKE_GUARD_SLEEP:-}" ] && [ ! -e "$d/guard-slept" ]; then
+      touch "$d/guard-slept"
+      sleep "$FAKE_GUARD_SLEEP"
+    fi
+    h=$(git --git-dir="$ORIGIN" rev-parse refs/heads/feature)
+    state=open merged=false
+    if [ -e "$d/merged-${FAKE_RUN:-}" ]; then
+      rm -f "$d/merged-${FAKE_RUN:-}"
+      state=closed merged=true
+    fi
+    answer "{\"state\":\"$state\",\"merged\":$merged,\"draft\":false,\"base\":{\"ref\":\"main\"},\"head\":{\"ref\":\"feature\",\"sha\":\"$h\",\"repo\":{\"full_name\":\"ned-si/homelab\"}},\"user\":{\"login\":\"$FAKE_AUTHOR\"},\"auto_merge\":null,\"merge_commit_sha\":\"f00df00df00df00df00df00df00df00df00df00d\"}" "$@" ;;
+  "api repos/ned-si/homelab/compare/main..."*)
+    sha=${2##*...}
+    answer "{\"behind_by\":$(git --git-dir="$ORIGIN" rev-list --count "$sha..main"),\"base_commit\":{\"sha\":\"$(git --git-dir="$ORIGIN" rev-parse main)\"}}" "$@" ;;
+  "api repos/ned-si/homelab/actions/workflows/ci.yaml/runs"*)
+    answer '{"workflow_runs":[{"status":"completed","conclusion":"success"}]}' "$@" ;;
+  "api repos/ned-si/homelab/commits/"*)
+    answer '{"check_runs":[{"name":"ci","status":"completed","conclusion":"success","started_at":"2026-10-16T00:00:00Z"}]}' "$@" ;;
 esac
 exec "$LIBGH" "$@"
 FAKE
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 
-api_resp "repos/ned-si/homelab/pulls/7/commits" 200 \
-  '[{"sha":"0000000000000000000000000000000000000000","commit":{"message":"ci: add b","verification":{"verified":true,"reason":"valid"}}}]'
 api_resp 'repos/ned-si/homelab/actions/variables?per_page=1' 200 '{"total_count":0,"variables":[]}'
 api_resp 'repos/ned-si/homelab/actions/variables/MERGE_FREEZE' 404
+api_resp 'repos/ned-si/homelab/issues?state=open&labels=auto-rollback&per_page=20' 200 '[]'
 api_resp 'user' 200 '{"login":"ned-si"}'
-echo '[{"name":"ci","state":"SUCCESS","startedAt":"2026-10-04T07:00:00Z","link":"x"}]' > "$FAKE_GH_DIR/pr-checks.json"
 
 # Origin: main at A, feature at B (child of A).
 git init -q --bare "$ORIGIN"
@@ -90,46 +98,8 @@ run_merge 7
 expect_eq "free lock -> merged, exit 0" 0 "$rc"
 expect_contains "free lock -> took the lock" "took the merge lock $LOCK" "$out"
 expect_contains "free lock -> released" "released the merge lock" "$out"
-expect_contains "free lock -> merged" "merged PR #7 (squash)" "$out"
+expect_contains "free lock -> merged" "merged PR #7 as" "$out"
 if [ -e "$LOCK" ]; then bad "lock dir removed after the merge"; else ok "lock dir removed after the merge"; fi
-
-# --- the Renovate train is paused while the lock is held
-train() { [ -f "$FAKE_GH_DIR/train.log" ] || return 0; sed -E 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z/<t>/' "$FAKE_GH_DIR/train.log" | tr '\n' '|'; }
-TRAIN_OK="variable set RENOVATE_TRAIN_PAUSED --repo ned-si/homelab --body 7 <t>|workflow run renovate-next.yaml --repo ned-si/homelab|variable delete RENOVATE_TRAIN_PAUSED --repo ned-si/homelab|workflow run renovate-next.yaml --repo ned-si/homelab|"
-rm -f "$FAKE_GH_DIR/train.log"
-run_merge 7
-expect_eq "merge -> paused, then resumed, train started each time" "$TRAIN_OK" "$(train)"
-expect_contains "merge -> logs the pause" "paused the Renovate train (RENOVATE_TRAIN_PAUSED)" "$out"
-expect_contains "merge -> logs the resume" "resumed the Renovate train" "$out"
-case "$out" in
-  *"paused the Renovate train"*"squash-merging"*"resumed the Renovate train"*"released the merge lock"*)
-    ok "merge -> paused before the merge, resumed before the lock is released" ;;
-  *) bad "merge -> paused before the merge, resumed before the lock is released" ;;
-esac
-
-rm -f "$FAKE_GH_DIR/train.log"
-rc=0
-out=$(cd "$tmp/work" && FAKE_MERGE_RC=1 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
-expect_eq "failed merge -> exit 1" 1 "$rc"
-expect_eq "failed merge -> the pause is still cleared" "$TRAIN_OK" "$(train)"
-if [ -e "$LOCK" ]; then bad "failed merge -> lock released"; else ok "failed merge -> lock released"; fi
-
-rm -f "$FAKE_GH_DIR/train.log"
-rc=0
-out=$(cd "$tmp/work" && PR_MERGE_PAUSE_REFRESH=0 FAKE_MERGE_RC=1 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
-expect_contains "refresh due -> the pause is set again" "variable set RENOVATE_TRAIN_PAUSED --repo ned-si/homelab --body 7 <t>|workflow run renovate-next.yaml --repo ned-si/homelab|variable set RENOVATE_TRAIN_PAUSED" "$(train)"
-
-rm -f "$FAKE_GH_DIR/train.log"
-rc=0
-out=$(cd "$tmp/work" && FAKE_VAR_RC=1 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
-expect_eq "variables API down -> still merges" 0 "$rc"
-expect_contains "variables API down -> warns" "warning: cannot set RENOVATE_TRAIN_PAUSED; the Renovate train is not paused" "$out"
-expect_eq "variables API down -> nothing to clear" "variable set RENOVATE_TRAIN_PAUSED --repo ned-si/homelab --body 7 <t>|" "$(train)"
-
-rm -f "$FAKE_GH_DIR/train.log"
-rc=0
-out=$(cd "$tmp/work" && bash "$REPO_ROOT/scripts/pr-merge.sh" --dry-run 7 2>&1) || rc=$?
-expect_eq "dry run -> the train is not touched" "" "$(train)"
 
 # --- stale: owner pid gone
 dead=$(bash -c 'echo $$')
@@ -162,15 +132,18 @@ rm -rf "$LOCK"
 # --- two concurrent runs serialise
 rm -f "$FAKE_GH_DIR/merges.log"
 export FAKE_MERGE_SLEEP=3
-(cd "$tmp/work" && bash "$REPO_ROOT/scripts/pr-merge.sh" 7 > "$tmp/out.1" 2>&1; echo $? > "$tmp/rc.1") &
+(cd "$tmp/work" && FAKE_RUN=a bash "$REPO_ROOT/scripts/pr-merge.sh" 7 > "$tmp/out.1" 2>&1; echo $? > "$tmp/rc.1") &
 p1=$!
 sleep 0.5
-(cd "$tmp/work" && bash "$REPO_ROOT/scripts/pr-merge.sh" 7 > "$tmp/out.2" 2>&1; echo $? > "$tmp/rc.2") &
+(cd "$tmp/work" && FAKE_RUN=b bash "$REPO_ROOT/scripts/pr-merge.sh" 7 > "$tmp/out.2" 2>&1; echo $? > "$tmp/rc.2") &
 p2=$!
 wait "$p1" "$p2"
 export FAKE_MERGE_SLEEP=0
 expect_eq "concurrent -> both exit 0" "0 0" "$(cat "$tmp/rc.1") $(cat "$tmp/rc.2")"
-expect_eq "concurrent -> merges never overlap" "begin end begin end " "$(merges)"
+case "$(merges)" in
+  "begin a end a begin b end b " | "begin b end b begin a end a ") ok "concurrent -> merges never overlap" ;;
+  *) bad "concurrent -> merges never overlap (got '$(merges)')" ;;
+esac
 expect_contains "concurrent -> the second waited" "waiting for the merge lock, held by PR #7 (feature" "$(cat "$tmp/out.1" "$tmp/out.2")"
 if [ -e "$LOCK" ]; then bad "concurrent -> lock released"; else ok "concurrent -> lock released"; fi
 
@@ -236,9 +209,9 @@ expect_eq "ticket ahead -> only the live ticket is left" "0000000001 " "$(queued
 if [ -e "$LOCK" ]; then bad "ticket ahead -> lock not taken"; else ok "ticket ahead -> lock not taken"; fi
 
 # --- the wait counts from the ticket, not from the start of the run: the
-# guards take 5 s before the ticket, the wait is 6 s, the ticket ahead goes
+# first read takes 5 s before the ticket, the wait is 6 s, the ticket ahead goes
 # away 7 s after the start.
-rm -f "$FAKE_GH_DIR/merges.log"
+rm -f "$FAKE_GH_DIR/merges.log" "$FAKE_GH_DIR/guard-slept"
 (sleep 7; rm -f "$QUEUE/0000000001") &
 gone=$!
 rc=0
@@ -269,7 +242,7 @@ rm -f "$FAKE_GH_DIR/merges.log"
 run_merge 7
 expect_eq "behind -> merged" 0 "$rc"
 expect_contains "behind -> rebased" "rebasing feature onto origin/main ${main_c:0:7}" "$out"
-expect_contains "behind -> waited for ci" "ci passed on" "$out"
+expect_contains "behind -> pushed" "pushed feature at" "$out"
 if git --git-dir="$ORIGIN" merge-base --is-ancestor "$main_c" refs/heads/feature; then
   ok "behind -> pushed branch contains main"
 else

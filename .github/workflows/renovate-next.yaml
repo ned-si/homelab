@@ -1,8 +1,8 @@
 ---
 # renovate-next: one Renovate pull request rebased at a time
 # (scripts/ci/renovate-next.sh), after each push to main and on a schedule
-# that restarts the train after a failed ci. scripts/pr-merge.sh pauses it
-# (RENOVATE_TRAIN_PAUSED) and dispatches it on pause and resume.
+# that restarts the train after a failed ci. RENOVATE_TRAIN_PAUSED pauses it
+# by hand.
 name: renovate-next
 
 on:
@@ -38,7 +38,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          # Set by scripts/pr-merge.sh while it holds its merge lock.
+          # A manual pause; nothing sets it automatically.
           RENOVATE_TRAIN_PAUSED: ${{ vars.RENOVATE_TRAIN_PAUSED }}
         run: |
           line=$(scripts/ci/renovate-next.sh)
