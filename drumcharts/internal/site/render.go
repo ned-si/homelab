@@ -174,12 +174,12 @@ func newLayout(m messages, title, description, p string) layout {
 		Description: description,
 		Path:        p,
 		Nav: []navLink{
-			{m.text("nav.home", nil), "https://nedsi.io/", false},
-			{m.text("nav.blog", nil), "https://blog.nedsi.io/", false},
-			{m.text("nav.homelab", nil), "https://homelab.nedsi.io/", false},
-			{m.text("nav.techradar", nil), "https://techradar.nedsi.io/", false},
-			{m.text("nav.charts", nil), "/", true},
-			{m.text("nav.about", nil), "https://blog.nedsi.io/about/", false},
+			{Label: m.text("nav.home", nil), Href: "https://nedsi.io/"},
+			{Label: m.text("nav.blog", nil), Href: "https://blog.nedsi.io/"},
+			{Label: m.text("nav.homelab", nil), Href: "https://homelab.nedsi.io/"},
+			{Label: m.text("nav.techradar", nil), Href: "https://techradar.nedsi.io/"},
+			{Label: m.text("nav.charts", nil), Href: "/", Current: true},
+			{Label: m.text("nav.about", nil), Href: "https://blog.nedsi.io/about/"},
 		},
 		Prefs: prefs{
 			Light:      m.text("prefs.light", nil),

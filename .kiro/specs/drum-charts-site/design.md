@@ -673,7 +673,7 @@ words kept in French text are in italics (`<em>` in the catalogue).
 | `legend.page_alt` | The legend of the drum charts, page {n} of {total} | La légende des partitions de batterie, page {n} sur {total} |
 | Landing page, overview item | Drum charts: the songs I play, to read in the browser or download as PDF. | Partitions de batterie : les morceaux que je joue, à lire dans le navigateur ou à télécharger en PDF. |
 | Landing page, "Drum charts" card | See the charts | Voir les partitions |
-| Privacy page, cookie table, "Sent to" | `nedsi.io` and its subdomains: this blog, the homelab dashboard, the tech radar and the drum charts | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab, le tech radar et les partitions de batterie |
+| Privacy page, cookie table, "Sent to" | `nedsi.io` and its subdomains: this blog, the homelab dashboard, the tech radar and the drum charts | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab, le Tech radar et les partitions de batterie |
 
 The page carries no licence; it stays in the drum-charts repository.
 The footer's "Privacy" and the preferences' strings are the existing
