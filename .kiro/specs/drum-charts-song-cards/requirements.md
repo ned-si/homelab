@@ -1,7 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-27
+closed: 2026-11-27
 issue: 1878
 ---
 # Requirements: drum-charts-song-cards
