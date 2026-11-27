@@ -76,8 +76,14 @@ repos:
       - id: gitleaks
 
   # ---------------------------------------------------------------------------
-  # YAML / shell / OpenTofu
+  # Python / YAML / shell / OpenTofu
   # ---------------------------------------------------------------------------
+  # Rules in ruff.toml; lint only, no formatter.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0
     hooks:

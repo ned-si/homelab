@@ -31,8 +31,9 @@ what: [GOVERNANCE.md](GOVERNANCE.md).
   fails without it where the code allows one.
 - A change updates the docs it makes stale, in the same pull request.
 - Style: the Google Go Style Guide as far as golangci-lint checks it
-  (`dashboard/.golangci.yaml`), PEP 8 for Python, shellcheck for shell,
-  strict yamllint for YAML, `tofu fmt` for OpenTofu (HCL).
+  (`dashboard/.golangci.yaml`), PEP 8 for Python as far as ruff checks it
+  (`ruff.toml`), shellcheck for shell, strict yamllint for YAML, `tofu fmt`
+  for OpenTofu (HCL).
 - Never commit a secret. Secrets live only in SOPS-encrypted `*.sops.yaml`
   files ([docs/secrets.md](docs/secrets.md)).
 

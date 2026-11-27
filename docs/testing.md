@@ -16,9 +16,10 @@ deploy time, against production.
 `.pre-commit-config.yaml` is the one list of local checks. `task tools`
 installs the hooks for `pre-commit`, `commit-msg` and `pre-push`.
 
-- On commit (seconds): hygiene, gitleaks, yamllint, shellcheck, actionlint,
-  `tofu fmt`, `scripts/leak-check.sh` (every `*.sops.yaml` is encrypted, no
-  plaintext Secret, no inline credential), placeholders, KSOPS references,
+- On commit (seconds): hygiene, gitleaks, ruff (`ruff.toml`), yamllint,
+  shellcheck, actionlint, `tofu fmt`, `scripts/leak-check.sh` (every
+  `*.sops.yaml` is encrypted, no plaintext Secret, no inline credential),
+  placeholders, KSOPS references,
   Trivy waiver hygiene, Renovate annotations and `renovate-config-validator`,
   and `scripts/render-deploy.sh` (re-renders `deploy/`).
 - On commit message: Conventional Commits.
@@ -44,8 +45,8 @@ for a missing tool; `promtool` and `alertmanager` install only the binaries
 their script runs, and the script fails when one is missing.
 
 - `lint`: `pre-commit run --all-files`, skipping only the hooks that another
-  CI step runs with the same script or pinned binary; then yamllint,
-  actionlint, shellcheck, `tofu fmt` and `tofu validate`.
+  CI step runs with the same script or pinned binary (ruff runs here); then
+  yamllint, actionlint, shellcheck, `tofu fmt` and `tofu validate`.
   `tests/test_precommit_parity.py` fails when the hook list and the CI steps
   drift.
 - `render`:

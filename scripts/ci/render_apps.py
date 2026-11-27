@@ -394,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
                                     "path": "kubernetes/applications", "directory": {"recurse": True}},
                          "destination": {"namespace": "argo"}},
             }
-            queue.append((f"legacy/all-apps", legacy_root, "1", "kubernetes/applications (legacy root)", None, "app"))
+            queue.append(("legacy/all-apps", legacy_root, "1", "kubernetes/applications (legacy root)", None, "app"))
             for f in sorted((root / "kubernetes/applications").rglob("*")):
                 if f.is_file() and f.suffix in (".yaml", ".yml"):
                     for doc in file_docs(f):

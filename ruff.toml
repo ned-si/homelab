@@ -1,0 +1,6 @@
+# Python lint: the ruff-check hook in .pre-commit-config.yaml, which CI's
+# `lint` job runs. The rules are pinned here so a ruff upgrade does not change
+# them: pyflakes (F) and the pycodestyle errors that do not depend on layout
+# (E4, E7, E9). No formatter and no line length (CONTRIBUTING.md, "Style").
+[lint]
+select = ["E4", "E7", "E9", "F"]

@@ -76,7 +76,7 @@ spec:
               type: RuntimeDefault
           volumes:
           - configMap:
-              name: paperless-apply-bbtgh275dd
+              name: paperless-apply-h8thffmtth
             name: app
           - name: token
             secret:

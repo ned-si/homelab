@@ -248,9 +248,9 @@ class Client:
         deadline, delay = self.clock() + timeout, 2.0
         while True:
             try:
-                status, raw = self._once("GET", READY_PATH, None)
+                status, _ = self._once("GET", READY_PATH, None)
             except (urllib.error.URLError, OSError):
-                status, raw = 0, b""
+                status = 0
             if 200 <= status < 300:
                 return
             if status in (401, 403):
