@@ -50,6 +50,7 @@ var catalogue = map[string]map[string]string{
 		"nav.blog":          "Blog",
 		"nav.homelab":       "Homelab",
 		"nav.techradar":     "Tech radar",
+		"nav.charts":        "Charts",
 		"nav.about":         "About",
 		"prefs.light":       "Light theme",
 		"prefs.light_title": "Light theme, remembered with a cookie",

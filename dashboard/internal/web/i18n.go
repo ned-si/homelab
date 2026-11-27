@@ -169,6 +169,7 @@ var catalogues = map[string]catalogue{
 		"url.home":      "https://nedsi.io/",
 		"url.blog":      "https://blog.nedsi.io/",
 		"url.techradar": "https://techradar.nedsi.io/",
+		"url.charts":    "https://charts.nedsi.io/",
 		"url.about":     "https://blog.nedsi.io/about/",
 		"url.privacy":   "https://blog.nedsi.io/privacy/",
 		"url.feed":      "https://blog.nedsi.io/index.xml",
@@ -177,6 +178,7 @@ var catalogues = map[string]catalogue{
 		"nav.blog":      "Blog",
 		"nav.homelab":   "Homelab",
 		"nav.techradar": "Tech radar",
+		"nav.charts":    "Charts",
 		"nav.about":     "About",
 
 		"theme.light":       "Light theme",
@@ -442,6 +444,7 @@ var catalogues = map[string]catalogue{
 		"url.home":      "https://nedsi.io/fr/",
 		"url.blog":      "https://blog.nedsi.io/fr/",
 		"url.techradar": "https://techradar.nedsi.io/fr/",
+		"url.charts":    "https://charts.nedsi.io/",
 		"url.about":     "https://blog.nedsi.io/fr/about/",
 		"url.privacy":   "https://blog.nedsi.io/fr/privacy/",
 		"url.feed":      "https://blog.nedsi.io/fr/index.xml",
@@ -450,6 +453,7 @@ var catalogues = map[string]catalogue{
 		"nav.blog":      "Blog",
 		"nav.homelab":   "Homelab",
 		"nav.techradar": "Tech radar",
+		"nav.charts":    "Partitions",
 		"nav.about":     "À propos",
 
 		"theme.light":       "Thème clair",

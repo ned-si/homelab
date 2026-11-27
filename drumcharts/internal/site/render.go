@@ -30,7 +30,11 @@ var stylesheets = []string{"charts.css", "layout.css", "theme-dark.css", "theme-
 // from the root of charts.nedsi.io.
 type Files map[string][]byte
 
-type navLink struct{ Label, Href string }
+// Current marks this site's own link with aria-current.
+type navLink struct {
+	Label, Href string
+	Current     bool
+}
 
 type prefs struct{ Light, LightTitle, Dark, DarkTitle string }
 
@@ -170,11 +174,12 @@ func newLayout(m messages, title, description, p string) layout {
 		Description: description,
 		Path:        p,
 		Nav: []navLink{
-			{m.text("nav.home", nil), "https://nedsi.io/"},
-			{m.text("nav.blog", nil), "https://blog.nedsi.io/"},
-			{m.text("nav.homelab", nil), "https://homelab.nedsi.io/"},
-			{m.text("nav.techradar", nil), "https://techradar.nedsi.io/"},
-			{m.text("nav.about", nil), "https://blog.nedsi.io/about/"},
+			{Label: m.text("nav.home", nil), Href: "https://nedsi.io/"},
+			{Label: m.text("nav.blog", nil), Href: "https://blog.nedsi.io/"},
+			{Label: m.text("nav.homelab", nil), Href: "https://homelab.nedsi.io/"},
+			{Label: m.text("nav.techradar", nil), Href: "https://techradar.nedsi.io/"},
+			{Label: m.text("nav.charts", nil), Href: "/", Current: true},
+			{Label: m.text("nav.about", nil), Href: "https://blog.nedsi.io/about/"},
 		},
 		Prefs: prefs{
 			Light:      m.text("prefs.light", nil),

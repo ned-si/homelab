@@ -35,7 +35,7 @@ with one cookie:
 | Name | `theme` |
 | Value | `light`, nothing else |
 | Set | When you click the sun, never otherwise |
-| Sent to | `nedsi.io` and its subdomains: this blog, the homelab dashboard and the tech radar |
+| Sent to | `nedsi.io` and its subdomains: this blog, the homelab dashboard, the tech radar and the drum charts |
 | Lasts | One year, or until you pick the dark theme, which deletes it |
 | Used for | Sending you the light stylesheet |
 

@@ -15,6 +15,7 @@ def nav(current=None, links=None):
         ("Blog", "/"),
         ("Homelab", "https://homelab.nedsi.io/"),
         ("Tech radar", "https://techradar.nedsi.io/"),
+        ("Charts", "https://charts.nedsi.io/"),
         ("About", "/about/"),
     ]
     out = []
@@ -220,6 +221,7 @@ def test_text_rules_fail(tmp_path, rel, host, body, msg):
             ("Blog", "https://blog.nedsi.io/"),
             ("Homelab", "https://homelab.nedsi.io/"),
             ("Tech radar", "https://techradar.nedsi.io/"),
+            ("Charts", "https://charts.nedsi.io/"),
             ("About", "https://blog.nedsi.io/about/"),
         ]
     res = run(tmp_path, {rel: nav(current, links) + body}, host)
@@ -272,6 +274,7 @@ def test_landing_no_cookies_line(tmp_path):
         ("Blog", "https://blog.nedsi.io/"),
         ("Homelab", "https://homelab.nedsi.io/"),
         ("Tech radar", "https://techradar.nedsi.io/"),
+        ("Charts", "https://charts.nedsi.io/"),
         ("About", "https://blog.nedsi.io/about/"),
     ]
     res = run(tmp_path, {"index.html": nav("Home", links) + "<p>No cookies.</p>"}, "nedsi.io")
@@ -304,6 +307,7 @@ FR_NAV = [
     ("Blog", "/fr/"),
     ("Homelab", "https://homelab.nedsi.io/fr/"),
     ("Tech radar", "https://techradar.nedsi.io/fr/"),
+    ("Partitions", "https://charts.nedsi.io/"),
     ("À propos", "/fr/about/"),
 ]
 
@@ -401,6 +405,7 @@ CHARTS_NAV = [
     ("Blog", "https://blog.nedsi.io/"),
     ("Homelab", "https://homelab.nedsi.io/"),
     ("Tech radar", "https://techradar.nedsi.io/"),
+    ("Charts", "/"),
     ("About", "https://blog.nedsi.io/about/"),
 ]
 CHARTS_HOME = (
@@ -427,7 +432,7 @@ def charts_run(tmp_path, pages):
 
 
 def test_charts_pages_pass(tmp_path):
-    pages = {"index.html": nav(links=CHARTS_NAV) + CHARTS_HOME, "tool-schism/index.html": nav(links=CHARTS_NAV) + CHARTS_SONG}
+    pages = {"index.html": nav("Charts", CHARTS_NAV) + CHARTS_HOME, "tool-schism/index.html": nav("Charts", CHARTS_NAV) + CHARTS_SONG}
     res = charts_run(tmp_path, pages)
     assert res.returncode == 0, res.stdout
 
@@ -443,7 +448,7 @@ def test_charts_pages_pass(tmp_path):
     ],
 )
 def test_charts_media_fails(tmp_path, body, msg):
-    res = charts_run(tmp_path, {"index.html": nav(links=CHARTS_NAV) + body})
+    res = charts_run(tmp_path, {"index.html": nav("Charts", CHARTS_NAV) + body})
     assert res.returncode == 1
     assert msg in res.stdout
 

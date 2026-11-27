@@ -4,7 +4,8 @@
 #
 # Measures the landing page, the blog home, its About and privacy pages, the
 # newest article (when there is one), the dashboard's full fixture page and
-# the tech radar (apps/website/techradar/) in
+# the tech radar (apps/website/techradar/), the charts home and a two-page
+# song page (drumcharts/ goldens) in
 # chrome-headless-shell at 1920x1080 and 390x844: the left edge and width of
 # body's content box, the box of `header.site > nav.site`, the x and width
 # of each nav link and, on the pages in THEMED, the box of `header.site >
@@ -67,10 +68,14 @@ curl -fs -m 10 -o "$www$css" "http://127.0.0.1:18080$css"
 # the landing page's: site-check.sh holds both to the same bytes.
 cp "$root/apps/website/landing/layout.css" "$root/apps/website/landing/landing.css" "$www/"
 cp "$root/apps/website/techradar/techradar.css" "$www/"
+charts=$root/drumcharts/internal/site/testdata/golden
+cp "$charts/charts.css" "$www/"
+cp -R "$charts/pages" "$www/pages"
 cp -R "$public/css" "$www/css"
 cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
-pages=(landing blog about privacy dashboard techradar)
-# The pages whose preferences match the landing page's.
+pages=(landing blog about privacy dashboard techradar charts charts-song)
+# The pages whose preferences match the landing page's. The charts pages
+# have no language toggle yet, so only their nav and body are compared.
 themed="landing blog about privacy article dashboard techradar landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr"
 # One comparison per language; the first page of each is the reference.
 fr_pages=(landing-fr blog-fr about-fr privacy-fr dashboard-fr techradar-fr)
@@ -81,6 +86,8 @@ cp "$public/fr/about/index.html" "$work/about-fr.html"
 cp "$public/fr/privacy/index.html" "$work/privacy-fr.html"
 cp "$root/apps/website/landing/index.html" "$work/landing.html"
 cp "$root/apps/website/techradar/index.html" "$work/techradar.html"
+cp "$charts/index.html" "$work/charts.html"
+cp "$charts/sum41-fat-lip/index.html" "$work/charts-song.html"
 cp "$public/index.html" "$work/blog.html"
 cp "$public/about/index.html" "$work/about.html"
 cp "$public/privacy/index.html" "$work/privacy.html"

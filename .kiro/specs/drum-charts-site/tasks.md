@@ -79,7 +79,7 @@ its task 6.
       `site-serve-check.sh` green in the `site` job; acceptance
       criteria 1, 2, 3, 8 and 16 live. [3.4, 3.11, 4.2, 4.3, 5]
       #1863.
-- [ ] 6. Links (**ned-si/homelab**, live): "Charts" in `NAV` and the
+- [x] 6. Links (**ned-si/homelab**, live): "Charts" in `NAV` and the
       navigation bars of the blog, the landing page, the dashboard, the
       tech radar and the charts site, with the golden pages, the golden
       tree and screenshots; the landing page's overview item and card
@@ -89,6 +89,7 @@ its task 6.
       French nav label, landing text and privacy row, from the reviewed
       table. Then the `homelab-site` and dashboard image deploys.
       Check: acceptance criteria 9-11 live. [3.7, 6.1-6.4]
+      #1886.
 - [ ] 7. French at `charts.nedsi.io/fr/` (**ned-si/homelab**, live),
       after site-theme-language task 4: the `fr` catalogue from the
       reviewed French of [design, Strings](design.md#strings), the
@@ -103,11 +104,12 @@ its task 6.
       docs alone how a new chart reaches the site and how to see that the
       site is current; links resolve. [6.5]
       #1875.
-- [ ] 9. Link the site from drum-charts (**ned-si/drum-charts**): keep
+- [x] 9. Link the site from drum-charts (**ned-si/drum-charts**): keep
       the Songs table and the Next section as they are, and add one line
       under the Songs heading: `Read or download every chart at
       [charts.nedsi.io](https://charts.nedsi.io/).` Its merge is the
       end-to-end test. Check: the Songs table still has one row per file
       in `songs/`; acceptance criterion 12. [2.1, 2.3]
+      ned-si/drum-charts#15.
 
 The last task ticked sets `status: done`, `closed:`, and closes #1761.
