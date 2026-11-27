@@ -9,6 +9,7 @@ Environment:
   TRUENAS_URL      base URL, e.g. https://192.168.1.228
   TRUENAS_CONFIG   democratic-csi driver config file; its httpConnection.apiKey
                    is the API key (the file is the Secret democratic-csi reads)
+  TRUENAS_CA       PEM file of the CA that signed the NAS certificate
   LISTEN_PORT      default 9814
   CACHE_SECONDS    default 30; scrapes within this window reuse the last result
   ISCSI_AUTH_NETWORKS  the networks every iSCSI target must be limited to,
@@ -243,14 +244,13 @@ class Collector:
     GETS = ("system/info", "pool", "boot/get_state", "disk", "alert/list")
     ISCSI_GETS = ("iscsi/target", "iscsi/initiator")
 
-    def __init__(self, url: str, config: str, cache: float, iscsi_networks: frozenset[str] = frozenset()) -> None:
+    def __init__(self, url: str, config: str, cache: float, iscsi_networks: frozenset[str] = frozenset(),
+                 cafile: str | None = None) -> None:
         self.url, self.config, self.cache = url.rstrip("/"), config, cache
         self.iscsi_networks = iscsi_networks
-        # The NAS serves its self-signed certificate (the same reason
-        # democratic-csi runs with allowInsecure: true).
-        self.ctx = ssl.create_default_context()
-        self.ctx.check_hostname = False
-        self.ctx.verify_mode = ssl.CERT_NONE
+        # The NAS certificate is signed by its own CA (TRUENAS_CA); certificate
+        # and hostname (the IP, in its SAN) are verified.
+        self.ctx = ssl.create_default_context(cafile=cafile)
         self.lock = threading.Lock()
         self.last, self.at, self.ok = "", 0.0, None
 
@@ -319,7 +319,8 @@ class Collector:
 def main() -> None:
     collector = Collector(os.environ["TRUENAS_URL"], os.environ["TRUENAS_CONFIG"],
                           float(os.environ.get("CACHE_SECONDS", "30")),
-                          networks(os.environ.get("ISCSI_AUTH_NETWORKS", "").split()))
+                          networks(os.environ.get("ISCSI_AUTH_NETWORKS", "").split()),
+                          os.environ["TRUENAS_CA"])
     port = int(os.environ.get("LISTEN_PORT", "9814"))
 
     class Handler(BaseHTTPRequestHandler):

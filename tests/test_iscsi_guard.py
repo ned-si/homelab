@@ -121,3 +121,10 @@ def test_read_api_key(tmp_path):
     cfg = tmp_path / "c.yaml"
     cfg.write_text("driver: freenas-iscsi\nhttpConnection:\n  apiKey: \"1-abc\"\n")
     assert guard.read_api_key(str(cfg)) == "1-abc"
+
+
+def test_api_verifies_against_the_nas_ca():
+    import ssl
+    ctx = guard.Api("https://nas", "/nonexistent", str(REPO / "platform" / "truenas-exporter" / "nas-ca.crt")).ctx
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    assert len(ctx.get_ca_certs()) == 1

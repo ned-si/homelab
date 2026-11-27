@@ -134,6 +134,14 @@ that user's rights; it cannot be narrowed further. The exporter only sends
 GETs, plus the `disk/temperatures` and `reporting/get_data` queries, which
 the API exposes as POST.
 
+The exporter and the iSCSI guard verify the NAS certificate (hostname
+`192.168.1.228`, in its SAN) against the NAS's own CA `homelab-nas-ca`:
+`platform/truenas-exporter/nas-ca.crt`, mounted from ConfigMap `nas-ca` and
+named by `TRUENAS_CA`. It is the same certificate as `extraCaCerts` in
+`infrastructure/democratic-csi/values-iscsi.yaml`, which democratic-csi
+verifies with; `tests/test_truenas_exporter.py` fails when the two differ.
+The CA expires 2027-12-14: replace both copies when it is renewed.
+
 The REST API v2.0 is deprecated since 25.04 and planned for removal in
 TrueNAS 27. While democratic-csi, the exporter, the iSCSI guard and
 `scripts/nas-check.py` call it, the NAS raises a daily `RESTAPIUsage` alert,
@@ -180,7 +188,7 @@ on CORE it logs `core, nothing to do`. The node list is the ConfigMap
 `nas-iscsi-auth-networks`, read by both. Tests: `tests/test_iscsi_guard.py`.
 
 The NAS's own alerts are shown, not paged: they include conditions already
-known, such as its expired self-signed certificate. Tests:
+known, such as the daily `RESTAPIUsage` alert. Tests:
 `tests/test_truenas_exporter.py`, `tests/prometheus/nas_test.yaml`.
 
 ```sh

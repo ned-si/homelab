@@ -235,3 +235,20 @@ def test_iscsi_unrestricted_scale():
 def test_iscsi_gauge_absent_without_networks_or_targets():
     assert iscsi_gauge([], nets=frozenset()) == []
     assert not any(l.startswith("truenas_iscsi") for l in lines())
+
+
+NAS_CA = REPO / "platform" / "truenas-exporter" / "nas-ca.crt"
+
+
+def test_tls_verifies_against_the_nas_ca():
+    import ssl
+    ctx = exporter.Collector("https://nas", "/nonexistent", cache=0, cafile=str(NAS_CA)).ctx
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    subjects = [dict(x[0] for x in c["subject"]) for c in ctx.get_ca_certs()]
+    assert {"commonName": "homelab-nas-ca"}.items() <= subjects[0].items()
+
+
+def test_nas_ca_matches_democratic_csi():
+    import yaml
+    values = yaml.safe_load((REPO / "infrastructure" / "democratic-csi" / "values-iscsi.yaml").read_text())
+    assert NAS_CA.read_text().strip() == values["extraCaCerts"].strip()
