@@ -58,23 +58,30 @@ jobs:
           export COSIGN_VERSION COSIGN_SHA256
           scripts/ci/install-tool.sh cosign
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: drumcharts/go.mod
           cache-dependency-path: drumcharts/go.sum
+
       - name: Build the site
         run: hugo --source site --destination "$GITHUB_WORKSPACE/site/public" --minify --panicOnWarning --gc
 
-      # Verifies the pin's signature before reading it
+      # Verifies the pin's signature before reading it and fails on a Go line
+      # other than the dashboard's
       # (.kiro/specs/drum-charts-site/design.md#the-pin).
       - name: Extract and render the drum charts
         env:
           GOTOOLCHAIN: local
         run: |
           set -euo pipefail
+          want=$(grep -m1 '^go ' dashboard/go.mod)
+          got=$(grep -m1 '^go ' drumcharts/go.mod)
+          [ "$got" = "$want" ] || { echo "drumcharts/go.mod has '$got', dashboard/go.mod '$want'"; exit 1; }
           scripts/ci/drumcharts-data.sh "$RUNNER_TEMP/charts-data"
           cd drumcharts
           go run ./cmd/drumcharts render -data "$RUNNER_TEMP/charts-data" -out "$GITHUB_WORKSPACE/site/charts-public"
+
       # The same Dockerfile for the runner's platform, run as the cluster runs
       # it (read-only root, /tmp writable, apps/website/nginx.conf and
       # theme.conf), before anything is pushed.
