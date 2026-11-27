@@ -52,10 +52,10 @@ continue without the maintainer, someone else needs:
   ([docs/backups.md](docs/backups.md)) to rebuild from git.
 
 A designated successor, a trusted person with write access, can take over
-the project and its accounts. The handover is set through GitHub's account
-successor and the password manager's emergency access, which holds the age
-key and the account logins. The collaborator list is not public, so this
-document names no one.
+the project and its accounts within days: the GitHub account through
+GitHub's account successor feature, and the other accounts and the age key
+with the credentials the successor already holds for emergencies. The
+collaborator list is not public, so this document names no one.
 
 ## Why it is like this
 
