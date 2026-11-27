@@ -474,7 +474,7 @@
 </div>
 </div>
 </div>
-<p class="meta">Les apps qui gardent leur base dans SQLite, un fichier dans le volume de l’app, sont copiées sur S3 chaque nuit avec restic. La plupart des copies sont faites pendant que l’app tourne, et le test de restauration hebdomadaire vérifie les fichiers de base qu’il couvre. Valkey, Redis et ClickHouse contiennent des files d’attente, des caches et de la télémétrie qui se reconstruisent ou expirent, donc ils ne sont pas sauvegardés.</p>
+<p class="meta">Les apps qui gardent leur base dans SQLite, un fichier dans le volume de l’app, sont copiées vers S3 chaque nuit avec restic. La plupart des copies sont faites pendant que l’app tourne, et le test de restauration hebdomadaire vérifie les fichiers de base qu’il couvre. Valkey, Redis et ClickHouse contiennent des files d’attente, des caches et de la télémétrie qui se reconstruisent ou expirent, ils ne sont donc pas sauvegardés.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">SQLite</p>
@@ -498,7 +498,7 @@
 <p class="tile-value ok">3<span class="unit"> instances</span> <span class="status ok">En service</span></p>
 <p class="tile-detail">Vues sur les 24 h glissantes</p>
 <p class="tile-detail">3 en service</p>
-<p class="tile-detail">En mémoire, pas sauvegardé</p>
+<p class="tile-detail">En mémoire, sans sauvegarde</p>
 </div>
 </div>
 <div class="tile">
@@ -507,7 +507,7 @@
 <p class="tile-value ok">1<span class="unit"> instance</span> <span class="status ok">En service</span></p>
 <p class="tile-detail">Vues sur les 24 h glissantes</p>
 <p class="tile-detail">1 en service</p>
-<p class="tile-detail">Les <em>logs</em> et les traces expirent, pas sauvegardé</p>
+<p class="tile-detail">Les logs et les traces expirent, sans sauvegarde</p>
 </div>
 </div>
 </div>
@@ -614,7 +614,7 @@
 </div>
 <p class="meta">État au <time datetime="2026-11-20T17:00:00&#43;01:00">20 novembre 2026, 17:00</time>.</p>
 <h3>OpenSSF Scorecard</h3>
-<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque <em>merge</em> dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais) ; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous ; une note sous un contrôle dit pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">rapport complet</a>.</p>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> note le dépôt selon une liste de bonnes pratiques de sécurité, chaque contrôle sur 10, à chaque <em>merge</em> dans main. Voici le score global et chaque contrôle par ordre alphabétique, avec la raison donnée par Scorecard (en anglais) ; un contrôle qui ne s’applique pas au dépôt le dit. Un contrôle est vert à partir de 7 sur 10, jaune à partir de 4 et rouge en dessous ; une note sous un contrôle explique pourquoi quand la raison de Scorecard ne suffit pas. Les détails sont dans le <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">rapport complet</a>.</p>
 <div class="tiles">
 <div class="tile">
 <p class="tile-label">Score</p>
@@ -637,7 +637,7 @@
 <div class="tile-body">
 <p class="tile-value warn">4<span class="unit"> / 10</span> <span class="status warn">Attention</span></p>
 <p class="tile-detail" lang="en-GB">branch protection is not maximal on development and all release branches</p>
-<p class="tile-detail">Voulu : main n’accepte que des <em>pull requests</em> aux commits signés et à la CI verte, sans approbation, pour que Renovate et les agents mergent sans attendre personne.</p>
+<p class="tile-detail">Voulu : main n’accepte que des pull requests aux commits signés et au CI vert, sans approbation, pour que Renovate et les agents fassent leurs merges sans attendre personne.</p>
 </div>
 </div>
 <div class="tile">
@@ -659,7 +659,7 @@
 <div class="tile-body">
 <p class="tile-value bad">0<span class="unit"> / 10</span> <span class="status bad">Critique</span></p>
 <p class="tile-detail" lang="en-GB">Found 0/28 approved changesets -- score normalized to 0</p>
-<p class="tile-detail">Voulu : je gère ça seul et ce sont des agents qui ouvrent les <em>pull requests</em>, donc personne d’autre ne les approuve. La CI verte est le seul contrôle.</p>
+<p class="tile-detail">Voulu : je gère ça seul et des agents ouvrent les pull requests, donc personne d’autre ne les approuve. Le CI au vert est le seul contrôle.</p>
 </div>
 </div>
 <div class="tile">
@@ -738,7 +738,7 @@
 <div class="tile-body">
 <p class="tile-value none"><span class="status none">Non applicable</span></p>
 <p class="tile-detail" lang="en-GB">no releases found</p>
-<p class="tile-detail">Les images sont signées avec cosign et portent une provenance SLSA Build L2. Pas de <em>releases</em> GitHub, c’est voulu : ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.</p>
+<p class="tile-detail">Les images sont signées avec cosign et ont une provenance SLSA Build L2. Pas de releases GitHub, c’est voulu : ce sont des apps personnelles, pas faites pour être téléchargées par d’autres.</p>
 </div>
 </div>
 <div class="tile">

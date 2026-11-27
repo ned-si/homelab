@@ -526,7 +526,7 @@ func engineTiles(l *locale, d snapshot.Databases) []tile {
 		sqlite.Status, sqlite.Word = databasesStatus(l, d.SQLiteUp, d.SQLiteCount)
 		backups = tile{Label: l.t(backupLabel), Value: l.of(d.SQLiteBackupFresh, d.SQLiteCount),
 			Details: []string{l.t("db.sqlite-backups.detail"),
-				l.f("db.sqlite-backups.restore", strconv.Itoa(d.SQLiteRestorePassed))}}
+				l.f(l.plural(d.SQLiteRestorePassed, "db.sqlite-backups.restore.one", "db.sqlite-backups.restore"), strconv.Itoa(d.SQLiteRestorePassed))}}
 		backups.Status, backups.Word = sqliteBackupStatus(l, d.SQLiteBackupFresh, d.SQLiteRestoreFailed, d.SQLiteCount)
 	}
 	return []tile{sqlite, backups,
