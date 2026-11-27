@@ -14,15 +14,45 @@ h2 { margin: 2.5rem 0 0.5rem; font-size: 1.375rem; }
 main > p { max-width: 44rem; }
 .updated, .credits { color: var(--muted); font-size: 0.9375rem; }
 
-.songs { width: 100%; border-collapse: collapse; }
-.songs th { text-align: left; }
-.songs th, .songs td {
-  padding: 0.4rem 0.75rem 0.4rem 0;
-  border-bottom: 1px solid var(--rule);
-  overflow-wrap: break-word;
-  vertical-align: top;
+/* The songs as cards in rows: two on a phone, six in the 72rem container.
+   The first page is the thumbnail, A4 portrait. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
 }
-.songs .num { text-align: right; }
+@media (min-width: 40rem) {
+  .cards { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
+}
+.cards li { display: flex; flex-direction: column; min-width: 0; }
+.card {
+  flex: 1;
+  display: block;
+  padding: 0.5rem;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 0.4rem;
+  text-decoration: none;
+}
+.card:hover { border-color: var(--link); }
+.card:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+.card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 210 / 297;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--rule);
+}
+.card-title, .card-artist { display: block; line-height: 1.3; overflow-wrap: anywhere; }
+.card-title { margin-top: 0.5rem; font-weight: 600; }
+.card-artist, .card-meta { color: var(--muted); font-size: 0.875rem; }
+.card-meta { margin: 0.3rem 0 0; }
 
 .button {
   display: inline-block;

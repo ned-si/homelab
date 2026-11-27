@@ -4,15 +4,18 @@
 <p class="lead">{{.Lead}}</p>
 <p>{{.Intro}}</p>
 <h2 id="songs">{{.Songs}}</h2>
-<table class="songs" aria-labelledby="songs">
-<thead><tr><th scope="col">{{.ColSong}}</th><th scope="col">{{.ColArtist}}</th><th scope="col" class="num">{{.ColPages}}</th><th scope="col">{{.ColPDF}}</th></tr></thead>
-<tbody>
-{{- range .Rows}}
-<tr><td><a href="/{{.Slug}}/">{{.Title}}</a></td><td>{{.Artist}}</td><td class="num">{{.Pages}}</td>
-<td><a href="/pdf/{{.Slug}}.pdf" download aria-label="{{.PDFLabel}}">{{$.PDF}}</a></td></tr>
+<ul class="cards" aria-labelledby="songs">
+{{- range .Cards}}
+<li>
+<a class="card" href="/{{.Slug}}/">
+<img src="/pages/{{.Thumb.Name}}" width="{{.Thumb.Width}}" height="{{.Thumb.Height}}" alt="{{.Thumb.Alt}}" loading="lazy">
+<span class="card-title">{{.Title}}</span>
+<span class="card-artist">{{.Artist}}</span>
+</a>
+<p class="card-meta">{{.Pages}} · <a href="/pdf/{{.Slug}}.pdf" download aria-label="{{.PDFLabel}}">{{$.PDF}}</a></p>
+</li>
 {{- end}}
-</tbody>
-</table>
+</ul>
 <p class="updated">{{.Updated}}</p>
 <p class="credits">{{.Credits}}</p>
 </main>
