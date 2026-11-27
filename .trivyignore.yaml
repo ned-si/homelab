@@ -212,10 +212,19 @@ misconfigurations:
   - id: AVD-KSV-0118
     paths:
       - "policies/kyverno/tests/resources.yaml"
+      - "policies/kyverno/tests/exceptions/resources.yaml"
     statement: >-
       Kyverno policy test fixtures set no securityContext on purpose: each one
       isolates the field its policy tests. Never applied; no Application syncs
       policies/.
+    expired_at: 2027-04-01
+  - id: AVD-KSV-0005
+    paths:
+      - "policies/kyverno/tests/exceptions/resources.yaml"
+    statement: >-
+      Kyverno exception test fixture: the two DaemonSets add SYS_ADMIN, the
+      case the tetragon exception must skip and disallow-capabilities must
+      reject. Never applied; no Application syncs policies/.
     expired_at: 2027-04-01
 
   # readOnlyRootFilesystem: these images write to their own filesystem with no
@@ -276,6 +285,7 @@ misconfigurations:
   - id: AVD-KSV-0014
     paths:
       - "policies/kyverno/tests/resources.yaml"
+      - "policies/kyverno/tests/exceptions/resources.yaml"
     statement: >-
       Kyverno policy test fixtures set no securityContext on purpose: each one
       isolates the field its policy tests. Never applied; no Application syncs
