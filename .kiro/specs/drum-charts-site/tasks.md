@@ -95,13 +95,14 @@ its task 6.
       `fr/` tree, the toggle, `hreflang` and canonical, `TestCatalogue`,
       the golden pages in French, the French `NAV` target for Charts.
       Check: acceptance criterion 14 live. [7]
-- [ ] 8. Docs (**ned-si/homelab**): `docs/drum-charts.md`;
+- [x] 8. Docs (**ned-si/homelab**): `docs/drum-charts.md`;
       `docs/website.md` (the host, the copies, the generator); the README
       Services table, the public pages line and the layout table;
       `docs/networking.md` (the name); the `drumcharts/` row in
       `.kiro/steering/structure.md`. Check: a newcomer can tell from the
       docs alone how a new chart reaches the site and how to see that the
       site is current; links resolve. [6.5]
+      #1875.
 - [ ] 9. Link the site from drum-charts (**ned-si/drum-charts**): keep
       the Songs table and the Next section as they are, and add one line
       under the Songs heading: `Read or download every chart at
