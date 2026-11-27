@@ -1,6 +1,7 @@
 ---
-# Build the blog under site/ and push ghcr.io/ned-si/homelab-site:main and
-# :<sha> for linux/arm64 with a signed SLSA provenance
+# Build the blog under site/ and the drum charts (drumcharts/, from the pinned
+# data image) and push ghcr.io/ned-si/homelab-site:main and :<sha> for
+# linux/arm64 with a signed SLSA provenance
 # (.kiro/specs/public-website/design.md#publishing-flow).
 # Renovate sees the new digest of :main and opens the digest pull request that
 # deploys it. A failure deploys nothing; the running site stays.
@@ -11,6 +12,8 @@ on:
     branches: [main]
     paths:
       - site/**
+      - drumcharts/**
+      - scripts/ci/drumcharts-data.sh
       - .github/workflows/site-publish.yaml
   workflow_dispatch:
 
@@ -46,9 +49,32 @@ jobs:
           export HUGO_VERSION HUGO_SHA256
           scripts/ci/install-tool.sh hugo
 
+      # The cosign pin lives in ci.yaml's env, as the Hugo pin.
+      - name: Install the pinned cosign
+        run: |
+          set -euo pipefail
+          COSIGN_VERSION=$(sed -n 's/^  COSIGN_VERSION: *//p' .github/workflows/ci.yaml)
+          COSIGN_SHA256=$(sed -n 's/^  COSIGN_SHA256: *//p' .github/workflows/ci.yaml)
+          export COSIGN_VERSION COSIGN_SHA256
+          scripts/ci/install-tool.sh cosign
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: drumcharts/go.mod
+          cache-dependency-path: drumcharts/go.sum
       - name: Build the site
         run: hugo --source site --destination "$GITHUB_WORKSPACE/site/public" --minify --panicOnWarning --gc
 
+      # Verifies the pin's signature before reading it
+      # (.kiro/specs/drum-charts-site/design.md#the-pin).
+      - name: Extract and render the drum charts
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          scripts/ci/drumcharts-data.sh "$RUNNER_TEMP/charts-data"
+          cd drumcharts
+          go run ./cmd/drumcharts render -data "$RUNNER_TEMP/charts-data" -out "$GITHUB_WORKSPACE/site/charts-public"
       # The same Dockerfile for the runner's platform, run as the cluster runs
       # it (read-only root, /tmp writable, apps/website/nginx.conf and
       # theme.conf), before anything is pushed.
@@ -56,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           docker buildx build --platform linux/amd64 --load -t site:smoke site
+          docker run --rm --entrypoint test site:smoke -f /usr/share/nginx/charts/index.html
           docker run -d --name site --read-only --tmpfs /tmp -p 127.0.0.1:8080:8080 \
             -v "$GITHUB_WORKSPACE/apps/website/nginx.conf:/etc/nginx-site/nginx.conf:ro" \
             -v "$GITHUB_WORKSPACE/apps/website/theme.conf:/etc/nginx-site/theme.conf:ro" \
@@ -127,16 +154,6 @@ jobs:
           want="https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main"
           [ "$builder" = "$want" ] || { echo "provenance builder is $builder, want $want"; exit 1; }
           echo "provenance verified: $builder, GitHub-hosted runner" | tee -a "$GITHUB_STEP_SUMMARY"
-
-      # The cosign pin lives in ci.yaml's env, as the Hugo pin.
-      - name: Install the pinned cosign
-        run: |
-          set -euo pipefail
-          COSIGN_VERSION=$(sed -n 's/^  COSIGN_VERSION: *//p' .github/workflows/ci.yaml)
-          COSIGN_SHA256=$(sed -n 's/^  COSIGN_SHA256: *//p' .github/workflows/ci.yaml)
-          export COSIGN_VERSION COSIGN_SHA256
-          scripts/ci/install-tool.sh cosign
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       # Keyless with the workflow's OIDC identity, classic .sig tag with the
       # Rekor bundle: the format Kyverno and the inventory read
