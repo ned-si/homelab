@@ -38,24 +38,13 @@ type navLink struct {
 
 type prefs struct{ Light, LightTitle, Dark, DarkTitle string }
 
-// lang is one language of the site; Root is its home, the prefix of its
-// pages (design, Language).
-type lang struct{ Code, Locale, Root string }
-
-var langs = []lang{{"en", "en-GB", "/"}, {"fr", "fr-CH", "/fr/"}}
-
-const origin = "https://charts.nedsi.io"
-
 // layout is what every page shares: head, header and footer. Path is the
-// page's own path, for the canonical link and the theme links; EN and FR
-// are the page in each language, for hreflang and the language switch.
+// page's own path, for the canonical link and the theme links.
 type layout struct {
-	lang
 	Title, Description, Path string
-	EN, FR                   string
 	Nav                      []navLink
 	Prefs                    prefs
-	Privacy, PrivacyURL      string
+	Privacy                  string
 }
 
 type homeView struct {
@@ -85,9 +74,10 @@ type image struct {
 	Width, Height int
 }
 
-// Render renders the pages of d in each language and copies its PDFs and
-// page images once, each image also gzipped for nginx's gzip_static.
+// Render renders the pages of d and copies its PDFs and page images, each
+// image also gzipped for nginx's gzip_static.
 func Render(d *Data) (Files, error) {
+	m := messages(catalogue["en"])
 	songs := slices.Clone(d.Songs)
 	slices.SortStableFunc(songs, func(a, b Chart) int {
 		return cmp.Or(
@@ -97,15 +87,66 @@ func Render(d *Data) (Files, error) {
 		)
 	})
 	files := Files{}
-	for _, l := range langs {
-		if err := renderLang(files, d, songs, l); err != nil {
-			return nil, err
-		}
+	home := homeView{
+		layout:  newLayout(m, m.text("home.title", nil), m.text("home.description", nil), "/"),
+		Heading: m.text("home.heading", nil),
+		Lead:    m.text("home.lead", nil),
+		Intro:   m.html("home.intro", map[string]template.HTML{"legend": link("/legend/", m.text("home.legend_link", nil))}),
+		Songs:   m.text("home.songs", nil),
+		PDF:     m.text("home.pdf", nil),
+		Updated: m.html(pluralKey("home.updated", len(songs)), map[string]template.HTML{
+			"count":   escape(strconv.Itoa(len(songs))),
+			"release": link("https://github.com/ned-si/drum-charts/releases/tag/"+d.Release, d.Release),
+			"date":    template.HTML(`<time datetime="` + d.Date.Format("2006-01-02") + `">` + formatDate(d.Date) + `</time>`), //nolint:gosec // G203: digits and an English month name
+		}),
+		Credits: m.html("home.credits", map[string]template.HTML{"github": link("https://github.com/ned-si/drum-charts", m.text("home.github_link", nil))}),
 	}
 	for _, s := range songs {
+		song := args{"title": s.Title, "artist": s.Artist}
+		first := s.Pages[0]
+		home.Cards = append(home.Cards, card{
+			Slug:     s.Slug,
+			Title:    s.Title,
+			Artist:   s.Artist,
+			PDFLabel: m.text("home.pdf_label", args{"title": s.Title}),
+			Pages:    m.pages(len(s.Pages)),
+			Thumb:    image{Name: first.Name, Alt: m.text("home.card_alt", song), Width: first.Width, Height: first.Height},
+		})
+		v := songView{
+			layout:     newLayout(m, m.text("song.title", song), m.text("song.description", song), "/"+s.Slug+"/"),
+			Slug:       s.Slug,
+			Heading:    s.Title,
+			Lead:       m.text("song.lead", args{"artist": s.Artist, "pages": m.pages(len(s.Pages))}),
+			Download:   m.text("song.download", nil),
+			All:        m.text("song.all", nil),
+			LegendLink: m.text("song.legend", nil),
+		}
+		v.Images = images(s, func(n int) string {
+			return m.text("song.page_alt", args{"title": s.Title, "artist": s.Artist, "n": strconv.Itoa(n), "total": strconv.Itoa(len(s.Pages))})
+		})
+		if err := execute(files, s.Slug+"/index.html", "song.html", v); err != nil {
+			return nil, err
+		}
 		addCopies(files, s)
 	}
+	legend := songView{
+		layout:   newLayout(m, m.text("legend.title", nil), m.text("legend.description", nil), "/legend/"),
+		Slug:     "legend",
+		Heading:  m.text("legend.heading", nil),
+		Lead:     m.text("legend.lead", nil),
+		Download: m.text("song.download", nil),
+		All:      m.text("song.all", nil),
+	}
+	legend.Images = images(d.Legend, func(n int) string {
+		return m.text("legend.page_alt", args{"n": strconv.Itoa(n), "total": strconv.Itoa(len(d.Legend.Pages))})
+	})
+	if err := execute(files, "legend/index.html", "song.html", legend); err != nil {
+		return nil, err
+	}
 	addCopies(files, d.Legend)
+	if err := execute(files, "index.html", "home.html", home); err != nil {
+		return nil, err
+	}
 	for _, name := range stylesheets {
 		b, err := assets.ReadFile("assets/" + name)
 		if err != nil {
@@ -125,87 +166,18 @@ func Render(d *Data) (Files, error) {
 	return files, nil
 }
 
-// renderLang renders the pages of one language under its Root, songs in
-// their order.
-func renderLang(files Files, d *Data, songs []Chart, l lang) error {
-	m := messages(catalogue[l.Code])
-	dir := strings.TrimPrefix(l.Root, "/")
-	home := homeView{
-		layout:  newLayout(m, l, m.text("home.title", nil), m.text("home.description", nil), ""),
-		Heading: m.text("home.heading", nil),
-		Lead:    m.text("home.lead", nil),
-		Intro:   m.html("home.intro", map[string]template.HTML{"legend": link(l.Root+"legend/", m.text("home.legend_link", nil))}),
-		Songs:   m.text("home.songs", nil),
-		PDF:     m.text("home.pdf", nil),
-		Updated: m.html(pluralKey("home.updated", len(songs)), map[string]template.HTML{
-			"count":   escape(strconv.Itoa(len(songs))),
-			"release": link("https://github.com/ned-si/drum-charts/releases/tag/"+d.Release, d.Release),
-			"date":    template.HTML(`<time datetime="` + d.Date.Format("2006-01-02") + `">` + formatDate(l.Code, d.Date) + `</time>`), //nolint:gosec // G203: digits and a month name of formatDate
-		}),
-		Credits: m.html("home.credits", map[string]template.HTML{"github": link("https://github.com/ned-si/drum-charts", m.text("home.github_link", nil))}),
-	}
-	for _, s := range songs {
-		song := args{"title": s.Title, "artist": s.Artist}
-		first := s.Pages[0]
-		home.Cards = append(home.Cards, card{
-			Slug:     s.Slug,
-			Title:    s.Title,
-			Artist:   s.Artist,
-			PDFLabel: m.text("home.pdf_label", args{"title": s.Title}),
-			Pages:    m.pages(len(s.Pages)),
-			Thumb:    image{Name: first.Name, Alt: m.text("home.card_alt", song), Width: first.Width, Height: first.Height},
-		})
-		v := songView{
-			layout:     newLayout(m, l, m.text("song.title", song), m.text("song.description", song), s.Slug+"/"),
-			Slug:       s.Slug,
-			Heading:    s.Title,
-			Lead:       m.text("song.lead", args{"artist": s.Artist, "pages": m.pages(len(s.Pages))}),
-			Download:   m.text("song.download", nil),
-			All:        m.text("song.all", nil),
-			LegendLink: m.text("song.legend", nil),
-		}
-		v.Images = images(s, func(n int) string {
-			return m.text("song.page_alt", args{"title": s.Title, "artist": s.Artist, "n": strconv.Itoa(n), "total": strconv.Itoa(len(s.Pages))})
-		})
-		if err := execute(files, dir+s.Slug+"/index.html", "song.html", v); err != nil {
-			return err
-		}
-	}
-	legend := songView{
-		layout:   newLayout(m, l, m.text("legend.title", nil), m.text("legend.description", nil), "legend/"),
-		Slug:     "legend",
-		Heading:  m.text("legend.heading", nil),
-		Lead:     m.text("legend.lead", nil),
-		Download: m.text("song.download", nil),
-		All:      m.text("song.all", nil),
-	}
-	legend.Images = images(d.Legend, func(n int) string {
-		return m.text("legend.page_alt", args{"n": strconv.Itoa(n), "total": strconv.Itoa(len(d.Legend.Pages))})
-	})
-	if err := execute(files, dir+"legend/index.html", "song.html", legend); err != nil {
-		return err
-	}
-	return execute(files, dir+"index.html", "home.html", home)
-}
-
-// newLayout is the layout of the page at rel, its path below the language's
-// Root. The nav links each site in the same language, as NAV in
-// scripts/ci/site_markup.py.
-func newLayout(m messages, l lang, title, description, rel string) layout {
+func newLayout(m messages, title, description, p string) layout {
 	return layout{
-		lang:        l,
 		Title:       title,
 		Description: description,
-		Path:        l.Root + rel,
-		EN:          origin + "/" + rel,
-		FR:          origin + "/fr/" + rel,
+		Path:        p,
 		Nav: []navLink{
-			{Label: m.text("nav.home", nil), Href: "https://nedsi.io" + l.Root},
-			{Label: m.text("nav.blog", nil), Href: "https://blog.nedsi.io" + l.Root},
-			{Label: m.text("nav.homelab", nil), Href: "https://homelab.nedsi.io" + l.Root},
-			{Label: m.text("nav.techradar", nil), Href: "https://techradar.nedsi.io" + l.Root},
-			{Label: m.text("nav.charts", nil), Href: l.Root, Current: true},
-			{Label: m.text("nav.about", nil), Href: "https://blog.nedsi.io" + l.Root + "about/"},
+			{Label: m.text("nav.home", nil), Href: "https://nedsi.io/"},
+			{Label: m.text("nav.blog", nil), Href: "https://blog.nedsi.io/"},
+			{Label: m.text("nav.homelab", nil), Href: "https://homelab.nedsi.io/"},
+			{Label: m.text("nav.techradar", nil), Href: "https://techradar.nedsi.io/"},
+			{Label: m.text("nav.charts", nil), Href: "/", Current: true},
+			{Label: m.text("nav.about", nil), Href: "https://blog.nedsi.io/about/"},
 		},
 		Prefs: prefs{
 			Light:      m.text("prefs.light", nil),
@@ -213,8 +185,7 @@ func newLayout(m messages, l lang, title, description, rel string) layout {
 			Dark:       m.text("prefs.dark", nil),
 			DarkTitle:  m.text("prefs.dark_title", nil),
 		},
-		Privacy:    m.text("footer.privacy", nil),
-		PrivacyURL: "https://blog.nedsi.io" + l.Root + "privacy/",
+		Privacy: m.text("footer.privacy", nil),
 	}
 }
 

@@ -94,7 +94,7 @@ var catalogue = map[string]map[string]string{
 		"url.home":                "https://nedsi.io/fr/",
 		"url.blog":                "https://blog.nedsi.io/fr/",
 		"url.homelab":             "https://homelab.nedsi.io/fr/",
-		"url.charts":              "https://charts.nedsi.io/fr/",
+		"url.charts":              "https://charts.nedsi.io/",
 		"url.about":               "https://blog.nedsi.io/fr/about/",
 		"url.privacy":             "https://blog.nedsi.io/fr/privacy/",
 		"url.feed":                "https://blog.nedsi.io/fr/index.xml",

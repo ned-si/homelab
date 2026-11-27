@@ -1,8 +1,7 @@
 ---
 kind: change
-status: done
+status: active
 created: 2026-11-26
-closed: 2026-11-27
 issue: 1761
 ---
 # Requirements: drum-charts-site
