@@ -1,26 +1,32 @@
 {
-  "commit": "4215d23b81a9940fa028c388d1e622ad087af83d",
   "legend": {
-    "pages": 1
+    "commit": "fe3a366e2b1f4c8d9a0b7c6d5e4f3a2b1c0d9e8f",
+    "pages": 1,
+    "release": "legend-2026-11-20-fe3a366"
   },
-  "release": "charts-2026-11-26-4215d23",
-  "schema": 1,
+  "schema": 2,
   "songs": [
     {
       "artist": "System Of A Down",
+      "commit": "fe3a366e2b1f4c8d9a0b7c6d5e4f3a2b1c0d9e8f",
       "pages": 1,
+      "release": "soad-toxicity-2026-11-20-fe3a366",
       "slug": "soad-toxicity",
       "title": "Toxicity"
     },
     {
       "artist": "Sum 41",
+      "commit": "4215d23b81a9940fa028c388d1e622ad087af83d",
       "pages": 2,
+      "release": "sum41-fat-lip-2026-11-26-4215d23",
       "slug": "sum41-fat-lip",
       "title": "Fat Lip"
     },
     {
       "artist": "Underschool Element",
+      "commit": "5387aa2358e4fe55993320dccb60947f21bc1028",
       "pages": 1,
+      "release": "underschool-element-petit-tom-2026-11-24-5387aa2",
       "slug": "underschool-element-petit-tom",
       "title": "Petit Tom"
     }

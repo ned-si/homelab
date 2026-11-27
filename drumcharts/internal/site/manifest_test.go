@@ -57,6 +57,10 @@ func song(m map[string]any, i int) map[string]any {
 	return m["songs"].([]any)[i].(map[string]any)
 }
 
+func legend(m map[string]any) map[string]any {
+	return m["legend"].(map[string]any)
+}
+
 func write(name, content string) func(*testing.T, string) {
 	return func(t *testing.T, dir string) {
 		t.Helper()
@@ -78,8 +82,12 @@ func TestLoadClean(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Release != "charts-2026-11-26-4215d23" || formatDate("en", d.Date) != "26 November 2026" {
-		t.Errorf("release %s of %s", d.Release, formatDate("en", d.Date))
+	if formatDate("en", d.Updated) != "26 November 2026" {
+		t.Errorf("updated %s, want the newest chart's date", formatDate("en", d.Updated))
+	}
+	if d.Legend.Release != "legend-2026-11-20-fe3a366" || formatDate("en", d.Legend.Date) != "20 November 2026" ||
+		d.Songs[1].Release != "sum41-fat-lip-2026-11-26-4215d23" {
+		t.Errorf("legend %s of %v, songs[1] %s", d.Legend.Release, d.Legend.Date, d.Songs[1].Release)
 	}
 	if len(d.Songs) != 3 || len(d.Songs[0].Pages) != 1 || len(d.Songs[1].Pages) != 2 || len(d.Legend.Pages) != 1 {
 		t.Errorf("songs %+v, legend %d pages", d.Songs, len(d.Legend.Pages))
@@ -102,16 +110,24 @@ func TestLoadRules(t *testing.T) {
 		{"unknown key", manifest(func(m map[string]any) { m["extra"] = 1 }), `charts.json: not a manifest: json: unknown field "extra"`},
 		{"unknown song key", manifest(func(m map[string]any) { song(m, 0)["mp3"] = "x.mp3" }), `unknown field "mp3"`},
 		{"data after the object", func(t *testing.T, dir string) { appendTo(t, dir, "charts.json", "{}") }, "charts.json: data after the manifest object"},
-		{"unknown schema", manifest(func(m map[string]any) { m["schema"] = 2 }), "charts.json: schema must be 1"},
-		{"no schema", manifest(func(m map[string]any) { delete(m, "schema") }), "charts.json: schema must be 1"},
+		{"schema 1", manifest(func(m map[string]any) { m["schema"] = 1 }), "charts.json: schema must be 2"},
+		{"no schema", manifest(func(m map[string]any) { delete(m, "schema") }), "charts.json: schema must be 2"},
 		{"schema not an integer", manifest(func(m map[string]any) { m["schema"] = 1.5 }), "charts.json: not a manifest"},
-		{"bad release tag", manifest(func(m map[string]any) { m["release"] = "charts-2026-11-26" }), `charts.json: release "charts-2026-11-26" is not`},
-		{"release date", manifest(func(m map[string]any) { m["release"] = "charts-2026-02-30-4215d23" }), "has no valid date"},
-		{"commit not hex", manifest(func(m map[string]any) { m["commit"] = strings.ToUpper(m["commit"].(string)) }), "is not 40 lower-case hex"},
-		{"commit not hex with a bad release tag", manifest(func(m map[string]any) { m["release"] = "charts"; m["commit"] = "4215d23" }), `charts.json: commit "4215d23" is not 40 lower-case hex`},
-		{"commit prefix mismatch", manifest(func(m map[string]any) { m["commit"] = "5387aa2358e4fe55993320dccb60947f21bc1028" }), "does not start with the release's 4215d23"},
+		{"top-level release", manifest(func(m map[string]any) { m["release"] = "charts-2026-11-26-4215d23" }), `charts.json: not a manifest: json: unknown field "release"`},
+		{"top-level commit", manifest(func(m map[string]any) { m["commit"] = "4215d23b81a9940fa028c388d1e622ad087af83d" }), `charts.json: not a manifest: json: unknown field "commit"`},
+		{"song tag of another slug", manifest(func(m map[string]any) { song(m, 0)["release"] = "sum41-fat-lip-2026-11-26-4215d23" }), `charts.json: songs[0]: release "sum41-fat-lip-2026-11-26-4215d23" is not soad-toxicity-<yyyy-mm-dd>-<7 hex>`},
+		{"song tag without a date", manifest(func(m map[string]any) { song(m, 0)["release"] = "soad-toxicity-fe3a366" }), `charts.json: songs[0]: release "soad-toxicity-fe3a366" is not soad-toxicity-<yyyy-mm-dd>-<7 hex>`},
+		{"song tag date", manifest(func(m map[string]any) { song(m, 1)["release"] = "sum41-fat-lip-2026-02-30-4215d23" }), `charts.json: songs[1]: release "sum41-fat-lip-2026-02-30-4215d23" has no valid date`},
+		{"no song tag", manifest(func(m map[string]any) { delete(song(m, 2), "release") }), `charts.json: songs[2]: release "" is not underschool-element-petit-tom-<yyyy-mm-dd>-<7 hex>`},
+		{"song commit not hex", manifest(func(m map[string]any) { song(m, 1)["commit"] = strings.ToUpper(song(m, 1)["commit"].(string)) }), `charts.json: songs[1]: commit "4215D23B81A9940FA028C388D1E622AD087AF83D" is not 40 lower-case hex`},
+		{"song commit and tag bad", manifest(func(m map[string]any) { song(m, 1)["release"] = "charts"; song(m, 1)["commit"] = "4215d23" }), `charts.json: songs[1]: commit "4215d23" is not 40 lower-case hex`},
+		{"song commit prefix mismatch", manifest(func(m map[string]any) { song(m, 1)["commit"] = "5387aa2358e4fe55993320dccb60947f21bc1028" }), "charts.json: songs[1]: commit 5387aa2358e4fe55993320dccb60947f21bc1028 does not start with the release's 4215d23"},
+		{"legend tag not legend-", manifest(func(m map[string]any) { legend(m)["release"] = "charts-2026-11-20-fe3a366" }), `charts.json: legend.release "charts-2026-11-20-fe3a366" is not legend-<yyyy-mm-dd>-<7 hex>`},
+		{"legend tag date", manifest(func(m map[string]any) { legend(m)["release"] = "legend-2026-13-20-fe3a366" }), `charts.json: legend.release "legend-2026-13-20-fe3a366" has no valid date`},
+		{"legend commit prefix mismatch", manifest(func(m map[string]any) { legend(m)["commit"] = "4215d23b81a9940fa028c388d1e622ad087af83d" }), "charts.json: legend.commit 4215d23b81a9940fa028c388d1e622ad087af83d does not start with the release's fe3a366"},
+		{"no legend commit", manifest(func(m map[string]any) { delete(legend(m), "commit") }), `charts.json: legend.commit "" is not 40 lower-case hex`},
 		{"no legend", manifest(func(m map[string]any) { delete(m, "legend") }), "charts.json: legend.pages must be 1 to 3"},
-		{"legend pages 4", manifest(func(m map[string]any) { m["legend"] = map[string]any{"pages": 4} }), "charts.json: legend.pages must be 1 to 3"},
+		{"legend pages 4", manifest(func(m map[string]any) { legend(m)["pages"] = 4 }), "charts.json: legend.pages must be 1 to 3"},
 		{"no songs", manifest(func(m map[string]any) { m["songs"] = []any{} }), "charts.json: songs must hold 1 to 200 songs, holds 0"},
 		{"bad slug", manifest(func(m map[string]any) { song(m, 0)["slug"] = "Tool_Schism" }), `songs[0]: slug "Tool_Schism" is not lower-case words`},
 		{"long slug", manifest(func(m map[string]any) { song(m, 0)["slug"] = strings.Repeat("a", 81) }), "at most 80 characters"},
@@ -175,7 +191,7 @@ func TestLoadRules(t *testing.T) {
 func TestLoadEveryProblem(t *testing.T) {
 	dir := copyFixture(t)
 	editManifest(t, dir, func(m map[string]any) {
-		m["schema"] = 2
+		m["schema"] = 1
 		song(m, 0)["artist"] = ""
 	})
 	write("sum41-fat-lip.mp3", "ID3")(t, dir)

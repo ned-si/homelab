@@ -228,7 +228,7 @@ func TestPlural(t *testing.T) {
 	d.Songs = []Chart{chart("tool-schism", "Tool", "Schism", 1)}
 	files := render(t, d)
 	for name, want := range map[string]string{
-		"index.html":             "<p class=\"updated\">1 song, from the release ",
+		"index.html":             "<p class=\"updated\">1 song, last updated ",
 		"tool-schism/index.html": `<p class="lead">Tool · 1 page</p>`,
 	} {
 		if !strings.Contains(string(files[name]), want) {
@@ -237,11 +237,35 @@ func TestPlural(t *testing.T) {
 	}
 	files = render(t, load(t))
 	for name, want := range map[string]string{
-		"index.html":               "<p class=\"updated\">3 songs, from the release ",
+		"index.html":               "<p class=\"updated\">3 songs, last updated <time datetime=\"2026-11-26\">26 November 2026</time>.",
 		"sum41-fat-lip/index.html": `<p class="lead">Sum 41 · 2 pages</p>`,
 	} {
 		if !strings.Contains(string(files[name]), want) {
 			t.Errorf("%s has no %q", name, want)
+		}
+	}
+}
+
+// TestVersion: each song page and the legend page name the chart's version
+// date and link its song release, in both languages.
+func TestVersion(t *testing.T) {
+	d := load(t)
+	files := render(t, d)
+	for _, c := range append([]Chart{d.Legend}, d.Songs...) {
+		tag := `<a href="https://github.com/ned-si/drum-charts/releases/tag/` + c.Release + `">` + c.Release + `</a>`
+		for _, dir := range []string{"", "fr/"} {
+			name := dir + c.Slug + "/index.html"
+			if !strings.Contains(string(files[name]), tag) {
+				t.Errorf("%s does not link %s", name, c.Release)
+			}
+		}
+	}
+	for name, want := range map[string]string{
+		"sum41-fat-lip/index.html": `<p class="updated">Version of <time datetime="2026-11-26">26 November 2026</time>, release <a href="https://github.com/ned-si/drum-charts/releases/tag/sum41-fat-lip-2026-11-26-4215d23">sum41-fat-lip-2026-11-26-4215d23</a>.</p>`,
+		"fr/legend/index.html":     `<p class="updated">Version du <time datetime="2026-11-20">20 novembre 2026</time>, <em>release</em> <a href="https://github.com/ned-si/drum-charts/releases/tag/legend-2026-11-20-fe3a366">legend-2026-11-20-fe3a366</a>.</p>`,
+	} {
+		if !strings.Contains(string(files[name]), want) {
+			t.Errorf("%s has no %s", name, want)
 		}
 	}
 }

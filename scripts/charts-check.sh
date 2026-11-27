@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Check https://charts.nedsi.io against the latest ned-si/drum-charts release
-# (.kiro/specs/drum-charts-site/requirements.md, acceptance criteria 2 and 3):
-# the song pages linked from / are exactly the release's PDFs minus the
-# legend, each song page and /legend/ has one page image per PDF page, every
-# /pdf/<slug>.pdf has the SHA-256 of its release asset, and no MP3 of the
-# release is served.
+# Check https://charts.nedsi.io against the current song release of each
+# ned-si/drum-charts chart
+# (.kiro/specs/drum-charts-per-song-releases/design.md#the-live-check): the
+# song pages linked from / are exactly the songs in songs/ on main, and per
+# chart (the songs and the legend) its page has one page image per PDF page
+# and links its release, /pdf/<slug>.pdf has the SHA-256 of the release's
+# asset, and the release's MP3 is not served. A chart's current release is
+# its newest published <slug>-<yyyy-mm-dd>-<7 hex> release.
 #
 # A Renovate digest pull request not merged yet shows here as a difference:
-# the site lags the release until it deploys.
+# the site lags the releases until it deploys.
 #
 # Needs gh, jq, curl, pdfinfo and shasum.
 #
 # USAGE
-#   scripts/charts-check.sh      prints the release tag; exit 1 on the first
-#                                difference, printed
+#   scripts/charts-check.sh      one ok line per chart with its tag; exit 1
+#                                on the first difference, printed
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 site=https://charts.nedsi.io
+repo=ned-si/drum-charts
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -27,29 +30,33 @@ die() {
   exit 1
 }
 
-release=$(gh release view --repo ned-si/drum-charts --json tagName,assets)
-tag=$(jq -r .tagName <<<"$release")
-echo "release $tag"
-
-# <slug> <digest> per PDF, sorted.
-jq -r '.assets[] | select(.name | endswith(".pdf")) | "\(.name | rtrimstr(".pdf")) \(.digest)"' \
-  <<<"$release" | sort >"$tmp/pdfs"
-[ -s "$tmp/pdfs" ] || die "$tag has no PDF"
-grep -q '^legend ' "$tmp/pdfs" || die "$tag has no legend.pdf"
+gh api "repos/$repo/contents/songs?ref=main" \
+  --jq '.[] | select(.type == "file") | .name | select(endswith(".ly")) | rtrimstr(".ly")' \
+  | sort >"$tmp/songs"
+[ -s "$tmp/songs" ] || die "$repo has no songs/*.ly on main"
+gh api --paginate --slurp "repos/$repo/releases" >"$tmp/releases.json"
 
 curl -fsS -m 10 "$site/" -o "$tmp/index.html" || die "$site/ does not answer 200"
 # Any link matching the slug rule is a song, except the legend and the language root.
 { grep -oE 'href="/[a-z0-9]+(-[a-z0-9]+)*/"' "$tmp/index.html" || true; } \
   | sed -E 's|href="/(.*)/"|\1|' | grep -vxE 'legend|fr' | sort -u >"$tmp/linked" || true
-grep -v '^legend ' "$tmp/pdfs" | cut -d' ' -f1 >"$tmp/want"
-if ! diff -u "$tmp/want" "$tmp/linked" >"$tmp/diff"; then
-  die "the song pages linked from $site/ are not the PDFs of $tag minus legend.pdf:
+if ! diff -u "$tmp/songs" "$tmp/linked" >"$tmp/diff"; then
+  die "the song pages linked from $site/ are not the songs of $repo:
 $(cat "$tmp/diff")"
 fi
 
-# check_chart <slug> <digest> <page path>
+# check_chart <slug> <page path>
 check_chart() {
-  slug=$1 digest=$2 page=$3
+  slug=$1 page=$2
+  # Slugs are [a-z0-9-], so the slug is safe inside the regex.
+  release=$(jq -c --arg s "$slug" '
+    [.[][] | select(.draft == false and (.tag_name | test("^" + $s + "-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{7}$")))]
+    | sort_by(.created_at) | last' "$tmp/releases.json")
+  [ "$release" != null ] || die "$slug: no song release"
+  tag=$(jq -r .tag_name <<<"$release")
+  digest=$(jq -r --arg n "$slug.pdf" '[.assets[] | select(.name == $n) | .digest] | first // empty' <<<"$release")
+  [ -n "$digest" ] || die "$tag has no $slug.pdf"
+
   pdf="$tmp/$slug.pdf"
   curl -fsS -m 10 "$site/pdf/$slug.pdf" -o "$pdf" || die "$site/pdf/$slug.pdf does not answer 200"
   got="sha256:$(shasum -a 256 "$pdf" | cut -d' ' -f1)"
@@ -71,24 +78,22 @@ $(cat "$tmp/diff")"
     got=$(curl -s -m 10 -o /dev/null -w '%{http_code} %{content_type}' "$site$src") || got="000"
     [ "$got" = "200 image/svg+xml" ] || die "$site$src: got '$got', want '200 image/svg+xml'"
   done <"$tmp/imgs"
-  echo "ok   $page ($pages pages)"
+  grep -qF "href=\"https://github.com/$repo/releases/tag/$tag\"" "$tmp/page.html" \
+    || die "$site$page does not link the release $tag"
+
+  jq -r '.assets[] | select(.name | endswith(".mp3")) | .name' <<<"$release" >"$tmp/mp3s"
+  while read -r mp3; do
+    for path in "/pdf/$mp3" "/$mp3"; do
+      got=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$site$path") || got="000"
+      [ "$got" = 404 ] || die "$site$path: got $got, want 404"
+    done
+  done <"$tmp/mp3s"
+  echo "ok   $page ($pages pages, $tag)"
 }
 
-while read -r slug digest; do
-  if [ "$slug" = legend ]; then
-    check_chart legend "$digest" /legend/
-  else
-    check_chart "$slug" "$digest" "/$slug/"
-  fi
-done <"$tmp/pdfs"
+check_chart legend /legend/
+while read -r slug; do
+  check_chart "$slug" "/$slug/"
+done <"$tmp/songs"
 
-jq -r '.assets[] | select(.name | endswith(".mp3")) | .name' <<<"$release" >"$tmp/mp3s"
-while read -r mp3; do
-  for path in "/pdf/$mp3" "/$mp3"; do
-    got=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$site$path") || got="000"
-    [ "$got" = 404 ] || die "$site$path: got $got, want 404"
-  done
-done <"$tmp/mp3s"
-echo "ok   $(wc -l <"$tmp/mp3s" | tr -d ' ') MP3s answer 404"
-
-echo "charts-check: $site matches $tag"
+echo "charts-check: $site matches the current release of each of $(($(wc -l <"$tmp/songs") + 1)) charts"
