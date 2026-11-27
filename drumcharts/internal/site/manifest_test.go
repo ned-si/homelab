@@ -78,8 +78,8 @@ func TestLoadClean(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Release != "charts-2026-11-26-4215d23" || formatDate(d.Date) != "26 November 2026" {
-		t.Errorf("release %s of %s", d.Release, formatDate(d.Date))
+	if d.Release != "charts-2026-11-26-4215d23" || formatDate("en", d.Date) != "26 November 2026" {
+		t.Errorf("release %s of %s", d.Release, formatDate("en", d.Date))
 	}
 	if len(d.Songs) != 3 || len(d.Songs[0].Pages) != 1 || len(d.Songs[1].Pages) != 2 || len(d.Legend.Pages) != 1 {
 		t.Errorf("songs %+v, legend %d pages", d.Songs, len(d.Legend.Pages))

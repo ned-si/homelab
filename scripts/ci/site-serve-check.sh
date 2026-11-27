@@ -134,7 +134,7 @@ check 404 - 8080 techradar.nedsi.io /does-not-exist
 check 405 - 8080 techradar.nedsi.io / -X POST
 check 301 https://techradar.nedsi.io/x 8081 techradar.nedsi.io /x
 # The drum charts (.kiro/specs/drum-charts-site/design.md#checks).
-for p in / /sum41-fat-lip/ /legend/ /charts.css; do
+for p in / /sum41-fat-lip/ /legend/ /charts.css /fr/ /fr/sum41-fat-lip/ /fr/legend/; do
   check 200 - 8080 charts.nedsi.io "$p"
 done
 header charts.nedsi.io /pdf/legend.pdf content-type application/pdf

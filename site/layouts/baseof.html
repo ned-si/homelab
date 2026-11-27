@@ -54,7 +54,7 @@
 <a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>{{ T "nav_blog" }}</a>
 <a href="https://homelab.nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_homelab" }}</a>
 <a href="https://techradar.nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_radar" }}</a>
-<a href="https://charts.nedsi.io/">{{ T "nav_charts" }}</a>
+<a href="https://charts.nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_charts" }}</a>
 <a href="{{ $about }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>{{ T "nav_about" }}</a>
 </nav>
 {{ partial "prefs.html" (dict "path" (cond (eq .Kind "404") site.Home.RelPermalink $path) "lang" $lang "other" $other.Permalink) }}

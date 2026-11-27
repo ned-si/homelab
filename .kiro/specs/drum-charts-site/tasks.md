@@ -90,12 +90,13 @@ its task 6.
       table. Then the `homelab-site` and dashboard image deploys.
       Check: acceptance criteria 9-11 live. [3.7, 6.1-6.4]
       #1886.
-- [ ] 7. French at `charts.nedsi.io/fr/` (**ned-si/homelab**, live),
+- [x] 7. French at `charts.nedsi.io/fr/` (**ned-si/homelab**, live),
       after site-theme-language task 4: the `fr` catalogue from the
       reviewed French of [design, Strings](design.md#strings), the
       `fr/` tree, the toggle, `hreflang` and canonical, `TestCatalogue`,
       the golden pages in French, the French `NAV` target for Charts.
       Check: acceptance criterion 14 live. [7]
+      #1894.
 - [x] 8. Docs (**ned-si/homelab**): `docs/drum-charts.md`;
       `docs/website.md` (the host, the copies, the generator); the README
       Services table, the public pages line and the layout table;
