@@ -142,14 +142,16 @@ func TestGoldenPages(t *testing.T) {
 		name string
 		doc  func(t *testing.T) map[string]any
 		now  time.Time
+		path string
 	}{
-		{"full", fullDaily, fixtureNow},
-		{"since", since, fixtureNow},
-		{"exhausted", exhausted, fixtureNow},
-		{"alarms", alarms, fixtureNow},
-		{"stale-live", fixture, fixtureNow.Add(2 * time.Hour)},
-		{"stale-blocks", staleBlocks, fixtureNow},
-		{"empty", nil, fixtureNow},
+		{"full", fullDaily, fixtureNow, "/"},
+		{"since", since, fixtureNow, "/"},
+		{"exhausted", exhausted, fixtureNow, "/"},
+		{"alarms", alarms, fixtureNow, "/"},
+		{"stale-live", fixture, fixtureNow.Add(2 * time.Hour), "/"},
+		{"stale-blocks", staleBlocks, fixtureNow, "/"},
+		{"empty", nil, fixtureNow, "/"},
+		{"fr-full", fullDaily, fixtureNow, "/fr/"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -160,18 +162,20 @@ func TestGoldenPages(t *testing.T) {
 				}
 			}
 			h.now = tc.now
-			rec := h.get(t, http.MethodGet, "/")
+			rec := h.get(t, http.MethodGet, tc.path)
 			if rec.Code != http.StatusOK {
-				t.Fatalf("GET / = %d", rec.Code)
+				t.Fatalf("GET %s = %d", tc.path, rec.Code)
 			}
 			checkMarkup(t, rec.Body.String())
 			golden(t, filepath.Join("testdata", tc.name+".golden.html"), rec.Body.Bytes())
 		})
 	}
 	h := newHarness(t)
-	rec := h.get(t, http.MethodGet, "/nope")
-	checkMarkup(t, rec.Body.String())
-	golden(t, "testdata/notfound.golden.html", rec.Body.Bytes())
+	for name, path := range map[string]string{"notfound": "/nope", "fr-notfound": "/fr/nope"} {
+		rec := h.get(t, http.MethodGet, path)
+		checkMarkup(t, rec.Body.String())
+		golden(t, "testdata/"+name+".golden.html", rec.Body.Bytes())
+	}
 }
 
 func checkMarkup(t *testing.T, body string) {
@@ -414,8 +418,8 @@ func TestPercent(t *testing.T) {
 	for v, want := range map[float64]string{
 		99.957: "99.96%", 0.125: "0.12%", 0.375: "0.38%", 0: "0.00%", 100: "100.00%", 99.995: "100.00%", 25.004: "25.00%",
 	} {
-		if got := percent(v); got != want {
-			t.Errorf("percent(%v) = %q, want %q", v, got, want)
+		if got := english.percent(v); got != want {
+			t.Errorf("english.percent(%v) = %q, want %q", v, got, want)
 		}
 	}
 }
@@ -508,12 +512,12 @@ func TestImageTiles(t *testing.T) {
 		st    status
 		word  string
 	}{
-		{"verified", snapshot.Image{Name: "a", Level: &l2, Verified: &yes, Builder: "b"}, one("Build L2", ""), statusOK, "Verified"},
+		{"verified", snapshot.Image{Name: "a", Level: &l2, Verified: &yes, Builder: "b"}, english.one("Build L2", ""), statusOK, "Verified"},
 		{"not verified", snapshot.Image{Name: "a", Verified: &no, Builder: "b"}, nil, statusWarn, "Not verified"},
 		{"no report", snapshot.Image{Name: "a", Builder: "b"}, nil, statusNone, noData},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := imageTiles(snapshot.SupplyChain{Images: []snapshot.Image{tc.img}})[0]
+			got := imageTiles(english, snapshot.SupplyChain{Images: []snapshot.Image{tc.img}})[0]
 			want := tile{Label: "a", Value: tc.value, Status: tc.st, Word: tc.word, Details: []string{"b"}}
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("imageTiles (-want +got):\n%s", diff)
@@ -535,20 +539,20 @@ func TestScorecardTiles(t *testing.T) {
 		`<div class="tiles checks">`,
 		`<p class="tile-label">Branch-Protection</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value warn">4<span class="unit">/ 10</span> <span class="status warn">Warning</span></p>`+"\n"+
 			`<p class="tile-detail">branch protection is not maximal on development and all release branches</p>`+"\n"+
-			`<p class="tile-detail">`+checkNotes["Branch-Protection"]+`</p>`,
+			`<p class="tile-detail">`+english.t(checkNotes["Branch-Protection"])+`</p>`,
 		`<p class="tile-label">Code-Review</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>`+"\n"+
 			`<p class="tile-detail">Found 0/28 approved changesets -- score normalized to 0</p>`+"\n"+
-			`<p class="tile-detail">`+checkNotes["Code-Review"]+`</p>`,
+			`<p class="tile-detail">`+english.t(checkNotes["Code-Review"])+`</p>`,
 		`<p class="tile-label">Contributors</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value bad">0<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>`+"\n"+
 			`<p class="tile-detail">project has 0 contributing companies or organizations -- score normalized to 0</p>`+"\n"+
-			`<p class="tile-detail">`+checkNotes["Contributors"]+`</p>`,
+			`<p class="tile-detail">`+english.t(checkNotes["Contributors"])+`</p>`,
 		`<p class="tile-label">SAST</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value ok">9<span class="unit">/ 10</span> <span class="status ok">OK</span></p>`+"\n"+
 			`<p class="tile-detail">SAST tool detected but not run on all commits</p>`+"\n"+`</div>`,
 		`<p class="tile-label">CII-Best-Practices</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value bad">2<span class="unit">/ 10</span> <span class="status bad">Critical</span></p>`+"\n"+
 			`<p class="tile-detail">badge detected: InProgress</p>`+"\n"+`</div>`,
 		`<p class="tile-label">Signed-Releases</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value none"><span class="status none">Not applicable</span></p>`+"\n"+
 			`<p class="tile-detail">no releases found</p>`+"\n"+
-			`<p class="tile-detail">`+checkNotes["Signed-Releases"]+`</p>`)
+			`<p class="tile-detail">`+english.t(checkNotes["Signed-Releases"])+`</p>`)
 	if strings.Count(body, `<p class="tile-detail">On purpose: `) != 3 || len(checkNotes) != 4 {
 		t.Errorf("want the four notes of design.md, Scorecard, on their checks only")
 	}
@@ -575,11 +579,11 @@ func TestScorecardTiles(t *testing.T) {
 		}
 		at = i
 	}
-	noScore := scorecardTiles(snapshot.Scorecard{})
+	noScore := scorecardTiles(english, snapshot.Scorecard{})
 	if diff := cmp.Diff([]tile{{Label: "Score", Status: statusNone, Word: noData}}, noScore); diff != "" {
 		t.Errorf("scorecardTiles(none) (-want +got):\n%s", diff)
 	}
-	if got := checkTiles(snapshot.Scorecard{}); len(got) != 0 {
+	if got := checkTiles(english, snapshot.Scorecard{}); len(got) != 0 {
 		t.Errorf("checkTiles(none) = %v, want none", got)
 	}
 }
@@ -596,7 +600,7 @@ func TestScoreStatus(t *testing.T) {
 		{v(4), statusWarn, "Warning"}, {v(3.9), statusBad, "Critical"}, {v(0), statusBad, "Critical"},
 		{nil, statusNone, noData},
 	} {
-		if st, w := scoreStatus(tc.score); st != tc.st || w != tc.word {
+		if st, w := scoreStatus(english, tc.score); st != tc.st || w != tc.word {
 			t.Errorf("scoreStatus(%v) = %q %q, want %q %q", tc.score, st, w, tc.st, tc.word)
 		}
 	}
@@ -612,9 +616,9 @@ func TestCheckStatus(t *testing.T) {
 	}{
 		{v(10), statusOK, "OK"}, {v(7), statusOK, "OK"}, {v(6), statusWarn, "Warning"},
 		{v(4), statusWarn, "Warning"}, {v(3), statusBad, "Critical"}, {v(0), statusBad, "Critical"},
-		{nil, statusNone, notApplicable},
+		{nil, statusNone, "Not applicable"},
 	} {
-		if st, w := checkStatus(tc.score); st != tc.st || w != tc.word {
+		if st, w := checkStatus(english, tc.score); st != tc.st || w != tc.word {
 			t.Errorf("checkStatus(%v) = %q %q, want %q %q", tc.score, st, w, tc.st, tc.word)
 		}
 	}
@@ -649,13 +653,13 @@ func TestStatusRules(t *testing.T) {
 	}
 	// The status reads the raw budget, the text its rounding: 25.004% is
 	// "Met" while it reads "25.00%".
-	c := card(snapshot.LiveApp{Availability30d: v(99.6), ErrorBudgetRemaining30d: v(25.004), AvailabilityDaily: fullDays()},
+	c := card(english, snapshot.LiveApp{Availability30d: v(99.6), ErrorBudgetRemaining30d: v(25.004), AvailabilityDaily: fullDays()},
 		testDays())
-	if c.Status != statusOK || c.Word != "Met" || c.BudgetLeft != "25.00" {
-		t.Errorf("card with a budget of 25.004 = %q %q %q, want ok, Met, 25.00", c.Status, c.Word, c.BudgetLeft)
+	if c.Status != statusOK || c.Word != "Met" || c.Budget != "25.00% of the error budget left" {
+		t.Errorf("card with a budget of 25.004 = %q %q %q, want ok, Met, 25.00%% of the error budget left", c.Status, c.Word, c.Budget)
 	}
-	if day := dayStatus(v(99.497)); day != statusWarn || percent(99.497) != "99.50%" {
-		t.Errorf("a day of 99.497 = %q %s, want warn while it reads 99.50%%", day, percent(99.497))
+	if day := dayStatus(v(99.497)); day != statusWarn || english.percent(99.497) != "99.50%" {
+		t.Errorf("a day of 99.497 = %q %s, want warn while it reads 99.50%%", day, english.percent(99.497))
 	}
 	for _, tc := range []struct {
 		v    *float64
@@ -666,12 +670,12 @@ func TestStatusRules(t *testing.T) {
 		}
 	}
 	for s, want := range map[status]string{statusOK: "Met", statusWarn: "At risk", statusBad: "Missed", statusNone: "No data"} {
-		if got := monthWord(s); got != want {
+		if got := monthWord(english, s); got != want {
 			t.Errorf("monthWord(%q) = %q, want %q", s, got, want)
 		}
 	}
 	for state, want := range map[string][2]string{"up": {"ok", "Up"}, "down": {"bad", "Down"}, "none": {"none", "No data"}} {
-		if st, w := appState(state); string(st) != want[0] || w != want[1] {
+		if st, w := appState(english, state); string(st) != want[0] || w != want[1] {
 			t.Errorf("appState(%q) = %q %q, want %q %q", state, st, w, want[0], want[1])
 		}
 	}
@@ -688,7 +692,7 @@ func TestCertificateRule(t *testing.T) {
 		{n(7), statusWarn, "Renewal late"}, {n(6), statusBad, "Expiring"}, {n(-3), statusBad, "Expiring"},
 		{nil, statusNone, "No data"},
 	} {
-		if st, w := certStatus(tc.days); st != tc.st || w != tc.word {
+		if st, w := certStatus(english, tc.days); st != tc.st || w != tc.word {
 			t.Errorf("certStatus(%v) = %q %q, want %q %q", tc.days, st, w, tc.st, tc.word)
 		}
 	}
@@ -740,7 +744,7 @@ func TestClusterRules(t *testing.T) {
 		}
 	}
 	for s, want := range map[status]string{statusOK: "OK", statusWarn: "Warning", statusBad: "Critical", statusNone: "No data"} {
-		if got := levelWord(s); got != want {
+		if got := levelWord(english, s); got != want {
 			t.Errorf("levelWord(%q) = %q, want %q", s, got, want)
 		}
 	}
@@ -802,11 +806,11 @@ func TestDORABands(t *testing.T) {
 	}
 	zero, rate, lead := 0, 1.0, 3600
 	p := snapshot.Project{Deploys30d: 40, ChangeFailureRate: &rate, Incidents30d: &zero}
-	if _, bs := doraTiles(p); overallBand(bs) != "" {
+	if _, bs := doraTiles(english, p); overallBand(bs) != "" {
 		t.Errorf("doraTiles without a lead time: overall %q, want none", overallBand(bs))
 	}
 	p.LeadTimeSeconds = &lead
-	if _, bs := doraTiles(p); overallBand(bs) != bandElite {
+	if _, bs := doraTiles(english, p); overallBand(bs) != bandElite {
 		t.Errorf("doraTiles with no incident: overall %q, want %q", overallBand(bs), bandElite)
 	}
 	for _, tc := range []struct {
@@ -818,13 +822,13 @@ func TestDORABands(t *testing.T) {
 		{[]band{bandElite, bandLow, bandElite, bandElite}, overall{Status: statusBad, Word: "Low"}},
 		{[]band{bandElite, "", bandElite, bandElite}, overall{Status: statusNone, Word: "No data", NoData: true}},
 	} {
-		if got := doraOverall(tc.bands); got != tc.want {
+		if got := doraOverall(english, tc.bands); got != tc.want {
 			t.Errorf("doraOverall(%q) = %+v, want %+v", tc.bands, got, tc.want)
 		}
 	}
 	for result, want := range map[string][2]string{"success": {"ok", "Success"}, "failure": {"bad", "Failure"},
 		"cancelled": {"none", "Cancelled"}, "other": {"warn", "Other"}} {
-		if st, w := runStatus(result); string(st) != want[0] || w != want[1] {
+		if st, w := runStatus(english, result); string(st) != want[0] || w != want[1] {
 			t.Errorf("runStatus(%q) = %q %q, want %q %q", result, st, w, want[0], want[1])
 		}
 	}
@@ -839,25 +843,26 @@ func TestReworkTile(t *testing.T) {
 		`<p class="tile-label">Rework rate</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value">1.69<span class="unit">%</span></p>`+"\n"+
 			`<p class="tile-detail">12 of 709 deploys</p>`,
 		"Rework rate counts the unplanned deploys: rollbacks, fix forwards, and <code>fix</code> merges made during an incident or in the 24 hours after it, over all deploys.",
-		"Rework rate, DORA's fifth metric since 2024, has no band here: the 2023 clusters these bands come from predate it.",
+		// html/template escapes the apostrophe of the catalogue string.
+		"Rework rate, DORA&#39;s fifth metric since 2024, has no band here: the 2023 clusters these bands come from predate it.",
 		"one person and a few agents")
 	if strings.Contains(body, "bots") {
 		t.Error("the page says bots")
 	}
 	rate := 0.5
 	p := snapshot.Project{Deploys30d: 2, Rework: &snapshot.Rework{Count: 1, Deploys: 2, Rate: &rate}}
-	if tiles, bands := doraTiles(p); len(tiles) != 4 || len(bands) != 4 {
+	if tiles, bands := doraTiles(english, p); len(tiles) != 4 || len(bands) != 4 {
 		t.Errorf("doraTiles() = %d tiles, %d bands, want the four banded ones", len(tiles), len(bands))
 	}
-	if got := reworkTile(p); got.Status != "" || got.Word != "" {
+	if got := reworkTile(english, p); got.Status != "" || got.Word != "" {
 		t.Errorf("reworkTile() status %q, word %q, want neither", got.Status, got.Word)
 	}
 	for _, p := range []snapshot.Project{{}, {Rework: &snapshot.Rework{}}} {
-		if got := reworkTile(p); got.Word != noData {
+		if got := reworkTile(english, p); got.Word != noData {
 			t.Errorf("reworkTile(%+v) word %q, want %q", p.Rework, got.Word, noData)
 		}
 	}
-	if got := deliveryTiles(snapshot.Project{})[1]; got.Label != "Median CI run" || got.Word != noData {
+	if got := deliveryTiles(english, snapshot.Project{})[1]; got.Label != "Median CI run" || got.Word != noData {
 		t.Errorf("median CI run without a value = %+v, want No data", got)
 	}
 }
@@ -911,7 +916,7 @@ func TestCard(t *testing.T) {
 		{"no data", snapshot.LiveApp{AvailabilityDaily: full}, statusNone, "", "", false, false, true},
 		{"no daily value", snapshot.LiveApp{Availability30d: v(100), AvailabilityDaily: make([]*float64, snapshot.Days)}, statusNone, "", "", false, false, true},
 	} {
-		c := card(tc.app, ds)
+		c := card(english, tc.app, ds)
 		if c.Status != tc.status || c.Word != tc.word || c.Since != tc.since || c.Exhausted != tc.exhausted || (c.Meter != "") != tc.meter || c.NoData != tc.noData {
 			t.Errorf("%s: card = status %q word %q since %q exhausted %v meter %v no data %v, want %q %q %q %v %v %v",
 				tc.name, c.Status, c.Word, c.Since, c.Exhausted, c.Meter != "", c.NoData,
@@ -958,18 +963,18 @@ func TestFormats(t *testing.T) {
 		864000: {{"10", "d"}},
 		97200:  {{"1", "d"}, {"3", "h"}},
 	} {
-		if diff := cmp.Diff(want, durationParts(s)); diff != "" {
-			t.Errorf("durationParts(%d) mismatch (-want +got):\n%s", s, diff)
+		if diff := cmp.Diff(want, english.durationParts(s)); diff != "" {
+			t.Errorf("english.durationParts(%d) mismatch (-want +got):\n%s", s, diff)
 		}
 	}
 	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 48127: "48,127", 1234567: "1,234,567", -1000: "-1,000"} {
-		if got := thousands(n); got != want {
-			t.Errorf("thousands(%d) = %q, want %q", n, got, want)
+		if got := english.thousands(n); got != want {
+			t.Errorf("english.thousands(%d) = %q, want %q", n, got, want)
 		}
 	}
 	for n, want := range map[int64]string{412316860416: "384 GiB", 1099511627776: "1.0 TiB", 1 << 20: "1 MiB"} {
-		if got := bytesText(n); got != want {
-			t.Errorf("bytesText(%d) = %q, want %q", n, got, want)
+		if got := english.bytesText(n); got != want {
+			t.Errorf("english.bytesText(%d) = %q, want %q", n, got, want)
 		}
 	}
 }
@@ -1000,22 +1005,22 @@ func TestChartMarkup(t *testing.T) {
 	}
 	mixed[3] = nil
 	charts := map[string]template.HTML{
-		"bars, empty":       dailyBars(ds, make([]*float64, snapshot.Days)),
-		"bars, mixed":       dailyBars(ds, mixed),
-		"meter -100":        budgetMeter(-100),
-		"meter 0":           budgetMeter(0),
-		"meter 25":          budgetMeter(25),
-		"meter 100":         budgetMeter(100),
-		"share 0":           shareBar("Opened by Renovate", 0),
-		"share 61":          shareBar("Opened by Renovate", 61),
-		"share 100":         shareBar("Opened by Renovate", 100),
-		"use 0":             meter("CPU", 0, statusOK),
-		"use 80.4":          meter("Memory", 80.4, statusWarn),
-		"use 100":           meter("Disk", 100, statusBad),
-		"bars, partial day": dailyBars(ds[27:], []*float64{nil, v(12.3456), v(99.95)}),
-		"spark, mixed":      sparkBars(fixtureNow, sparkValues(1671, 0, 12345, -1)),
-		"spark, zeros":      sparkBars(fixtureNow, sparkValues(0, 0, 0, 0)),
-		"spark, no data":    sparkBars(fixtureNow, make([]*int, snapshot.Buckets)),
+		"bars, empty":       dailyBars(english, ds, make([]*float64, snapshot.Days)),
+		"bars, mixed":       dailyBars(english, ds, mixed),
+		"meter -100":        budgetMeter(english, -100),
+		"meter 0":           budgetMeter(english, 0),
+		"meter 25":          budgetMeter(english, 25),
+		"meter 100":         budgetMeter(english, 100),
+		"share 0":           shareBar(english, "Opened by Renovate", 0),
+		"share 61":          shareBar(english, "Opened by Renovate", 61),
+		"share 100":         shareBar(english, "Opened by Renovate", 100),
+		"use 0":             meter(english, "CPU", 0, statusOK),
+		"use 80.4":          meter(english, "Memory", 80.4, statusWarn),
+		"use 100":           meter(english, "Disk", 100, statusBad),
+		"bars, partial day": dailyBars(english, ds[27:], []*float64{nil, v(12.3456), v(99.95)}),
+		"spark, mixed":      sparkBars(english, fixtureNow, sparkValues(1671, 0, 12345, -1)),
+		"spark, zeros":      sparkBars(english, fixtureNow, sparkValues(0, 0, 0, 0)),
+		"spark, no data":    sparkBars(english, fixtureNow, make([]*int, snapshot.Buckets)),
 	}
 	allowed := map[string]bool{"svg": true, "g": true, "rect": true, "line": true, "title": true}
 	for name, chart := range charts {
@@ -1052,7 +1057,7 @@ func TestChartMarkup(t *testing.T) {
 			}
 		}
 	}
-	if got := string(dailyBars(ds, mixed)); !strings.Contains(got, `aria-label="30 days: 2 met, 5 at risk, 22 missed, 1 without data"`) {
+	if got := string(dailyBars(english, ds, mixed)); !strings.Contains(got, `aria-label="30 days: 2 met, 5 at risk, 22 missed, 1 without data"`) {
 		t.Errorf("dailyBars label: %s", got)
 	}
 }
@@ -1070,7 +1075,7 @@ func sparkValues(values ...int) []*int {
 }
 
 func TestSparkBars(t *testing.T) {
-	got := string(sparkBars(fixtureNow, sparkValues(0, 10, 5, -1)))
+	got := string(sparkBars(english, fixtureNow, sparkValues(0, 10, 5, -1)))
 	contains(t, got,
 		`aria-label="28 counts of six hours, highest 10"`,
 		`<rect class="spark" x="1.0" y="38.0" width="8.0" height="2.0"><title>13 Nov 17:00 to 13 Nov 23:00: 0</title></rect>`,
@@ -1079,7 +1084,7 @@ func TestSparkBars(t *testing.T) {
 		`<rect class="none" x="31.0" y="38.0" width="8.0" height="2.0"><title>14 Nov 11:00 to 14 Nov 17:00: No data</title></rect>`,
 		`<title>20 Nov 11:00 to 20 Nov 17:00: No data</title>`,
 	)
-	if n := strings.Count(string(sparkBars(fixtureNow, sparkValues(0))), `height="2.0"`); n != snapshot.Buckets {
+	if n := strings.Count(string(sparkBars(english, fixtureNow, sparkValues(0))), `height="2.0"`); n != snapshot.Buckets {
 		t.Errorf("all zeros: %d bars at the minimum height, want %d", n, snapshot.Buckets)
 	}
 }
@@ -1108,7 +1113,7 @@ func TestSecurityRules(t *testing.T) {
 		{false, n(25), nil, statusWarn, "Above usual"},   // no week: a mean of 0
 		{false, nil, n(10), statusNone, "No data"},
 	} {
-		if st, w := signalStatus(tc.zero, tc.day, tc.week); st != tc.st || w != tc.word {
+		if st, w := signalStatus(english, tc.zero, tc.day, tc.week); st != tc.st || w != tc.word {
 			t.Errorf("signalStatus(%v, %v, %v) = %q %q, want %q %q", tc.zero, tc.day, tc.week, st, w, tc.st, tc.word)
 		}
 	}

@@ -8,7 +8,8 @@
 # (1024), 16:10 (1440), 16:9 (1920, 2560), in the dark theme, then the same
 # widths in the light theme (dashboard-light-<width>.png) from a static copy
 # of the page with the light /theme.css: a browser keeps no Domain=nedsi.io
-# cookie on 127.0.0.1. The layout depends on the width only (no
+# cookie on 127.0.0.1. Then the French page, /fr/, in the dark theme
+# (dashboard-fr-<width>.png). The layout depends on the width only (no
 # viewport-height units), so each shot is taller than the page.
 # Fails on a Chrome error, a missing PNG, a CSP violation or failed load in
 # Chrome's log, a card off the column grid or a lone card stretched across
@@ -60,10 +61,10 @@ for _ in $(seq 1 50); do
 done
 
 rc=0
-for shot in dark:http://127.0.0.1:8080/ light:http://127.0.0.1:8090/; do
-theme=${shot%%:*} url=${shot#*:}
-name=dashboard
-[ "$theme" = light ] && name=dashboard-light
+for shot in dashboard:dark:http://127.0.0.1:8080/ dashboard-light:light:http://127.0.0.1:8090/ \
+  dashboard-fr:dark:http://127.0.0.1:8080/fr/; do
+name=${shot%%:*} rest=${shot#*:}
+theme=${rest%%:*} url=${rest#*:}
 for size in 390x13000 1024x8000 1440x8000 1920x8000 2560x8000; do
   png="$out/$name-${size%%x*}.png"
   rm -f "$png"
@@ -86,25 +87,25 @@ for size in 390x13000 1024x8000 1440x8000 1920x8000 2560x8000; do
     rc=1
   fi
   if [ -s "$png" ] && ! "$work/gridcheck" --wide "$wide" "internal/web/assets/theme-$theme.css" "$png"; then
-    echo "dashboard-screenshots: FAIL a card is off the column grid at $size ($theme)" >&2
+    echo "dashboard-screenshots: FAIL a card is off the column grid at $size ($name)" >&2
     rc=1
   fi
 done
 done
 
 # Every request for the page and the stylesheet answered 200, and both came.
-requests=$(jq -c 'select(.msg == "request" and (.path == "/" or .path == "/theme.css" or (.path | startswith("/assets/"))))' "$work/web.log")
+requests=$(jq -c 'select(.msg == "request" and (.path == "/" or .path == "/fr/" or .path == "/theme.css" or (.path | startswith("/assets/"))))' "$work/web.log")
 if jq -e 'select(.status != 200)' <<<"$requests" >/dev/null; then
   echo "dashboard-screenshots: FAIL a page or stylesheet request was not 200:" >&2
   jq -c 'select(.status != 200)' <<<"$requests" >&2
   rc=1
 fi
-for p in / /assets/ /theme.css; do
+for p in / /fr/ /assets/ /theme.css; do
   if ! jq -e --arg p "$p" 'select(.path == $p or ($p != "/" and (.path | startswith($p))))' <<<"$requests" >/dev/null; then
     echo "dashboard-screenshots: FAIL Chrome never requested $p" >&2
     rc=1
   fi
 done
 
-[ "$rc" -eq 0 ] && echo "dashboard-screenshots: dashboard-{,light-}{390,1024,1440,1920,2560}.png in $out"
+[ "$rc" -eq 0 ] && echo "dashboard-screenshots: dashboard-{,light-,fr-}{390,1024,1440,1920,2560}.png in $out"
 exit "$rc"

@@ -52,7 +52,7 @@
 <nav class="site" aria-label="Site">
 <a href="https://nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_home" }}</a>
 <a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>{{ T "nav_blog" }}</a>
-<a href="https://homelab.nedsi.io/">{{ T "nav_homelab" }}</a>
+<a href="https://homelab.nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_homelab" }}</a>
 <a href="https://techradar.nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_radar" }}</a>
 <a href="{{ $about }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>{{ T "nav_about" }}</a>
 </nav>

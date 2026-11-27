@@ -91,7 +91,7 @@ var catalogue = map[string]map[string]string{
 		"description":             "Ce que le homelab nedsi utilise, essaie, évalue et met de côté, et pourquoi.",
 		"url.home":                "https://nedsi.io/fr/",
 		"url.blog":                "https://blog.nedsi.io/fr/",
-		"url.homelab":             "https://homelab.nedsi.io/",
+		"url.homelab":             "https://homelab.nedsi.io/fr/",
 		"url.about":               "https://blog.nedsi.io/fr/about/",
 		"url.privacy":             "https://blog.nedsi.io/fr/privacy/",
 		"url.feed":                "https://blog.nedsi.io/fr/index.xml",

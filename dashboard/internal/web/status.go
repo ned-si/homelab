@@ -1,6 +1,9 @@
 package web
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // status is a figure's colour class; its word goes next to it on the page
 // (design.md, "Status colours").
@@ -12,9 +15,6 @@ const (
 	statusBad  status = "bad"
 	statusNone status = "none"
 )
-
-// noData is the word of a figure without data.
-const noData = "No data"
 
 // target is the availability SLO, in percent.
 const target = 99.5
@@ -57,28 +57,28 @@ func dayStatus(v *float64) status {
 }
 
 // monthWord is the word shown next to a 30-day status.
-func monthWord(s status) string {
+func monthWord(l *locale, s status) string {
 	switch s {
 	case statusOK:
-		return "Met"
+		return l.t("status.met")
 	case statusWarn:
-		return "At risk"
+		return l.t("status.at-risk")
 	case statusBad:
-		return "Missed"
+		return l.t("status.missed")
 	default:
-		return noData
+		return l.t("status.nodata")
 	}
 }
 
 // appState is the class and word of an app's current state.
-func appState(state string) (status, string) {
+func appState(l *locale, state string) (status, string) {
 	switch state {
 	case "up":
-		return statusOK, "Up"
+		return statusOK, l.t("status.up")
 	case "down":
-		return statusBad, "Down"
+		return statusBad, l.t("status.down")
 	default:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	}
 }
 
@@ -91,16 +91,16 @@ const (
 
 // certStatus is the status of a certificate's days left; nil has no probe
 // result.
-func certStatus(days *int) (status, string) {
+func certStatus(l *locale, days *int) (status, string) {
 	switch {
 	case days == nil:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case *days > certWarnAt:
-		return statusOK, "Valid"
+		return statusOK, l.t("status.valid")
 	case *days >= certBadAt:
-		return statusWarn, "Renewal late"
+		return statusWarn, l.t("status.renewal-late")
 	default:
-		return statusBad, "Expiring"
+		return statusBad, l.t("status.expiring")
 	}
 }
 
@@ -149,16 +149,16 @@ func errorLevel(v *float64) status {
 }
 
 // levelWord is the word of a threshold status, after the alerts' severities.
-func levelWord(s status) string {
+func levelWord(l *locale, s status) string {
 	switch s {
 	case statusOK:
-		return "OK"
+		return l.t("status.ok")
 	case statusWarn:
-		return "Warning"
+		return l.t("status.warning")
 	case statusBad:
-		return "Critical"
+		return l.t("status.critical")
 	default:
-		return noData
+		return l.t("status.nodata")
 	}
 }
 
@@ -170,7 +170,8 @@ func argoStatus(apps, synced, healthy int) status {
 	return statusWarn
 }
 
-// band is a DORA performance cluster of the 2023 State of DevOps report.
+// band is a DORA performance cluster of the 2023 State of DevOps report;
+// its word is the catalogue's band.<lower case>.
 type band string
 
 const (
@@ -179,6 +180,11 @@ const (
 	bandMedium band = "Medium"
 	bandLow    band = "Low"
 )
+
+// bandWord is the word of a band.
+func bandWord(l *locale, b band) string {
+	return l.t("band." + strings.ToLower(string(b)))
+}
 
 // bandStatus is the colour of a band: elite and high are ok.
 func bandStatus(b band) status {
@@ -276,16 +282,16 @@ func failureBand(rate float64) band {
 }
 
 // runStatus is the class and word of a ci run's result.
-func runStatus(result string) (status, string) {
+func runStatus(l *locale, result string) (status, string) {
 	switch result {
 	case "success":
-		return statusOK, "Success"
+		return statusOK, l.t("status.success")
 	case "failure":
-		return statusBad, "Failure"
+		return statusBad, l.t("status.failure")
 	case "cancelled":
-		return statusNone, "Cancelled"
+		return statusNone, l.t("status.cancelled")
 	default:
-		return statusWarn, "Other"
+		return statusWarn, l.t("status.other")
 	}
 }
 
@@ -299,23 +305,23 @@ const (
 
 // signalStatus is the class and word of a security signal's 24 h count;
 // neither rule is bad: the alerts page, the page reports.
-func signalStatus(expectedZero bool, day, week *int) (status, string) {
+func signalStatus(l *locale, expectedZero bool, day, week *int) (status, string) {
 	switch {
 	case day == nil:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case expectedZero && *day == 0:
-		return statusOK, "None"
+		return statusOK, l.t("status.none")
 	case expectedZero:
-		return statusWarn, "Seen"
+		return statusWarn, l.t("status.seen")
 	}
 	before := 0
 	if week != nil {
 		before = max(0, *week-*day)
 	}
 	if *day > usualFloor && float64(*day) > usualFactor*float64(before)/6 {
-		return statusWarn, "Above usual"
+		return statusWarn, l.t("status.above-usual")
 	}
-	return statusOK, "Usual"
+	return statusOK, l.t("status.usual")
 }
 
 // The Scorecard score's thresholds, out of 10: Scorecard's own badge turns
@@ -326,7 +332,7 @@ const (
 )
 
 // scoreStatus is the status of the Scorecard score; nil is no result yet.
-func scoreStatus(score *float64) (status, string) {
+func scoreStatus(l *locale, score *float64) (status, string) {
 	st := statusNone
 	switch {
 	case score == nil:
@@ -337,17 +343,17 @@ func scoreStatus(score *float64) (status, string) {
 	default:
 		st = statusBad
 	}
-	return st, levelWord(st)
+	return st, levelWord(l, st)
 }
 
 // checkStatus is the status of one Scorecard check, out of 10 with the
 // overall score's thresholds; nil is a check Scorecard could not apply.
-func checkStatus(score *int) (status, string) {
+func checkStatus(l *locale, score *int) (status, string) {
 	if score == nil {
-		return statusNone, notApplicable
+		return statusNone, l.t("status.not-applicable")
 	}
 	f := float64(*score)
-	return scoreStatus(&f)
+	return scoreStatus(l, &f)
 }
 
 // The database rules (design.md, "Status colours"): each takes the
@@ -355,73 +361,73 @@ func checkStatus(score *int) (status, string) {
 
 // databasesStatus is "Down" when a database seen in the rolling 24 h has not
 // been up in the last 10 minutes.
-func databasesStatus(up, count int) (status, string) {
+func databasesStatus(l *locale, up, count int) (status, string) {
 	switch {
 	case count == 0:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case up == count:
-		return statusOK, "Up"
+		return statusOK, l.t("status.up")
 	default:
-		return statusBad, "Down"
+		return statusBad, l.t("status.down")
 	}
 }
 
 // walStatus is "Behind" when the databases not archiving normally all have
 // more than 5 WAL files waiting, "Failing" when one fails or is not up.
-func walStatus(archiving, behind, count int) (status, string) {
+func walStatus(l *locale, archiving, behind, count int) (status, string) {
 	switch {
 	case count == 0:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case archiving == count:
-		return statusOK, "Archiving"
+		return statusOK, l.t("status.archiving")
 	case archiving+behind == count:
-		return statusWarn, "Behind"
+		return statusWarn, l.t("status.behind")
 	default:
-		return statusBad, "Failing"
+		return statusBad, l.t("status.failing")
 	}
 }
 
 // baseBackupStatus has no warning band, so the nightly cycle never turns
 // the tile amber.
-func baseBackupStatus(fresh, count int) (status, string) {
+func baseBackupStatus(l *locale, fresh, count int) (status, string) {
 	switch {
 	case count == 0:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case fresh == count:
-		return statusOK, "Fresh"
+		return statusOK, l.t("status.fresh")
 	default:
-		return statusBad, "Stale"
+		return statusBad, l.t("status.stale")
 	}
 }
 
 // restoreStatus is "Failed" when a latest restore test failed, "Overdue"
 // when some database has no pass in the rolling 8 days and none failed.
-func restoreStatus(passed, failed, count int) (status, string) {
+func restoreStatus(l *locale, passed, failed, count int) (status, string) {
 	switch {
 	case count == 0:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case failed > 0:
-		return statusBad, "Failed"
+		return statusBad, l.t("status.failed")
 	case passed == count:
-		return statusOK, "Passed"
+		return statusOK, l.t("status.passed")
 	default:
-		return statusWarn, "Overdue"
+		return statusWarn, l.t("status.overdue")
 	}
 }
 
 // sqliteBackupStatus is "Stale" when an SQLite app has no successful
 // backup in 26 h (BackupNotFresh), otherwise "Failed" when a restore test
 // failed (BackupVerifyFailed). No warning band: a stale backup already pages.
-func sqliteBackupStatus(fresh, failed, count int) (status, string) {
+func sqliteBackupStatus(l *locale, fresh, failed, count int) (status, string) {
 	switch {
 	case count == 0:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case fresh < count:
-		return statusBad, "Stale"
+		return statusBad, l.t("status.stale")
 	case failed > 0:
-		return statusBad, "Failed"
+		return statusBad, l.t("status.failed")
 	default:
-		return statusOK, "Fresh"
+		return statusOK, l.t("status.fresh")
 	}
 }
 
@@ -430,26 +436,26 @@ const freshnessTarget = 99
 
 // freshnessStatus is the lowest database's backup freshness over the
 // rolling 30 days against its objective; nil has no series.
-func freshnessStatus(v *float64) (status, string) {
+func freshnessStatus(l *locale, v *float64) (status, string) {
 	switch {
 	case v == nil:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case *v >= freshnessTarget:
-		return statusOK, "Met"
+		return statusOK, l.t("status.met")
 	default:
-		return statusBad, "Missed"
+		return statusBad, l.t("status.missed")
 	}
 }
 
 // provenanceStatus is the status and word of an image's provenance as
 // Kyverno verified it; nil is no report.
-func provenanceStatus(verified *bool) (status, string) {
+func provenanceStatus(l *locale, verified *bool) (status, string) {
 	switch {
 	case verified == nil:
-		return statusNone, noData
+		return statusNone, l.t("status.nodata")
 	case *verified:
-		return statusOK, "Verified"
+		return statusOK, l.t("status.verified")
 	default:
-		return statusWarn, "Not verified"
+		return statusWarn, l.t("status.not-verified")
 	}
 }

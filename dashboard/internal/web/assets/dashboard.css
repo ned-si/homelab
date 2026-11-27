@@ -45,6 +45,8 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
   overflow-wrap: anywhere;
 }
 .unit { font-size: 1rem; font-weight: 400; margin-left: 0.2em; color: var(--muted); white-space: nowrap; }
+/* French writes a narrow no-break space before the unit instead (i18n.go). */
+:lang(fr) .unit { margin-left: 0; }
 .status { font-weight: 700; white-space: nowrap; }
 
 .big.ok, .status.ok, .tile-value.ok, .state.ok { color: var(--ok); }

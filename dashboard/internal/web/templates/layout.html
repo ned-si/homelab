@@ -1,30 +1,40 @@
-{{- /* The blog's baseof (site/layouts/baseof.html), with absolute links: the app is its own origin. tests/test_site_markup.py checks the rendered pages. */ -}}
+{{- /* The blog's baseof (site/layouts/baseof.html), with absolute links: the app is its own origin. English at /, French at /fr/ (.kiro/specs/site-theme-language/design.md#dashboard). tests/test_site_markup.py checks the rendered pages. */ -}}
 {{define "top" -}}
 <!doctype html>
-<html lang="en-GB">
+<html lang="{{.Lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} | nedsi</title>
-<meta name="description" content="The homelab in numbers: live availability, certificates, cluster, security and project figures.">
+<meta name="description" content="{{index .T "meta.description"}}">
 <meta name="author" content="nedsi">
-<link rel="canonical" href="https://homelab.nedsi.io/">
-<link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/index.xml" title="nedsi">
+<link rel="canonical" href="{{.URL}}">
+{{- if not .NotFound}}
+<link rel="alternate" hreflang="en" href="{{.EN}}">
+<link rel="alternate" hreflang="fr" href="{{.FR}}">
+<link rel="alternate" hreflang="x-default" href="{{.EN}}">
+{{- end}}
+<link rel="alternate" type="application/rss+xml" href="{{index .T "url.feed"}}" title="nedsi">
 <link rel="stylesheet" href="{{.CSS}}" integrity="{{.CSSIntegrity}}">
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
 <header class="site">
 <nav class="site" aria-label="Site">
-<a href="https://nedsi.io/">Home</a>
-<a href="https://blog.nedsi.io/">Blog</a>
-<a href="/" aria-current="page">Homelab</a>
-<a href="https://techradar.nedsi.io/">Tech radar</a>
-<a href="https://blog.nedsi.io/about/">About</a>
+<a href="{{index .T "url.home"}}">{{index .T "nav.home"}}</a>
+<a href="{{index .T "url.blog"}}">{{index .T "nav.blog"}}</a>
+<a href="{{.Path}}" aria-current="page">{{index .T "nav.homelab"}}</a>
+<a href="{{index .T "url.techradar"}}">{{index .T "nav.techradar"}}</a>
+<a href="{{index .T "url.about"}}">{{index .T "nav.about"}}</a>
 </nav>
 <p class="prefs">
-<a class="to-light" href="/set-theme/light/" rel="nofollow" title="Light theme, remembered with a cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">Light theme</span></a>
-<a class="to-dark" href="/set-theme/dark/" rel="nofollow" title="Dark theme"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">Dark theme</span></a>
+{{- if eq .Code "fr"}}
+<span class="lang"><a href="{{.EN}}" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>
+{{- else}}
+<span class="lang"><span aria-current="true">EN</span> <a href="{{.FR}}" hreflang="fr" lang="fr-CH">FR</a></span>
+{{- end}}
+<a class="to-light" href="/set-theme/light{{.Path}}" rel="nofollow" title="{{index .T "theme.light.title"}}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">{{index .T "theme.light"}}</span></a>
+<a class="to-dark" href="/set-theme/dark{{.Path}}" rel="nofollow" title="{{index .T "theme.dark.title"}}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">{{index .T "theme.dark"}}</span></a>
 </p>
 </header>
 <main>
@@ -32,7 +42,7 @@
 {{define "bottom" -}}
 </main>
 <footer class="site">
-<p>Articles by nedsi. <a href="https://blog.nedsi.io/index.xml">RSS</a>. <a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+<p>{{index .T "footer.by"}} <a href="{{index .T "url.feed"}}">{{index .T "footer.rss"}}</a>. <a href="{{index .T "url.privacy"}}">{{index .T "footer.privacy"}}</a>.</p>
 </footer>
 </body>
 </html>

@@ -8,7 +8,7 @@
 <div class="meter">{{.}}</div>
 {{- end}}
 {{- range .Details}}
-<p class="tile-detail">{{.}}</p>
+<p class="tile-detail"{{with $.DetailLang}} lang="{{.}}"{{end}}>{{.}}</p>
 {{- end}}
 {{- with .Spark}}
 <div class="spark">{{.}}</div>
@@ -21,45 +21,45 @@
 {{- end}}
 {{- define "asof"}}
 {{- if .Stale}}
-<p class="meta stale">Figures from <time datetime="{{.AsOf.Datetime}}">{{.AsOf.Text}}</time> (Zurich time): this card is not updating.</p>
+<p class="meta stale">{{index .T "asof.stale.before"}}<time datetime="{{.AsOf.Datetime}}">{{.AsOf.Text}}</time>{{index .T "asof.stale.after"}}</p>
 {{- else}}
-<p class="meta">As of <time datetime="{{.AsOf.Datetime}}">{{.AsOf.Text}}</time>.</p>
+<p class="meta">{{index .T "asof.before"}}<time datetime="{{.AsOf.Datetime}}">{{.AsOf.Text}}</time>{{index .T "asof.after"}}</p>
 {{- end}}
 {{- end}}
 {{- template "top" .}}
 <header class="page">
-<h1>Homelab</h1>
-<p class="intro">An over-engineered homelab, in numbers.</p>
-<p class="meta">SLA: 99.50% availability over a rolling 30 days per app.</p>
+<h1>{{index .T "title"}}</h1>
+<p class="intro">{{index .T "intro"}}</p>
+<p class="meta">{{index .T "intro.sla"}}</p>
 {{- with .Figures}}
-<p class="meta">Updated <time datetime="{{.Generated.Datetime}}">{{.Generated.Text}}</time> (Zurich time).</p>
+<p class="meta">{{index $.T "updated.before"}}<time datetime="{{.Generated.Datetime}}">{{.Generated.Text}}</time>{{index $.T "updated.after"}}</p>
 {{- end}}
 {{- with .LiveStale}}
-<p class="meta stale">Live figures from <time datetime="{{.Datetime}}">{{.Text}}</time> (Zurich time): the collector has stopped pushing.</p>
+<p class="meta stale">{{index $.T "livestale.before"}}<time datetime="{{.Datetime}}">{{.Text}}</time>{{index $.T "livestale.after"}}</p>
 {{- end}}
 </header>
 {{- if not .Figures}}
-<p class="meta">No figures yet: the collector has not pushed any.</p>
+<p class="meta">{{index .T "nofigures"}}</p>
 {{- else}}
 {{- with .Figures}}
 <section aria-labelledby="availability">
-<h2 id="availability">Availability</h2>
-<p class="meta">The rolling 30 days to now, measured by probes. The last bar is today so far.</p>
-{{- if .Availability.Stale}}{{template "asof" .Availability}}{{end}}
+<h2 id="availability">{{index $.T "availability"}}</h2>
+<p class="meta">{{index $.T "availability.intro"}}</p>
+{{- if .Availability.Stale}}{{template "asof" $.At .Availability}}{{end}}
 <div class="cards">
 {{- range .Apps}}
 <div class="card">
 <h3>{{.Name}} <span class="state {{.State}}">{{.StateWord}}</span></h3>
 {{- if .NoData}}
-<p class="stat"><span class="status none">No data</span></p>
+<p class="stat"><span class="status none">{{index $.T "status.nodata"}}</span></p>
 {{- else if .Since}}
-<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="label">since {{.Since}}</span></p>
+<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">{{.Unit}}</span></span> <span class="label">{{index $.T "card.since"}} {{.Since}}</span></p>
 {{- else if .Word}}
-<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="status {{.Status}}">{{.Word}}</span></p>
+<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">{{.Unit}}</span></span> <span class="status {{.Status}}">{{.Word}}</span></p>
 <div class="meter">{{.Meter}}</div>
-<p class="meta">{{if .Exhausted}}Exhausted{{else}}{{.BudgetLeft}}% of the error budget left{{end}}</p>
+<p class="meta">{{.Budget}}</p>
 {{- else}}
-<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span></p>
+<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">{{.Unit}}</span></span></p>
 {{- end}}
 <div class="bars">{{.Bars}}</div>
 </div>
@@ -68,8 +68,8 @@
 </section>
 <div class="cards">
 <section class="panel stats" aria-labelledby="cluster">
-<h2 id="cluster">Cluster</h2>
-<h3>Nodes and NAS: utilisation, saturation, errors</h3>
+<h2 id="cluster">{{index $.T "cluster"}}</h2>
+<h3>{{index $.T "cluster.use"}}</h3>
 <div class="tile-groups">
 {{- range .Use}}
 <div class="tile-group">
@@ -80,61 +80,61 @@
 </div>
 {{- end}}
 </div>
-<h3>Gateway, rolling 5 minutes: rate, errors, duration</h3>
+<h3>{{index $.T "cluster.gateway"}}</h3>
 <div class="tiles">
 {{- range .RED}}{{template "tile" .}}{{end}}
 </div>
-<h3>State</h3>
+<h3>{{index $.T "cluster.state"}}</h3>
 <div class="tiles">
 {{- range .State}}{{template "tile" .}}{{end}}
 </div>
-<h3>Databases and backups</h3>
-<p class="meta">Each PostgreSQL database is its own CloudNativePG cluster. Every change is archived to S3 within 5 minutes and every night adds a base backup, so a database can be restored to any moment of its recovery window. Every week each one is restored into a new cluster and its tables and rows are compared with the source.</p>
+<h3>{{index $.T "databases"}}</h3>
+<p class="meta">{{index $.T "databases.intro"}}</p>
 <div class="tiles">
 {{- range .Databases}}{{template "tile" .}}{{end}}
 </div>
-<p class="meta">The apps that keep their database in SQLite, a file in the app's volume, are copied to S3 every night with restic. Most copies are taken while the app runs, and the weekly restore test checks the database files it covers. Valkey, Redis and ClickHouse hold queues, caches and telemetry that are rebuilt or expire, so they are not backed up.</p>
+<p class="meta">{{index $.T "databases.engines"}}</p>
 <div class="tiles">
 {{- range .Engines}}{{template "tile" .}}{{end}}
 </div>
-{{- template "asof" .Cluster}}
+{{- template "asof" $.At .Cluster}}
 </section>
 <section class="panel stats" aria-labelledby="project">
-<h2 id="project">Project, rolling 30 days</h2>
-<p class="meta">Every pull request merged into main is a deploy.</p>
-<h3>DORA metrics</h3>
-<p class="meta"><a href="https://dora.dev/">DORA</a>, short for DevOps Research and Assessment, is the research programme behind the State of DevOps reports. It sums up software delivery in four metrics: how often changes reach production (deployment frequency), how long a change takes to get there (lead time for changes), how often a change breaks something (change failure rate) and how quickly things are back to normal when it does (time to restore).</p>
-<p class="meta">Each metric falls in one of four bands, Elite, High, Medium or Low, taken from the performance clusters of <a href="https://dora.dev/research/2023/dora-report/">DORA's 2023 report</a>. Of course, the metrics were made for teams, not for one person and a few agents, but they make a fair yardstick all the same.</p>
+<h2 id="project">{{index $.T "project"}}</h2>
+<p class="meta">{{index $.T "project.intro"}}</p>
+<h3>{{index $.T "dora"}}</h3>
+<p class="meta"><a href="https://dora.dev/">{{index $.T "dora.what.link"}}</a>{{index $.T "dora.what.after"}}</p>
+<p class="meta">{{index $.T "dora.bands.before"}}<a href="https://dora.dev/research/2023/dora-report/">{{index $.T "dora.bands.link"}}</a>{{index $.T "dora.bands.after"}}</p>
 <div class="tiles">
 {{- template "tile" .DORALevel}}
 </div>
-<p class="meta">The overall level is the lowest of the four bands, so one weak metric is never averaged away.</p>
+<p class="meta">{{index $.T "dora.overall"}}</p>
 <div class="tiles bands">
 {{- range .DORA}}{{template "tile" .}}{{end}}
 </div>
-<p class="meta">Rework rate counts the unplanned deploys: rollbacks, fix forwards, and <code>fix</code> merges made during an incident or in the 24 hours after it, over all deploys. Rework rate, DORA's fifth metric since 2024, has no band here: the 2023 clusters these bands come from predate it.</p>
-<h3>Renovate and CI</h3>
+<p class="meta">{{index $.T "dora.rework.before"}}<code>fix</code>{{index $.T "dora.rework.after"}}</p>
+<h3>{{index $.T "delivery"}}</h3>
 <div class="tiles">
 {{- range .Delivery}}{{template "tile" .}}{{end}}
 </div>
-<h3>Last CI runs on main</h3>
+<h3>{{index $.T "runs"}}</h3>
 <ul class="runs">
 {{- range .Runs}}
 <li><span class="status {{.Status}}">{{.Word}}</span> {{with .PR}}<a href="https://github.com/ned-si/homelab/pull/{{.}}">#{{.}}</a> {{end}}<code>{{.Commit}}</code> <time datetime="{{.Started.Datetime}}">{{.Started.Text}}</time>, {{template "value" .Duration}}</li>
 {{- end}}
 </ul>
-{{- template "asof" .Project}}
+{{- template "asof" $.At .Project}}
 </section>
 <section class="panel stats" aria-labelledby="supply-chain">
-<h2 id="supply-chain">Supply chain</h2>
-<h3>SLSA provenance</h3>
-<p class="meta">The two images I build here, this dashboard and the site, are built on runners GitHub hosts, and GitHub signs a provenance for each: that makes <a href="https://slsa.dev/spec/v1.0/levels">SLSA Build level 2</a>. Kyverno checks both on every Pod that runs them. Level 3 needs the build moved into a reusable workflow, which is for later.</p>
+<h2 id="supply-chain">{{index $.T "supply"}}</h2>
+<h3>{{index $.T "slsa"}}</h3>
+<p class="meta">{{index $.T "slsa.before"}}<a href="https://slsa.dev/spec/v1.0/levels">{{index $.T "slsa.link"}}</a>{{index $.T "slsa.after"}}</p>
 <div class="tiles">
 {{- range .Images}}{{template "tile" .}}{{end}}
 </div>
-{{- template "asof" .SupplyChain}}
-<h3>OpenSSF Scorecard</h3>
-<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and every check in alphabetical order, with Scorecard's own reason; a check that does not apply to the repository says so. A check is green from 7 out of 10, yellow from 4 and red below; a note under a check says why where Scorecard's reason is not enough. The details are in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
+{{- template "asof" $.At .SupplyChain}}
+<h3>{{index $.T "scorecard"}}</h3>
+<p class="meta"><a href="https://scorecard.dev/">{{index $.T "scorecard.link"}}</a>{{index $.T "scorecard.middle"}}<a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">{{index $.T "scorecard.report"}}</a>{{index $.T "scorecard.after"}}</p>
 <div class="tiles">
 {{- range .Score}}{{template "tile" .}}{{end}}
 </div>
@@ -143,36 +143,36 @@
 {{- range .}}{{template "tile" .}}{{end}}
 </div>
 {{- end}}
-{{- with .Scorecard}}{{template "asof" .}}{{end}}
+{{- with .Scorecard}}{{template "asof" $.At .}}{{end}}
 </section>
 <section class="panel stats" aria-labelledby="security">
-<h2 id="security">Security</h2>
-<p class="meta">What the defences turned away, counted over the whole cluster: the rolling 24 h, the rolling 7 days, and the same 7 days in six-hour bars. The Gateway figures leave out our own probes and checks. The alerts page whoever has to act; this card only counts.</p>
+<h2 id="security">{{index $.T "security"}}</h2>
+<p class="meta">{{index $.T "security.intro"}}</p>
 <div class="tiles">
 {{- range .Signals}}{{template "tile" .}}{{end}}
 </div>
-{{- template "asof" .Security}}
+{{- template "asof" $.At .Security}}
 </section>
 <section class="panel stats" aria-labelledby="certificates">
-<h2 id="certificates">Certificates</h2>
-<p class="meta">Days until the certificate on the public names expires. cert-manager renews it 30 days before.</p>
+<h2 id="certificates">{{index $.T "certificates"}}</h2>
+<p class="meta">{{index $.T "certificates.intro"}}</p>
 <div class="tiles">
 {{- range .Certs}}{{template "tile" .}}{{end}}
 </div>
-{{- template "asof" .Certificates}}
+{{- template "asof" $.At .Certificates}}
 </section>
 </div>
 {{- end}}
 {{- end}}
-<h2>Coming later</h2>
+<h2>{{index .T "later"}}</h2>
 <div class="cards">
 <section class="panel later" aria-labelledby="solar">
-<h3 id="solar">Solar production</h3>
-<p>What the solar panels produce over the day. Production only: what the house consumes stays private, as it says far too much about when we are home.</p>
+<h3 id="solar">{{index .T "later.solar"}}</h3>
+<p>{{index .T "later.solar.text"}}</p>
 </section>
 <section class="panel later" aria-labelledby="home">
-<h3 id="home">Home automation</h3>
-<p>A few figures from Home Assistant, once I have worked out which ones are both interesting and safe to share. Nothing that tells you whether anybody is in.</p>
+<h3 id="home">{{index .T "later.home"}}</h3>
+<p>{{index .T "later.home.text"}}</p>
 </section>
 </div>
 {{template "bottom" . -}}
