@@ -1,0 +1,16 @@
+# coverage.py for the Python scripts, run by the `tests` job
+# (docs/testing.md, "Coverage").
+[run]
+source =
+    scripts
+    platform
+    apps
+omit = tests/*
+# Many tests run the scripts as child processes.
+patch = subprocess
+parallel = true
+relative_files = true
+
+[report]
+# The script directories have no __init__.py; count files no test imports.
+include_namespace_packages = true

@@ -1,9 +1,13 @@
 """scripts/zap_sarif.py: ZAP JSON -> SARIF, IGNORE rows dropped, counts only on stdout."""
 import json
+import os
 import subprocess
 import sys
 
 from conftest import REPO
+
+# coverage.py follows the child through these (.coveragerc, patch = subprocess).
+COVERAGE_ENV = {k: v for k, v in os.environ.items() if k.startswith("COVERAGE_")}
 
 CONVERT = str(REPO / "scripts" / "zap_sarif.py")
 
@@ -34,7 +38,7 @@ def run(tmp_path, *reports, raw=None):
     ghout = tmp_path / "gh_output"
     ghout.write_text("")
     p = subprocess.run([sys.executable, CONVERT, "--rules", str(rules), "--out", str(out), str(rep)],
-                       capture_output=True, text=True, env={"GITHUB_OUTPUT": str(ghout), "PATH": "/usr/bin:/bin"})
+                       capture_output=True, text=True, env={"GITHUB_OUTPUT": str(ghout), "PATH": "/usr/bin:/bin", **COVERAGE_ENV})
     outputs = dict(line.split("=", 1) for line in ghout.read_text().splitlines())
     return p, out, outputs
 

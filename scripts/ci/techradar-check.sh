@@ -5,8 +5,9 @@
 #
 # go mod verify and tidy, golangci-lint (dashboard/.golangci.yaml, one
 # configuration for both modules), go vet, govulncheck (a tool directive in
-# go.mod), go test -race with the golden page, `techradar check` (the
-# committed page equals a fresh render) and site_markup.py over the page.
+# go.mod), go test -race with coverage and the golden page, `techradar
+# check` (the committed page equals a fresh render) and site_markup.py over
+# the page.
 #
 # Without --all it exits 0 when TECHRADAR_BASE..HEAD (default HEAD^1, main
 # for a pull request's merge commit) touches none of techradar/, the rendered
@@ -29,6 +30,8 @@ for t in go golangci-lint python3; do
   command -v "$t" >/dev/null || { echo "techradar-check: $t is not on PATH" >&2; exit 1; }
 done
 
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 cd techradar
 
 rc=0
@@ -43,7 +46,8 @@ step "go mod tidy" go mod tidy -diff
 step "golangci-lint" golangci-lint run --config ../dashboard/.golangci.yaml ./...
 step "go vet" go vet ./...
 step "govulncheck" go tool govulncheck ./...
-step "go test" go test -race -count=1 ./...
+step "go test" go test -race -count=1 -coverpkg=./... -coverprofile="$work/cover.out" ./...
+step "coverage" "$root/scripts/ci/coverage-report.sh" go techradar "$work/cover.out"
 step "rendered page is current" go run ./cmd/techradar check -root "$root" -out ../apps/website/techradar
 step "site_markup" python3 ../scripts/ci/site_markup.py ../apps/website/techradar techradar.nedsi.io
 

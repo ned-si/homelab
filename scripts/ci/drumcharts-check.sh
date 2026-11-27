@@ -7,7 +7,7 @@
 # golangci-lint (dashboard/.golangci.yaml), go vet, govulncheck (a tool
 # directive in go.mod); drumcharts-data.sh verifies and extracts the pinned
 # image, and must fail with the site-publish identity; go test -race with
-# the golden tree and the real page images; `drumcharts render` of the data
+# coverage, the golden tree and the real page images; `drumcharts render` of the data
 # and site_markup.py over the pages.
 #
 # Without --all it exits 0 when DRUMCHARTS_BASE..HEAD (default HEAD^1, main
@@ -69,7 +69,8 @@ step "go mod tidy" go mod tidy -diff
 step "golangci-lint" golangci-lint run --config ../dashboard/.golangci.yaml ./...
 step "go vet" go vet ./...
 step "govulncheck" go tool govulncheck ./...
-step "go test" env DRUMCHARTS_DATA="$work/data" go test -race -count=1 ./...
+step "go test" env DRUMCHARTS_DATA="$work/data" go test -race -count=1 -coverpkg=./... -coverprofile="$work/cover.out" ./...
+step "coverage" "$root/scripts/ci/coverage-report.sh" go drumcharts "$work/cover.out"
 step "drumcharts render" go run ./cmd/drumcharts render -data "$work/data" -out "$work/site"
 step "site_markup" python3 ../scripts/ci/site_markup.py "$work/site" charts.nedsi.io
 

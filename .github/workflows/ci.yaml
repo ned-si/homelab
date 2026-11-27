@@ -432,7 +432,23 @@ jobs:
 
       - name: Unit tests (pytest)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: python -m pytest -q -p no:cacheprovider tests
+        env:
+          COVERAGE_FILE: ${{ runner.temp }}/coverage/.coverage
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$COVERAGE_FILE")"
+          python -m coverage run -m pytest -q -p no:cacheprovider tests
+
+      - name: Coverage (Python)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          COVERAGE_FILE: ${{ runner.temp }}/coverage/.coverage
+        run: |
+          set -euo pipefail
+          python -m coverage combine
+          python -m coverage json -q -o "$RUNNER_TEMP/coverage.json"
+          python -m coverage report --skip-covered
+          scripts/ci/coverage-report.sh python python "$RUNNER_TEMP/coverage.json"
 
       - name: Unit tests (bash)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
