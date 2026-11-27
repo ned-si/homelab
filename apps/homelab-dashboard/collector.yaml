@@ -38,7 +38,7 @@ spec:
       containers:
         - name: collector
           # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-dashboard
-          image: ghcr.io/ned-si/homelab-dashboard:main@sha256:d5e0d88b0dc86897dbdee44f76e367fee9504debcb8c13887e1d08b367cd191c
+          image: ghcr.io/ned-si/homelab-dashboard:main@sha256:0a4b979830fb28775e29c916c288a9169c352523d97f012377f9fb0ad92bcfa7
           args: ["collect"]
           env:
             - name: GOMEMLIMIT
