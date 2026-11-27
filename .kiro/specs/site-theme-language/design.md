@@ -403,7 +403,7 @@ A new section, after "Access logs":
 > | Name | `theme` |
 > | Value | `light`, nothing else |
 > | Set | When you click the sun, never otherwise |
-> | Sent to | `nedsi.io` and its subdomains: this blog, the homelab dashboard and the tech radar |
+> | Sent to | `nedsi.io` and its subdomains: this blog, the homelab dashboard, the tech radar and the drum charts |
 > | Lasts | One year, or until you pick the dark theme, which deletes it |
 > | Used for | Sending you the light stylesheet |
 >
@@ -519,6 +519,7 @@ blog's feed in their language.
 | Blog | Blog | `https://blog.nedsi.io/fr/` |
 | Homelab | Homelab | `https://homelab.nedsi.io/fr/` from task 5, `https://homelab.nedsi.io/` before |
 | Tech radar | Tech radar | `https://techradar.nedsi.io/fr/` from task 6, `https://techradar.nedsi.io/` before |
+| Charts | Partitions | `https://charts.nedsi.io/fr/` from [drum-charts-site](../drum-charts-site/requirements.md#supersedes) task 7, `https://charts.nedsi.io/` before |
 | About | À propos | `https://blog.nedsi.io/fr/about/` |
 
 The order is that of `NAV` at the time, tech-radar task 3 included.

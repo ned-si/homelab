@@ -35,6 +35,7 @@ data:
     <a href="https://blog.nedsi.io/fr/">Blog</a>
     <a href="https://homelab.nedsi.io/fr/">Homelab</a>
     <a href="https://techradar.nedsi.io/fr/">Tech radar</a>
+    <a href="https://charts.nedsi.io/">Partitions</a>
     <a href="https://blog.nedsi.io/fr/about/">À propos</a>
     </nav>
     <p class="prefs">
@@ -59,6 +60,7 @@ data:
     <li><a href="https://blog.nedsi.io/fr/">Blog</a> : la sécurité, la fiabilité, le <em>platform engineering</em> et l’expérience développeur, avec le homelab comme terrain de jeu : sa construction, son exploitation, les compromis derrière, et ce que j’apprends en chemin.</li>
     <li><a href="https://homelab.nedsi.io/fr/">Tableau de bord du homelab</a> : le homelab en chiffres, en direct : disponibilité, le cluster, les métriques DORA, la sécurité.</li>
     <li><a href="https://techradar.nedsi.io/fr/">Tech radar</a> : ce que le homelab utilise, essaie, évalue et met de côté, et pourquoi.</li>
+    <li><a href="https://charts.nedsi.io/">Partitions de batterie</a> : les morceaux que je joue, à lire dans le navigateur ou à télécharger en PDF.</li>
     <li><a href="https://blog.nedsi.io/fr/about/">À propos</a> : qui je suis, ce que j’ai fait jusqu’ici, certifications et conférences.</li>
     <li><a href="https://github.com/ned-si/">Projets sur GitHub</a> : le homelab, les <em>firmwares</em> de claviers et les partitions de batterie, tout en open source.</li>
     </ul>
@@ -91,7 +93,7 @@ data:
     <p class="label">Projet</p>
     <h3>Partitions de batterie</h3>
     <p>Des partitions de batterie <em>as code</em> : des morceaux écrits en LilyPond, découpés par section, avec ma propre notation et une légende. Faites pour apprendre la structure d’un morceau plutôt que chaque note.</p>
-    <a href="https://github.com/ned-si/drum-charts">Code source sur GitHub</a>
+    <p class="links"><a class="button" href="https://charts.nedsi.io/">Voir les partitions</a> · <a href="https://github.com/ned-si/drum-charts">Code source sur GitHub</a></p>
     </article>
     </div>
     </section>
@@ -168,6 +170,7 @@ data:
     <a href="https://blog.nedsi.io/">Blog</a>
     <a href="https://homelab.nedsi.io/">Homelab</a>
     <a href="https://techradar.nedsi.io/">Tech radar</a>
+    <a href="https://charts.nedsi.io/">Charts</a>
     <a href="https://blog.nedsi.io/about/">About</a>
     </nav>
     <p class="prefs">
@@ -192,6 +195,7 @@ data:
     <li><a href="https://blog.nedsi.io/">Blog</a>: security, reliability, platform engineering and developer experience, with the homelab as my playground: how it is built and run, the trade-offs behind it, and what I learn on the way.</li>
     <li><a href="https://homelab.nedsi.io/">Homelab dashboard</a>: the homelab in numbers, live: availability, the cluster, DORA metrics, security.</li>
     <li><a href="https://techradar.nedsi.io/">Tech radar</a>: what the homelab uses, tries, assesses and holds, and why.</li>
+    <li><a href="https://charts.nedsi.io/">Drum charts</a>: the songs I play, to read in the browser or download as PDF.</li>
     <li><a href="https://blog.nedsi.io/about/">About</a>: who I am, what I have done so far, certifications and talks.</li>
     <li><a href="https://github.com/ned-si/">Projects on GitHub</a>: the homelab, the keyboard firmware and the drum charts, all in the open.</li>
     </ul>
@@ -224,7 +228,7 @@ data:
     <p class="label">Project</p>
     <h3>Drum charts</h3>
     <p>Drum charts as code: songs written in LilyPond, split by section, with my own notation and a legend. Built to learn a song's structure rather than every note.</p>
-    <a href="https://github.com/ned-si/drum-charts">Source on GitHub</a>
+    <p class="links"><a class="button" href="https://charts.nedsi.io/">See the charts</a> · <a href="https://github.com/ned-si/drum-charts">Source on GitHub</a></p>
     </article>
     </div>
     </section>
@@ -479,5 +483,5 @@ data:
     .prefs .to-light { display: none; }
 kind: ConfigMap
 metadata:
-  name: website-landing-gbh62hb864
+  name: website-landing-24m28425m7
   namespace: website

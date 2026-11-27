@@ -37,7 +37,7 @@ souvient avec un cookie :
 | Nom | `theme` |
 | Valeur | `light`, rien d'autre |
 | Posé | Quand vous cliquez sur le soleil, jamais autrement |
-| Envoyé à | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab et le Tech radar |
+| Envoyé à | `nedsi.io` et ses sous-domaines : ce blog, le tableau de bord du homelab, le Tech radar et les partitions de batterie |
 | Durée | Un an, ou jusqu'à ce que vous choisissiez le thème sombre, qui l'efface |
 | Sert à | Vous envoyer la feuille de style claire |
 

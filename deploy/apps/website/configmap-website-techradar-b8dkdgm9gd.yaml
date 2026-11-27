@@ -35,6 +35,7 @@ data:
     <a href="https://blog.nedsi.io/fr/">Blog</a>
     <a href="https://homelab.nedsi.io/fr/">Homelab</a>
     <a href="/fr/" aria-current="page">Tech radar</a>
+    <a href="https://charts.nedsi.io/">Partitions</a>
     <a href="https://blog.nedsi.io/fr/about/">À propos</a>
     </nav>
     <p class="prefs">
@@ -394,6 +395,7 @@ data:
     <a href="https://blog.nedsi.io/">Blog</a>
     <a href="https://homelab.nedsi.io/">Homelab</a>
     <a href="/" aria-current="page">Tech radar</a>
+    <a href="https://charts.nedsi.io/">Charts</a>
     <a href="https://blog.nedsi.io/about/">About</a>
     </nav>
     <p class="prefs">
@@ -983,5 +985,5 @@ data:
     .prefs .to-light { display: none; }
 kind: ConfigMap
 metadata:
-  name: website-techradar-ck64kc5f7m
+  name: website-techradar-b8dkdgm9gd
   namespace: website
