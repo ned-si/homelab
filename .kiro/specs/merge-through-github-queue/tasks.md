@@ -10,6 +10,12 @@ three commands of
 and attach their output to the task 1 PR; any difference stops the
 cutover.
 
+Ticks: each task PR ticks the tasks merged before it (task 2 ticks 1,
+task 4 ticks 2 and 3). Task 3 has no PR of its own. After task 5's checks
+pass, a last PR `docs(spec): close merge-through-github-queue` ticks 4 and
+5, sets `status: done` and `closed:`, updates the `.kiro/specs/README.md`
+row, says `Closes #1832` and merges with the wrapper.
+
 - [ ] 1. Hold the Renovate train while a pull request is in flight:
       `scripts/ci/renovate-next.sh` (the hold right after the
       `auto-rollback` hold, its header comment) and the cases in
@@ -30,10 +36,13 @@ cutover.
       a copy of each skill kept first, then the run-conventions and
       homelab-context skills and the handover notes as in
       [design, The skills and the local notes](design.md#the-skills-and-the-local-notes).
-      No Claude Code link is added. Ticked with the date. [5.1]
+      No Claude Code link is added. Ticked with the date by the task 4
+      PR. [5.1]
 - [ ] 4. Docs: the files in
       [design, Documentation and the skills](design.md#documentation-and-the-skills),
-      including the break-glass runbooks, merged with the new wrapper. This
+      including the break-glass runbooks and the active netpol-default-deny
+      spec (design D6, its break-glass acceptance criterion), merged with
+      the new wrapper. This
       is the docs-only test PR. Procedure for AC 6:
       1. Branch from `origin/main~1`, not `origin/main`, so that the PR is
          behind when the wrapper starts (if `main~1..main` touches the same
@@ -50,8 +59,8 @@ cutover.
          <merge-sha>` lists `ci` and `renovate-next`.
       Check: AC 6, and AC 9 (Scorecard Branch-Protection 4) once Scorecard
       has run after the merge. [4.3, 5.2, 5.3; AC 6, 9]
-- [ ] 5. Verify a Renovate merge and the settings (no PR): the first
-      Renovate PR merged after task 4, with `ci` green on its head; the
-      three settings commands print the expected lines. Ticked with that
-      PR's number and merge SHA. The tick sets this spec `done` and closes
-      #1832. [3.1, 4.1, 4.2, 4.4; AC 7, 8 after]
+- [ ] 5. Verify a Renovate merge and the settings (no task PR): the
+      first Renovate PR merged after task 4, with `ci` green on its head;
+      the three settings commands print the expected lines. Ticked with
+      that PR's number and merge SHA by the closing PR above, which sets
+      this spec `done` and closes #1832. [3.1, 4.1, 4.2, 4.4; AC 7, 8 after]

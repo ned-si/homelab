@@ -109,9 +109,12 @@ human output and a merge still happens if the run that asked for it dies.
    return only once the pull request is merged (printing the merge commit
    SHA) or a refusal or error ends the run. It SHALL leave auto-merge on
    when it ends without a merge, and SHALL stop (exit 1) when someone else
-   turns auto-merge off or moves the head. WHEN a freeze that does not
-   allow this pull request is set while it waits, it SHALL turn its own
-   auto-merge off and refuse.
+   turns auto-merge off or moves the head, whether the pull request is
+   behind or not, without rebasing or enabling auto-merge again. WHEN a
+   freeze that does not allow this pull request is set, or the freeze
+   cannot be read, while it waits, it SHALL turn its own auto-merge off
+   and refuse. THE wrapper SHALL read the freeze again after any wait and
+   right before it requests or performs a merge.
 8. WHILE an open pull request labelled `auto-rollback`, other than its own
    and not a stale revert, exists, THE wrapper SHALL neither rebase nor
    enable auto-merge. A stale revert SHALL be logged and ignored.
@@ -168,7 +171,9 @@ settings of `main` and the automatic rollback exactly as they are.
    the gh shim for `pr-merge.sh`.
 2. README.md, docs/decisions.md, docs/dependencies.md, GOVERNANCE.md, the
    hold-every-merge and revert steps of docs/runbooks/netpol-enforcement.md
-   and docs/runbooks/pod-security.md, and the gitops-delivery area spec
+   and docs/runbooks/pod-security.md, the active netpol-default-deny spec
+   (design D6, its break-glass acceptance criterion), and the
+   gitops-delivery area spec
    SHALL describe the new merge path, and docs/decisions.md SHALL say why
    there is no native merge queue.
 3. THE hold-every-merge steps SHALL set the freeze before they turn
@@ -192,11 +197,14 @@ settings of `main` and the automatic rollback exactly as they are.
 ## Acceptance criteria
 
 1. `tests/bash/test_pr_merge.sh` passes and covers:
-   1. merged after enabling auto-merge;
+   1. merged after enabling auto-merge, with the log line `pr-merge:
+      auto-merge on for PR #<n> at <sha7>`;
    2. merged at once by `--auto` on a mergeable pull request (the next read
       shows it merged);
-   3. behind, rebased and merged, with auto-merge not requested again when
-      it is still on after the push;
+   3. behind, rebased and merged, with the log lines `pr-merge: rebasing
+      <branch> onto <remote>/main <sha7>`, `pr-merge: pushed <branch> at
+      <sha>` and `pr-merge: auto-merge already on for PR #<n>`, and
+      auto-merge not requested again when it is still on after the push;
    4. already merged;
    5. refusals for closed, draft, wrong base, freeze set, freeze unreadable,
       variables API error, `ci` failed, `--ff`;
@@ -208,9 +216,13 @@ settings of `main` and the automatic rollback exactly as they are.
       run's head, then merged: exit 0;
    9. `FAKE_MERGE_RC=1` on an up-to-date pull request with a green `ci` and
       auto-merge off: direct merge;
-   10. auto-merge turned off by someone else (exit 1); head moved by
-       someone else (exit 1); a freeze set while waiting (auto-merge turned
-       off, exit 2);
+   10. auto-merge turned off by someone else (exit 1); auto-merge turned
+       off by someone else on a behind pull request (exit 1, no push: the
+       fake's calls.log has no `git push` and no second `pr merge
+       --auto`); head moved by someone else (exit 1); a freeze set while
+       waiting (auto-merge turned off, exit 2); the freeze unreadable while
+       waiting (auto-merge turned off, exit 2); a freeze set while the run
+       waits for a revert (no push, no `pr merge`, exit 2);
    11. an `auto-rollback` pull request opened 10 minutes ago holds the
        wrapper; one opened 80 minutes ago is logged as stale and ignored;
    12. a rebase whose stderr contains `agent refused operation` prints
@@ -260,4 +272,5 @@ settings of `main` and the automatic rollback exactly as they are.
   stale or not (#1003); it stays as it is.
 - Retiring the wrapper: it stays, because GitHub cannot rebase a signed
   branch (design, [Why the wrapper stays](design.md#why-the-wrapper-stays)).
-- Done specs that mention `scripts/pr-merge.sh`: they are history.
+- Done specs that mention `scripts/pr-merge.sh`: they are history. The
+  active netpol-default-deny spec is updated in task 4.

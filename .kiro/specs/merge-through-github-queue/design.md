@@ -94,9 +94,11 @@ or setting.
 
 - `scripts/pr-merge.sh`: the flow below, about 250 lines.
 - `scripts/lib/merge_lock.sh`: `lock_acquire <branch>`, `lock_refresh`,
-  `lock_release`, `ticket_drop`, moved verbatim from today's script without
-  `train_pause` and `train_resume`. The caller provides `pr`, `POLL`,
-  `LOCK_WAIT`, `LOCK_STALE_MIN`, `log` and `nap`. Lock and ticket paths,
+  `lock_release`, `ticket_drop`, moved from today's script minus the three
+  `train_*` calls and the `paused`/`PAUSE_REFRESH` lines in
+  `lock_refresh`; everything else verbatim. The caller provides `pr`,
+  `POLL`, `LOCK_WAIT`, `LOCK_STALE_MIN`, `log`, `nap` and `now`, and the
+  `lock_held`, `LOCK_DIR`, `QUEUE_DIR` and `ticket` globals. Lock and ticket paths,
   the `owner` and ticket file formats, and the stale rules stay as they
   are, so an old run and a new run see each other's lock and tickets.
 - `scripts/lib/gh_var.sh`: unchanged. `gh_var_state MERGE_FREEZE` makes
@@ -220,31 +222,46 @@ if [[ $val =~ $re ]] && [ "${BASH_REMATCH[1]}" = "$pr" ]; then allowed=1; fi
       `jq -rn --arg t "$t" '$t | fromdateiso8601'`) is at least
       `PR_MERGE_REVERT_STALE_MIN` minutes is logged once per run as
       `ignoring stale revert #<m> (opened <created_at>)`. While a younger
-      one is open, log `waiting for the revert #<m>` once a minute, call
-      `lock_refresh` and re-check. Give up after `PR_MERGE_CI_TIMEOUT`
-      with exit 1.
+      one is open, log `waiting for the revert #<m>` once a minute and
+      call `lock_refresh`. After any wait, go back to step 6.1, so the
+      guards and the freeze are read again. Give up after
+      `PR_MERGE_CI_TIMEOUT` with exit 1.
    3. If `behind_by > 0`, refuse when the branch is not ours to rebase
       (`head.repo.full_name` differs from `$REPO`, or the author is not
-      `me`), the same rule as today. Then rebase onto `origin/main` in a
-      throwaway worktree, with the rebase's stderr in a temporary file,
-      and push with `--force-with-lease=refs/heads/<ref>:<old>`. A failed
+      `me`), the same rule as today. Then run `git fetch --quiet "$REMOTE"
+      main "$head"` (a failed fetch exits 1 with `cannot fetch $REMOTE main
+      and the head commit`), set `main_sha=$(git rev-parse
+      "refs/remotes/$REMOTE/main")`, log `pr-merge: rebasing <branch> onto
+      <remote>/main <sha7>`, rebase onto `main_sha` in a throwaway
+      worktree, with the rebase's stderr in a temporary file, push with
+      `--force-with-lease=refs/heads/<ref>:<old>` and log `pr-merge:
+      pushed <branch> at <sha>` (today's lines). A failed
       rebase is refused (exit 2) with `refused: up-to-date: signing failed
       (Bitwarden locked?)` when that stderr contains `agent refused
       operation`, and `refused: up-to-date: rebase onto main failed;
       rebase it by hand` otherwise. A failed push exits 1. After the 4th
       rebase in one run (3 retries, today's limit) it exits 1 with `main
       kept moving`.
-   4. `read_pr`. If auto-merge is `on`, go to step 7: a push by a user
-      with write access leaves it on, as `auto-rollback-keep.sh` relies
-      on. If it is `off`, run `gh pr merge <n> --repo $REPO --auto --squash
-      --match-head-commit <head>`, with stdout to `/dev/null` and stderr to
-      the truncated `$errlog`. Only its exit code is used. On exit 0, go to
-      step 7 (gh may already have merged it; the poll sees that). On a
-      non-zero exit, `read_pr` again: merged exits 0; auto-merge `on` with
-      `head.sha` equal to this run's head goes to step 7; up to date with
-      a green `ci` is merged directly with `gh pr merge <n> --repo $REPO
-      --squash --match-head-commit <head>` (requirement 1.6) and read
-      again; anything else exits 1 with `cannot enable auto-merge: <why>`.
+   4. `read_pr`. If auto-merge is `on`, set `am_seen=1`, log `pr-merge:
+      auto-merge already on for PR #<n>` and go to step 7: a push by a
+      user with write access leaves it on, as `auto-rollback-keep.sh`
+      relies on. If it is `off` and `am_seen=1`, someone else turned it
+      off: exit 1 with `auto-merge was turned off on PR #<n>; nothing
+      merged`, without requesting it again. If it is `off` and `am_seen`
+      is unset, apply the freeze rule again (a freeze that does not allow
+      this PR refuses with exit 2 and nothing is requested), then run `gh
+      pr merge <n> --repo $REPO --auto --squash --match-head-commit
+      <head>`, with stdout to `/dev/null` and stderr to the truncated
+      `$errlog`. Only its exit code is used. On exit 0, set `am_seen=1`,
+      log `pr-merge: auto-merge on for PR #<n> at <sha7>` and go to step 7
+      (gh may already have merged it; the poll sees that). On a non-zero
+      exit, `read_pr` again: merged exits 0; auto-merge `on` with
+      `head.sha` equal to this run's head sets `am_seen=1` and goes to
+      step 7; up to date with a green `ci` is merged directly with `gh pr
+      merge <n> --repo $REPO --squash --match-head-commit <head>`
+      (requirement 1.6), after the freeze rule is applied once more, and
+      read again; anything else exits 1 with `cannot enable auto-merge:
+      <why>`.
 7. Poll every `PR_MERGE_POLL` seconds for at most `PR_MERGE_CI_TIMEOUT`
    per head, calling `lock_refresh` each time. The checks run in this
    order:
@@ -253,14 +270,14 @@ if [[ $val =~ $re ]] && [ "${BASH_REMATCH[1]}" = "$pr" ]; then allowed=1; fi
    2. closed: refuse;
    3. `head.sha` is not this run's head: exit 1, `head moved to <sha7> by
       someone else`;
-   4. the freeze refuses: `gh pr merge <n> --repo $REPO --disable-auto`,
-      then refuse;
+   4. the freeze refuses, or cannot be read (fail closed): `gh pr merge
+      <n> --repo $REPO --disable-auto`, then refuse;
    5. `ci` completed without success: refuse, `ci is <conclusion> on
       <sha7>`, with auto-merge left on, so that a rerun that passes still
       merges;
-   6. `behind_by > 0`: back to step 6.1;
-   7. auto-merge off and up to date: exit 1, `auto-merge was turned off on
-      PR #<n>; nothing merged`;
+   6. auto-merge off (`am_seen=1` by now): exit 1, `auto-merge was turned
+      off on PR #<n>; nothing merged`, whether the PR is behind or not;
+   7. `behind_by > 0`: back to step 6.1;
    8. otherwise keep waiting.
    At the deadline the run exits 1 with `timed out after <m> min waiting
    for ci on <sha7>; auto-merge stays on`.
@@ -268,8 +285,9 @@ if [[ $val =~ $re ]] && [ "${BASH_REMATCH[1]}" = "$pr" ]; then allowed=1; fi
    temporary files, drop the ticket and release the lock (only the lock
    this run owns, as today). Auto-merge is left as it is.
 
-The freeze check (7.4) comes before the behind check (7.6), so a wrapper
-never rebases and turns auto-merge on again once a freeze is set.
+The freeze check (7.4) and the auto-merge-off check (7.6) come before the
+behind check (7.7), so a wrapper never rebases and turns auto-merge on
+again once a freeze is set or someone else turned auto-merge off.
 
 The squash commit is GitHub's, built as it is today: the title follows
 `COMMIT_OR_PR_TITLE` plus ` (#<n>)`, the body `COMMIT_MESSAGES`, and
@@ -400,12 +418,14 @@ ntfy guard topic, and nothing here touches either.
 | `docs/dependencies.md` | "How updates merge": the train holds while another PR is in flight |
 | `GOVERNANCE.md` | The AI agents row: "merge only through `scripts/pr-merge.sh` (GitHub auto-merge), only on a green `ci`" |
 | `docs/runbooks/netpol-enforcement.md`, `docs/runbooks/pod-security.md` | See [The break-glass runbooks](#the-break-glass-runbooks) |
+| `.kiro/specs/netpol-default-deny/` (active, #709) | design D6 steps 2 and 3, its merges row in the failure table, and requirements acceptance criterion 1 of the break-glass requirement: "set `MERGE_FREEZE`, wait 60 s, then turn auto-merge off on every open PR; the revert is allowed with `(allow #<n>)`" instead of telling every other runner to stop |
 | `.kiro/specs/gitops-delivery/` | The `pr-merge.sh` row and requirement 3: "auto-merge on a green `ci`, requested inside the merge lock"; the flowchart label |
 | `scripts/ci/renovate-next.sh`, `.github/workflows/renovate-next.yaml` | Task 1: the hold in the header comment. Task 2: `RENOVATE_TRAIN_PAUSED` described as a manual pause (no longer "set by scripts/pr-merge.sh"), and the workflow comment that says `pr-merge.sh` pauses and dispatches the train |
 
 `docs/testing.md` does not describe merging and stays as it is. So does
 `SECURITY.md`, which still says "merged by `scripts/pr-merge.sh`". Done
-specs are history and stay as they are.
+specs are history and stay as they are; active specs that describe the
+hold are updated.
 
 ### The break-glass runbooks
 
@@ -562,7 +582,7 @@ not set: GitHub derives it from `squash_merge_commit_title`.
 | Request the merge | gh exit != 0, then not merged, auto-merge not on at the head, not directly mergeable | fatal | exit 1, `cannot enable auto-merge: <why>` | stderr |
 | Direct merge (1.6) | gh exit != 0 and not merged after | fatal | exit 1 | stderr |
 | Poll | head moved, auto-merge off, timeout, `main kept moving` | fatal | exit 1, auto-merge left as it is | stderr |
-| Poll | `ci` failed, closed, freeze | fatal | exit 2 (auto-merge off on a freeze, else left on) | stdout |
+| Poll | `ci` failed, closed, freeze set or unreadable | fatal | exit 2; auto-merge turned off on a freeze or an unreadable freeze, else left on | stdout |
 | Train hold | `gh pr list` or `compare` fails | fatal for the run (`set -e`), as the train's other calls are | a red `renovate-next` run; the next trigger retries | the Actions log |
 
 The wrapper never prints a token. gh's error lines contain no token.
