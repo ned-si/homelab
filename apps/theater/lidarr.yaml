@@ -154,7 +154,7 @@ spec:
       containers:
         - name: lidarr
           # renovate: datasource=docker depName=ghcr.io/hotio/lidarr
-          image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:7abe04d705b439afe5edd425bc3704a5ca5a7ac1589309594549703edb749dbe
+          image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:ee42b2ea1e4499028300a0d957a0a1bae8e19a5ffe7f788f09448cabf884c426
           imagePullPolicy: Always
           # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
           # root and drops to hotio (1000) with s6-setuidgid, which needs
