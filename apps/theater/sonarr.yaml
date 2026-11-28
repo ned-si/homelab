@@ -159,7 +159,7 @@ spec:
       containers:
         - name: sonarr
           # renovate: datasource=docker depName=ghcr.io/hotio/sonarr
-          image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:0717fe55c2d631692969b660dd5c164b1ae605b9072581184a276680a4ef0724
+          image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:897fc0a09c9949438d2763d9ee43ea40b052533f1d515a84101c91e75ed2dd04
           imagePullPolicy: Always
           # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
           # root and drops to hotio (1000) with s6-setuidgid, which needs
