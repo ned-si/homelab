@@ -28,7 +28,7 @@ spec:
           # Built by .github/workflows/site-publish.yaml; Renovate bumps the
           # digest (.kiro/specs/public-website/design.md#publishing-flow).
           # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-site
-          image: ghcr.io/ned-si/homelab-site:main@sha256:187201e4ff4d2d921a73d24db94c00dcd5582872c85d92e14f829829e65d6537
+          image: ghcr.io/ned-si/homelab-site:main@sha256:38db2a5cfbdaacc90b8e3cf3fd13501e1abc10c74d6db734cc9c386e15a51778
           # nginx directly: the image's entrypoint scripts edit /etc/nginx,
           # which is read-only here. The config is apps/website/nginx.conf.
           command: ["nginx", "-c", "/etc/nginx-site/nginx.conf", "-g", "daemon off;"]
